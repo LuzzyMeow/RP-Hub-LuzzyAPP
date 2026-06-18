@@ -936,5 +936,85 @@ implementation 'org.nanohttpd:nanohttpd:2.3.1'
 
 ---
 
+## 十一、第五轮改动（2026-06-18：TRPG 代理优化 + Bug 修复 + Release V2）
+
+### 11.0 改动背景
+
+用户反馈第四轮的 TRPG 代理方案存在两个问题：
+1. **代理不够全面**：默认只支持火山方舟，其他 API 需要手动拼 `_target` 参数，体验差
+2. **抗更新能力存疑**：需要确认 aisandboxgame.com 更新后代理机制是否仍然有效
+
+经深入调研确认：
+- **抗更新能力**：代理机制完全在 Android 原生层（MainActivity.java），不修改 aisandboxgame.com 的任何代码。aisandboxgame.com 更新后，只要仍使用 `fetch` 调用 OpenAI 兼容端点（`/chat/completions`、`/models`、`/embeddings`），代理就有效。代理不依赖网页代码，不会被顶替。
+- **shouldInterceptRequest 不可行**：Android WebView 的 `shouldInterceptRequest` 无法获取 POST 请求体（腾讯云文档确认），无法用于 API 转发。NanoHTTPD 本地代理是唯一可行方案。
+
+### 11.1 `MainActivity.java` 修复 resolveTargetBase 逻辑错误
+**文件**：`android/app/src/main/java/com/luzzymeow/rphub/MainActivity.java`
+**位置**：`resolveTargetBase` 方法（约第 267-291 行）
+**问题**：原代码 `/v1` 路径默认也指向火山方舟，但火山方舟用 `/v3`。用户用 `/v1` 访问火山方舟会得到错误的 URL `https://ark.cn-beijing.volces.com/api/coding/v1/chat/completions`（应该是 `/v3`）。
+**修复**：`/v1` 路径不再默认指向火山方舟，必须通过 `_target` 参数指定目标。只有 `/v3` 路径自动映射到火山方舟 coding plan。
+
+```java
+// 修复前（错误）：/v1 也默认指向火山方舟
+if (uri.startsWith("/v1") || uri.startsWith("/v1/")) {
+    return VOLCANO_ARK_BASE;  // 错误！/v1 + 火山方舟 = /v1/chat/completions，但火山方舟用 /v3
+}
+
+// 修复后（正确）：/v1 必须配合 _target 参数
+// 只保留 /v3 → 火山方舟的自动映射
+```
+
+### 11.2 `MainActivity.java` 修复 buildQueryString 正则清理不完整
+**文件**：`android/app/src/main/java/com/luzzymeow/rphub/MainActivity.java`
+**位置**：`buildQueryString` 方法（约第 296-307 行）
+**问题**：原正则 `(^|[&?])_target=[^&]*` 移除 `_target` 参数后可能留下连续的 `&&`（如 `a=1&_target=x&b=2` → `a=1&&b=2`）。
+**修复**：增加 `&{2,}` 清理连续的 `&`。
+
+```java
+// 修复前
+queryString = queryString.replaceAll("(^|[&?])_target=[^&]*", "");
+queryString = queryString.replaceAll("^[&?]+", "");
+
+// 修复后
+queryString = queryString.replaceAll("(^|[&?])_target=[^&]*", "");
+queryString = queryString.replaceAll("^[&?]+", "");
+queryString = queryString.replaceAll("&{2,}", "&");  // 新增：清理连续 &
+```
+
+### 11.3 `MainActivity.java` 更新设计文档注释
+**文件**：`android/app/src/main/java/com/luzzymeow/rphub/MainActivity.java`
+**位置**：类级别注释（第 22-55 行）
+**改动**：添加"抗更新能力"说明，明确代理机制不依赖网页代码，不会被 aisandboxgame.com 更新顶替。
+
+### 11.4 `android-patches/MainActivity.java` 同步更新
+**文件**：`android-patches/MainActivity.java`
+**改动**：将修复后的 MainActivity.java 同步到 android-patches 目录，确保 git 版本控制中的副本与实际构建使用的一致。
+
+### 11.5 TRPG 使用说明（最终版）
+
+**火山方舟 Coding Plan（默认，最简配置）**：
+- API 地址：`http://localhost:18527/v3`
+- API Key：你的火山方舟 API Key
+- 模型名：如 `ark-code-latest`
+
+**其他 API 提供商（通过 _target 参数）**：
+- DeepSeek：`http://localhost:18527/v1?_target=https://api.deepseek.com`
+- OpenAI：`http://localhost:18527/v1?_target=https://api.openai.com`
+- 其他 OpenAI 兼容 API：`http://localhost:18527/<路径>?_target=<你的API地址>`
+
+**为什么用户需要填 `localhost:18527` 而不是直接填真实 API 地址？**
+- Android WebView 的 `shouldInterceptRequest` 无法获取 POST 请求体，无法拦截转发
+- CapacitorHttp 只 patch 主页面 fetch，iframe 内的 fetch 不受影响
+- NanoHTTPD 本地代理是唯一可行方案，用户必须将 API 地址指向本地代理
+- 代理服务器自动识别路径前缀（`/v3` → 火山方舟），用户只需填一次地址
+
+### 11.6 预期产出
+- 修复后的 APK（`RP-Hub-v1.7.1-debug.apk`）
+- Release V2：`RP-Hub v1.7.1 V2 (Android APK)`
+- 更新的 CHANGELOG.md 和 README.md
+- 推送到远程仓库
+
+---
+
 **最后更新**：2026-06-18
 **维护者**：LuzzyMeow
