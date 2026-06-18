@@ -1120,6 +1120,12 @@ createApp({
         const ACTIVE_TOOL_KEYWORD_TYPE = 'keyword_dialogue';
         const ACTIVE_TOOL_WEB_TYPE = 'web_search';
         const ACTIVE_TOOL_WORLD_TYPE = 'world_info';
+        const ACTIVE_TOOL_MCP_HTTP_TYPE = 'mcp_http';
+        const ACTIVE_TOOL_MCP_DEFAULT_DESCRIPTION = '通过 MCP 协议调用远程工具服务器';
+        const ACTIVE_TOOL_MCP_DEFAULT_DISPLAY_DESCRIPTION = 'MCP HTTP 工具';
+        const MCP_PROTOCOL_VERSION = '2025-03-26';
+        const MCP_CLIENT_INFO = { name: 'rp-hub', version: '1.7.1' };
+        const MCP_REQUEST_TIMEOUT_MS = 60000;
         const ACTIVE_TOOL_MIN_RESULT_COUNT = 8;
         const ACTIVE_TOOL_DEFAULT_RESULT_COUNT = 8;
         const ACTIVE_TOOL_MAX_RESULT_COUNT = 12;
@@ -1216,6 +1222,25 @@ createApp({
             description: ACTIVE_TOOL_WEB_DEFAULT_DESCRIPTION,
             displayDescription: ACTIVE_TOOL_WEB_DEFAULT_DISPLAY_DESCRIPTION,
             tavilyApiKey: ''
+        });
+        const createDefaultMcpHttpTool = (overrides = {}) => ({
+            id: overrides.id || `tool_mcp_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+            name: overrides.name || '未命名 MCP 工具',
+            enabled: false,
+            type: ACTIVE_TOOL_MCP_HTTP_TYPE,
+            callName: overrides.callName || (overrides.id || 'tool_mcp_unnamed'),
+            description: ACTIVE_TOOL_MCP_DEFAULT_DESCRIPTION,
+            displayDescription: ACTIVE_TOOL_MCP_DEFAULT_DISPLAY_DESCRIPTION,
+            mcpConfig: {
+                url: '',
+                headers: {},
+                protocolVersion: MCP_PROTOCOL_VERSION
+            },
+            mcpSessionId: '',
+            mcpTools: [],
+            mcpLastFetchedAt: 0,
+            mcpLastError: '',
+            ...overrides
         });
 
         const normalizeWorldInfoAccessMode = (value) => (
@@ -1356,6 +1381,18 @@ createApp({
                     normalized.description = getWorldInfoToolDescription(normalized.worldInfoAccessMode);
                     normalized.displayDescription = getWorldInfoToolDisplayDescription(normalized.worldInfoAccessMode);
                 }
+            }
+            if (normalizedType === ACTIVE_TOOL_MCP_HTTP_TYPE) {
+                normalized.mcpConfig = {
+                    url: String(tool.mcpConfig?.url || '').trim(),
+                    headers: (tool.mcpConfig?.headers && typeof tool.mcpConfig.headers === 'object' && !Array.isArray(tool.mcpConfig.headers))
+                        ? tool.mcpConfig.headers : {},
+                    protocolVersion: String(tool.mcpConfig?.protocolVersion || MCP_PROTOCOL_VERSION)
+                };
+                normalized.mcpSessionId = String(tool.mcpSessionId || '');
+                normalized.mcpTools = Array.isArray(tool.mcpTools) ? tool.mcpTools : [];
+                normalized.mcpLastFetchedAt = Number(tool.mcpLastFetchedAt) || 0;
+                normalized.mcpLastError = String(tool.mcpLastError || '');
             }
             return normalized;
         };
@@ -4825,6 +4862,20 @@ ${content}
         const isWorldInfoActiveTool = (tool) => tool?.type === ACTIVE_TOOL_WORLD_TYPE
             || ['tool_world', 'tool_world_list', 'tool_world_read', 'tool_world_edit'].includes(normalizeActiveToolBaseCallName(tool?.callName));
 
+        const isMcpHttpActiveTool = (tool) => tool?.type === ACTIVE_TOOL_MCP_HTTP_TYPE
+            || normalizeActiveToolBaseCallName(tool?.callName || '').startsWith('tool_mcp_');
+
+        const getMcpToolServerShortId = (tool) => {
+            const id = String(tool?.id || '');
+            return id.length >= 6 ? id.slice(-6) : id;
+        };
+
+        const getMcpSubToolCallLabels = (tool, subToolName) => {
+            const sid = getMcpToolServerShortId(tool);
+            const base = `tool_mcp_${sid}_${subToolName}`;
+            return { add: `${base}_add`, cover: `${base}_cover` };
+        };
+
         const getWorldInfoAccessMode = (tool) => normalizeWorldInfoAccessMode(tool?.worldInfoAccessMode || tool?.worldInfoMode || tool?.accessMode);
 
         const canEditWorldInfoWithTool = (tool) => getWorldInfoAccessMode(tool) === ACTIVE_TOOL_WORLD_ACCESS_EDIT;
@@ -4898,6 +4949,29 @@ ${content}
                 const keywordTool = isKeywordActiveTool(tool);
                 const webTool = isWebActiveTool(tool);
                 const worldTool = isWorldInfoActiveTool(tool);
+                const mcpTool = isMcpHttpActiveTool(tool);
+                if (mcpTool) {
+                    const subTools = Array.isArray(tool.mcpTools) ? tool.mcpTools : [];
+                    if (subTools.length === 0) return '';
+                    const sid = getMcpToolServerShortId(tool);
+                    return subTools.map(sub => {
+                        const subLabels = getMcpSubToolCallLabels(tool, sub.name);
+                        const subAdd = escapeXmlAttribute(subLabels.add);
+                        const subCover = escapeXmlAttribute(subLabels.cover);
+                        const callPlaceholder = 'JSON 参数';
+                        const returnLabel = 'MCP 工具返回文本';
+                        const schemaHint = sub.inputSchema && typeof sub.inputSchema === 'object'
+                            ? `参数 Schema：${JSON.stringify(sub.inputSchema).slice(0, 500)}`
+                            : '';
+                        return [
+                            formatToolOpenTag({ name: `${tool.name} / ${sub.name}`, addCallName: subAdd, coverCallName: subCover, callPlaceholder, returnLabel }),
+                            `说明：${sub.description || tool.description || ACTIVE_TOOL_MCP_DEFAULT_DESCRIPTION}`,
+                            `用途：通过 MCP 协议调用远程工具 ${tool.name} 的 ${sub.name} 子工具。`,
+                            schemaHint,
+                            `</tool>`
+                        ].filter(Boolean).join('\n');
+                    }).join('\n\n');
+                }
                 if (worldTool) {
                     const worldCanEdit = canEditWorldInfoWithTool(tool);
                     const callPlaceholder = worldCanEdit ? 'list / read 世界书名字 / JSON编辑参数' : 'list / read 世界书名字';
@@ -7372,6 +7446,259 @@ ${content}
             return results;
         };
 
+        // === MCP HTTP Protocol ===
+        // MCP Streamable HTTP transport (2025-03-26 规范) 客户端实现。
+        // 用户在工具面板导入 MCP server 连接信息后，RP-Hub 自动 initialize + tools/list
+        // 拉取工具清单；AI 在正文输出 <tool_mcp_<sid>_<toolName>:argsJSON> 标签触发 tools/call。
+        let mcpRpcIdCounter = 0;
+
+        const mcpRpcCall = async (tool, method, params, signal) => {
+            const cfg = tool?.mcpConfig || {};
+            const url = String(cfg.url || '').trim();
+            if (!url) throw new Error('MCP server URL 未配置');
+
+            const id = ++mcpRpcIdCounter;
+            const reqBody = {
+                jsonrpc: '2.0',
+                id,
+                method,
+                params: params || {}
+            };
+
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/event-stream',
+                ...(cfg.headers || {})
+            };
+            if (tool.mcpSessionId) {
+                headers['Mcp-Session-Id'] = tool.mcpSessionId;
+            }
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(reqBody),
+                signal
+            });
+
+            if (!response.ok) {
+                const errText = await response.text().catch(() => '');
+                throw new Error(`MCP HTTP ${response.status}: ${errText.slice(0, 200)}`);
+            }
+
+            // 服务器可能返回 application/json 或 text/event-stream（Streamable HTTP）
+            const contentType = response.headers.get('content-type') || '';
+            // 如服务端在 initialize 时返回 Mcp-Session-Id，需缓存
+            const respSessionId = response.headers.get('mcp-session-id');
+            if (respSessionId) tool.mcpSessionId = respSessionId;
+
+            if (contentType.includes('text/event-stream')) {
+                // SSE：取第一条 data 事件作为响应（Streamable HTTP 单次调用语义）
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) throw new Error('MCP SSE 响应未收到 data 帧');
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    for (const line of lines) {
+                        const t = line.trim();
+                        if (!t.startsWith('data:')) continue;
+                        const jsonStr = t.slice(5).trim();
+                        if (!jsonStr) continue;
+                        try {
+                            const parsed = JSON.parse(jsonStr);
+                            if (parsed && (parsed.id === id || parsed.method)) {
+                                return parsed;
+                            }
+                        } catch (_) { /* skip */ }
+                    }
+                }
+            } else {
+                const parsed = await response.json();
+                return parsed;
+            }
+        };
+
+        const mcpInitialize = async (tool, signal) => {
+            const result = await mcpRpcCall(tool, 'initialize', {
+                protocolVersion: tool.mcpConfig?.protocolVersion || MCP_PROTOCOL_VERSION,
+                capabilities: { tools: {} },
+                clientInfo: MCP_CLIENT_INFO
+            }, signal);
+            if (result?.error) {
+                throw new Error(`MCP initialize 失败: ${result.error.message || JSON.stringify(result.error)}`);
+            }
+            // 初始化完成后发送 notifications/initialized（无 id 的通知）
+            try {
+                const notifyHeaders = {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json, text/event-stream',
+                    ...(tool.mcpConfig?.headers || {})
+                };
+                if (tool.mcpSessionId) notifyHeaders['Mcp-Session-Id'] = tool.mcpSessionId;
+                await fetch(tool.mcpConfig.url, {
+                    method: 'POST',
+                    headers: notifyHeaders,
+                    body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+                    signal
+                });
+            } catch (e) {
+                console.warn('[MCP] notifications/initialized 失败（非致命）:', e);
+            }
+            return result.result;
+        };
+
+        const mcpListTools = async (tool, signal) => {
+            const result = await mcpRpcCall(tool, 'tools/list', {}, signal);
+            if (result?.error) {
+                throw new Error(`MCP tools/list 失败: ${result.error.message || JSON.stringify(result.error)}`);
+            }
+            const tools = Array.isArray(result?.result?.tools) ? result.result.tools : [];
+            return tools.map(t => ({
+                name: String(t.name || ''),
+                description: String(t.description || ''),
+                inputSchema: t.inputSchema || { type: 'object' }
+            }));
+        };
+
+        const mcpCallTool = async (tool, toolName, args, signal) => {
+            const result = await mcpRpcCall(tool, 'tools/call', {
+                name: toolName,
+                arguments: args || {}
+            }, signal);
+            if (result?.error) {
+                throw new Error(`MCP tools/call(${toolName}) 失败: ${result.error.message || JSON.stringify(result.error)}`);
+            }
+            // result.result.content: [{ type:'text', text:'...' }] 或 [{ type:'image', data:'...', mimeType }]
+            const content = Array.isArray(result?.result?.content) ? result.result.content : [];
+            const textParts = content.map(part => {
+                if (part?.type === 'text') return String(part.text || '');
+                if (part?.type === 'image') return `[image:${part.mimeType || 'unknown'}]`;
+                if (part?.type === 'resource') return `[resource:${part?.resource?.uri || ''}]`;
+                return `[${part?.type || 'unknown'}]`;
+            });
+            return {
+                text: textParts.join('\n').trim(),
+                isError: !!result?.result?.isError,
+                raw: result.result
+            };
+        };
+
+        const mcpRefreshTool = async (tool, signal) => {
+            try {
+                tool.mcpLastError = '';
+                await mcpInitialize(tool, signal);
+                tool.mcpTools = await mcpListTools(tool, signal);
+                tool.mcpLastFetchedAt = Date.now();
+                return tool.mcpTools;
+            } catch (e) {
+                tool.mcpLastError = String(e?.message || e);
+                throw e;
+            }
+        };
+
+        // === MCP 工具导入 UI 状态与逻辑 ===
+        const showMcpToolImport = ref(false);
+        const mcpImportInput = reactive({ name: '', json: '' });
+        const mcpImportError = ref('');
+
+        const openMcpToolImport = () => {
+            mcpImportInput.name = '';
+            mcpImportInput.json = '';
+            mcpImportError.value = '';
+            showMcpToolImport.value = true;
+        };
+
+        const parseMcpImportJson = () => {
+            const text = (mcpImportInput.json || '').trim();
+            if (!text) { mcpImportError.value = 'JSON 不能为空'; return null; }
+            let parsed;
+            try { parsed = JSON.parse(text); }
+            catch (e) { mcpImportError.value = `JSON 无效: ${e.message}`; return null; }
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                mcpImportError.value = '必须是 JSON 对象';
+                return null;
+            }
+            if (!parsed.url || typeof parsed.url !== 'string') {
+                mcpImportError.value = '缺少 url 字段';
+                return null;
+            }
+            try { new URL(parsed.url); } catch (_) {
+                mcpImportError.value = 'url 不是合法 URL';
+                return null;
+            }
+            if (parsed.headers && (typeof parsed.headers !== 'object' || Array.isArray(parsed.headers))) {
+                mcpImportError.value = 'headers 必须是对象';
+                return null;
+            }
+            mcpImportError.value = '';
+            return parsed;
+        };
+
+        const testMcpConnection = async () => {
+            const cfg = parseMcpImportJson();
+            if (!cfg) return;
+            const tempTool = createDefaultMcpHttpTool({
+                name: mcpImportInput.name || cfg.url,
+                mcpConfig: {
+                    url: cfg.url,
+                    headers: cfg.headers || {},
+                    protocolVersion: cfg.protocolVersion || MCP_PROTOCOL_VERSION
+                }
+            });
+            try {
+                showToast('正在连接 MCP server...', 'info');
+                const tools = await mcpRefreshTool(tempTool, null);
+                showToast(`连接成功，找到 ${tools.length} 个工具`, 'success');
+            } catch (e) {
+                showToast(`连接失败: ${e.message}`, 'error');
+            }
+        };
+
+        const confirmMcpToolImport = async () => {
+            const cfg = parseMcpImportJson();
+            if (!cfg) return;
+            const finalName = (mcpImportInput.name || '').trim() || cfg.url;
+            const newTool = createDefaultMcpHttpTool({
+                name: finalName,
+                callName: `tool_mcp_${Date.now()}`,
+                mcpConfig: {
+                    url: cfg.url,
+                    headers: cfg.headers || {},
+                    protocolVersion: cfg.protocolVersion || MCP_PROTOCOL_VERSION
+                }
+            });
+            try {
+                await mcpRefreshTool(newTool, null);
+            } catch (e) {
+                showToast(`导入失败: ${e.message}`, 'error');
+                return;
+            }
+            activeTools.value.push(newTool);
+            await saveData();
+            showToast(`已导入 ${newTool.mcpTools.length} 个 MCP 工具`, 'success');
+            showMcpToolImport.value = false;
+        };
+
+        const refreshMcpTool = async (tool) => {
+            try {
+                await mcpRefreshTool(tool, null);
+                await saveData();
+                showToast(`已刷新，找到 ${tool.mcpTools.length} 个工具`, 'success');
+            } catch (e) {
+                showToast(`刷新失败: ${e.message}`, 'error');
+            }
+        };
+
+        const removeMcpTool = async (tool) => {
+            activeTools.value = activeTools.value.filter(t => t.id !== tool.id);
+            await saveData();
+            showToast('已删除', 'info');
+        };
+
         const getEnabledWorldInfoToolEntries = () => {
             const entries = Array.isArray(worldInfo.value) ? worldInfo.value : [];
             return entries
@@ -8029,6 +8356,36 @@ ${content}
                     '</active_tool_result>'
                 ].join('\n');
             }
+            if (isMcpHttpActiveTool(tool)) {
+                const modeDescription = modeValue === 'cover'
+                    ? '本次调用模式为覆盖：系统会用本次结果替换本轮此前已检索的工具结果。'
+                    : '本次调用模式为追加：系统会把本次结果追加到本轮此前已检索的工具结果后。';
+
+                if (!Array.isArray(results) || results.length === 0) {
+                    return [
+                        `<active_tool_result name="${title}" call="${callName}" mode="${modeValue}" query="${escapeXmlAttribute(cleanQuery)}" status="empty">`,
+                        `  <description>本次 MCP 工具调用没有返回结果。${modeDescription}请检查参数是否正确，或换更具体的参数再次调用。</description>`,
+                        '</active_tool_result>'
+                    ].join('\n');
+                }
+
+                const formattedResults = results.map(item => {
+                    const errorAttr = item.isError ? ' is_error="true"' : '';
+                    const contentText = indentXmlText(item.text || '', 4);
+                    return [
+                        `  <mcp_result${errorAttr}>`,
+                        contentText ? `    <content>\n${contentText}\n    </content>` : '',
+                        '  </mcp_result>'
+                    ].filter(Boolean).join('\n');
+                }).join('\n\n');
+
+                return [
+                    `<active_tool_result name="${title}" call="${callName}" mode="${modeValue}" query="${escapeXmlAttribute(cleanQuery)}">`,
+                    `  <description>以下是系统通过 MCP 协议调用远程工具返回的结果。${modeDescription}本段内容由系统插入最后一条用户消息结尾。请优先依据这些结果继续回答；不要把结果没有支持的内容说成事实。</description>`,
+                    formattedResults,
+                    '</active_tool_result>'
+                ].join('\n');
+            }
             const modeDescription = modeValue === 'cover'
                 ? '本次调用模式为覆盖：系统会用本次结果替换本轮此前已检索的工具结果。'
                 : '本次调用模式为追加：系统会把本次结果追加到本轮此前已检索的工具结果后。';
@@ -8108,11 +8465,23 @@ ${content}
             const seen = new Set();
 
             for (const tool of tools) {
-                const labels = getActiveToolCallLabels(tool);
-                const callForms = [
-                    { label: labels.add, mode: 'add' },
-                    { label: labels.cover, mode: 'cover' }
-                ];
+                // MCP 工具：每个子工具生成独立的 add/cover 标签
+                const mcpSubTools = isMcpHttpActiveTool(tool) ? (Array.isArray(tool.mcpTools) ? tool.mcpTools : []) : [];
+                const callForms = mcpSubTools.length > 0
+                    ? mcpSubTools.flatMap(sub => {
+                        const subLabels = getMcpSubToolCallLabels(tool, sub.name);
+                        return [
+                            { label: subLabels.add, mode: 'add', mcpSubToolName: sub.name },
+                            { label: subLabels.cover, mode: 'cover', mcpSubToolName: sub.name }
+                        ];
+                    })
+                    : (() => {
+                        const labels = getActiveToolCallLabels(tool);
+                        return [
+                            { label: labels.add, mode: 'add', mcpSubToolName: '' },
+                            { label: labels.cover, mode: 'cover', mcpSubToolName: '' }
+                        ];
+                    })();
                 for (const form of callForms) {
                     const escapedName = escapeRegexText(form.label);
                     const regex = new RegExp(`<\\s*${escapedName}\\s*:\\s*([\\s\\S]{1,30000}?)\\s*>`, 'gi');
@@ -8132,6 +8501,7 @@ ${content}
                             tool,
                             mode: form.mode,
                             callLabel: form.label,
+                            mcpSubToolName: form.mcpSubToolName || '',
                             query,
                             raw,
                             toolRaw: meta.toolRaw,
@@ -8715,6 +9085,24 @@ ${content}
                         )
                         : isWorldInfoActiveTool(toolCall.tool)
                         ? await runWorldInfoToolForActiveTool(toolCall)
+                        : isMcpHttpActiveTool(toolCall.tool)
+                        ? await (async () => {
+                            let mcpArgs = {};
+                            try { mcpArgs = JSON.parse(toolCall.query || '{}'); }
+                            catch (_) { mcpArgs = { _raw: toolCall.query }; }
+                            const mcpResult = await mcpCallTool(
+                                toolCall.tool,
+                                toolCall.mcpSubToolName || '',
+                                mcpArgs,
+                                toolAbort.signal
+                            );
+                            return [{
+                                index: 1,
+                                text: mcpResult.text || '',
+                                isError: mcpResult.isError,
+                                sourceType: 'mcp'
+                            }];
+                        })()
                         : await searchVectorMemoriesForTool(
                             toolCall.query,
                             toolCall.tool.resultCount,
@@ -10841,6 +11229,8 @@ image###生成的提示词###
             isGenerating, isRemoteGenerating, remoteEstimatedTime, isReceiving, isThinking, hasActiveToolInlineWork, activeToolInlineStatusText, isConversationBusy, activeToolContinuationMessageId, activeToolContinuationToolCallId, activeToolContinuationHasResponse, activeNativeReasoning, userInput, modelSearchQuery, activeModelTag, modelTags, characterSearchQuery, availableModels, customModelInput, filteredModels, filteredCharacters,
             user, settings, apiProviderOptions, selectedApiProvider, isCustomApiProvider, customApiProviderOption, customApiProviderOptions, showApiProviderSelector, selectApiProvider, characters, currentCharacter, currentCharacterIndex, chatHistory, displayedChatMessages, handleChatScroll, presets, presetRoleOptions, fontFamilyOptions, imageStyleOptions, imageSizeOptions, imageGenCountOptions, scopeOptions, uiTemplatePlacementOptions, worldInfoPositionOptions, getPresetRoleLabel, getPresetRoleDisplayLabel, getPresetRoleBadgeClass, regexScripts, worldInfo,
             activeTools, activeToolAggressivenessOptions: ACTIVE_TOOL_AGGRESSIVENESS_OPTIONS, getActiveToolAggressivenessLabel, editingActiveTool, normalizeActiveTools, isWebActiveTool, isWorldInfoActiveTool, getWorldInfoAccessMode, getActiveToolDisplayDescription, canConfigureActiveToolResultCount, getActiveToolResultCountMin, getActiveToolResultCountMax,
+            // MCP HTTP 工具导入相关导出
+            showMcpToolImport, mcpImportInput, mcpImportError, openMcpToolImport, parseMcpImportJson, testMcpConnection, confirmMcpToolImport, refreshMcpTool, removeMcpTool,
             getToolCallModeText, hasThinkingOrTools, isMessageThinkingOrRunning, isThinkingSummaryOpen, toggleThinkingSummary, markThinkingSummaryDetailOpened, getTimelineSteps,
             activeRegexCount, activeWorldInfoCount, activeUiTemplateCount, chatRoundStats, totalContextLength,
             editingCharacter, editingPreset, editingUiTemplate, toasts, chatContainer, isChatFullscreen, isMobileKeyboardOpen, inputBox, messageElements,

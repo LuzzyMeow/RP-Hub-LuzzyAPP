@@ -85,6 +85,28 @@
 - **参考文档**：
   - DeepSeek thinking_mode: https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
   - 火山方舟深度思考: https://www.volcengine.com/docs/82379/2165245
+- **作用域限定**：高级设置**仅作用于 RP-Hub 主聊天 chat/completions 请求**；不作用于 UI 模板分析、向量嵌入、模型列表、TRPG iframe 内 aisandboxgame 自身发起的请求。用户若需在 TRPG 模式启用深度思考，需在 aisandbox 网页内的 API 设置或 system prompt 中自行配置。
+
+### 7. MCP HTTP 工具导入
+- 在工具面板新增「+ 添加 MCP 工具」按钮，支持通过 JSON 形式导入 MCP（Model Context Protocol）远程工具服务器
+- **传输协议**：MCP Streamable HTTP transport（2025-03-26 规范，单端点 POST 返回 JSON 或 SSE）
+- **JSON 输入格式**（MCP server 连接信息）：
+  ```json
+  {
+    "url": "https://my-mcp-server.example.com/mcp",
+    "headers": {
+      "Authorization": "Bearer <token>"
+    },
+    "protocolVersion": "2025-03-26"
+  }
+  ```
+  - `url`（必填）：MCP server 端点
+  - `headers`（可选）：自定义头，如鉴权 token
+  - `protocolVersion`（可选）：默认 `2025-03-26`
+- **导入流程**：填入 JSON → 点击「测试连接」验证可达 → 点击「导入工具」执行 `initialize` + `tools/list` 拉取工具清单 → 工具卡显示包含的子工具数量
+- **AI 调用机制**：复用现有 `<tool_*>` 标签协议，AI 在正文输出 `<tool_mcp_<serverShortId>_<toolName>:argsJSON>` 标签触发 `tools/call`，结果注入下一轮上下文
+- **作用范围**：**仅 RP-Hub 主聊天生效**，TRPG 模式不生效（TRPG iframe 跨 origin 无法注入工具说明 prompt）
+- **持久化**：MCP 工具配置随 `activeTools` 数组存入 IndexedDB，启动时不主动拉取 `tools/list`（避免开机就发请求），用户在工具卡上手动点「↻ 刷新」按需触发
 
 ---
 
