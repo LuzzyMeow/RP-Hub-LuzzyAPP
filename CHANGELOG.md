@@ -1590,5 +1590,161 @@ const MCP_REQUEST_TIMEOUT_MS = 60000;
 
 ---
 
+## 十五、第九轮改动（2026-06-18：SKILL 工具系统扩展）
+
+### 15.0 改动背景
+
+用户提出在现有工具系统（4 内置工具 + MCP HTTP 工具）基础上，扩展支持 SKILL 导入和手动新建，实现二级分类、角色卡按需启用、统一标签接口、文件阅读能力。
+
+**硬约束**：保留成人内容注入提示词（预设）的相关设置完全不变，不允许修改、精简。SKILL 工具仅对 RP-Hub 主聊天生效，对 TRPG 模式不生效。
+
+### 15.1 新增功能
+
+1. **SKILL 工具类型**：新增 `skill` 工具类型，支持导入和手动新建 SKILL 提示词包
+2. **三种 SKILL 导入方式**：
+   - GitHub 仓库导入：支持 `https://github.com/{owner}/{repo}`、`/tree/{branch}`、子目录路径，完整下载仓库内容
+   - ZIP 压缩包导入：识别最外层 SKILL.md，完整解压所有文件
+   - 手动新建：内置文件管理器，支持新建文件夹、子文件夹、.md 文件
+3. **SKILL 文件阅读工具**（`tool_skill_readfile`）：内置工具，AI 可读取 SKILL 目录下的配套文件（如 references/ 内的资料）
+4. **二级分类 UI**：工具列表分为「内置工具」「MCP 工具」「SKILL」三组，分组标题分隔
+5. **角色卡按需启用**：SKILL 和 MCP 工具可设置「所有角色卡可用」或「自定义角色卡」，内置工具保持全局启用
+6. **统一标签协议**：SKILL 工具复用 `<tool_skill_<sid>_add:args>` 标签协议，与内置工具走同一调用链
+7. **JSZip 库引入**：通过 CDN 引入 JSZip 3.10.1 支持 ZIP 解压
+
+### 15.2 技术细节
+
+- **SKILL 工具存储**：存储于 `activeTools` 数组，`skillConfig` 字段保存 SKILL.md 内容和配套文件列表
+- **角色卡过滤**：通过 `getEnabledActiveToolsForCurrentCharacter()` 实现，内置工具不受过滤影响
+- **GitHub 导入**：使用 GitHub API（`api.github.com`）获取文件树，`raw.githubusercontent.com` 下载文件内容
+- **GitHub 导入过滤**：自动跳过 `.git/`、`node_modules/`、`.github/`、`.vscode/`、`.idea/`、`dist/`、`build/`、`__pycache__/`、`.pytest_cache/` 等无关目录
+- **SKILL 执行机制**：提示词注入（注入 SKILL.md 内容）+ 文件阅读（`<tool_skill_readfile_add:skill_name/file_path>`）
+- **SKILL 标签格式**：`<tool_skill_<serverShortId>_add:args>` / `<tool_skill_<serverShortId>_cover:args>`，serverShortId 取工具 id 末 6 位
+- **ZIP 导入识别**：若 ZIP 根目录无 SKILL.md 但一级子目录有，取该子目录作为 skill 根
+- **手动新建默认模板**：创建 SKILL.md 模板，包含名称、描述、触发条件、工作流程、注意事项等基本结构
+
+### 15.3 文件改动
+
+| 文件 | 改动内容 |
+|------|----------|
+| `assets/js/app.js` | 新增 SKILL 常量、工厂函数、normalizeActiveTool 扩展、角色卡过滤函数、buildActiveToolSystemPrompt 扩展、skill 标签生成、findActiveToolCallsInText 扩展、runActiveToolCallSafely 扩展、formatActiveToolResultContext 扩展、GitHub 导入、ZIP 导入、手动新建、文件管理器函数、return 导出更新 |
+| `index.html` | JSZip CDN 引入、工具列表二级分类 UI、SKILL 导入弹窗（三种方式 Tab）、SKILL 文件管理器弹窗、角色卡启用配置 UI |
+| `CHANGELOG.md` | 本节（第十五轮改动记录） |
+| `README.md` | 新增第 8 节「SKILL 工具系统」 |
+
+### 15.4 保留功能
+
+- **成人内容注入预设完整保留**：`presets` 数组、注入逻辑、内置 NSFW 预设均未修改
+- **TRPG 代理机制不受影响**：SKILL 工具仅作用于 RP-Hub 主聊天，TRPG iframe 不受影响
+- **现有工具保留**：4 个内置工具（vector/keyword/web/world）功能不变；MCP 工具新增 `allowedCharacterUuids` 字段，默认空数组兼容
+
+### 15.5 验证清单
+
+- [ ] 工具列表显示三个分组（内置工具 / MCP 工具 / SKILL）
+- [ ] 「+ 添加 SKILL」按钮可见且可点击
+- [ ] GitHub URL 导入：支持 `https://github.com/user/repo` 和 `/tree/branch/subdir` 格式
+- [ ] GitHub 导入后，skill 工具卡片显示 skill 名、文件数、来源
+- [ ] ZIP 上传导入：识别最外层 SKILL.md，完整解压
+- [ ] 手动新建：可创建文件夹、子文件夹、.md 文件，可编辑内容
+- [ ] SKILL 工具启用后，AI 在系统提示中能看到 skill 说明
+- [ ] AI 输出 `<tool_skill_xxx_add:args>` 标签时，系统注入 SKILL.md 内容
+- [ ] AI 输出 `<tool_skill_readfile_add:skill_name/file_path>` 时，系统返回文件内容
+- [ ] skill/mcp 工具编辑弹窗显示「角色卡启用范围」配置
+- [ ] 设置为「自定义角色卡」后，未选中的角色卡看不到该工具
+- [ ] 内置工具不受角色卡过滤影响
+- [ ] 成人内容注入预设功能完整保留
+
+---
+
+## 十六、第十轮改动（2026-06-18：代码自检修复 + README 重构 + 仓库改名）
+
+### 16.0 改动背景
+
+SKILL 工具系统扩展完成后，进行全局代码自检，针对边界情况和不完善项进行手术级修复。同时根据用户要求重构 README 文档、改名仓库、发布新版 release。
+
+### 16.1 代码自检修复（3 项原子化修复）
+
+#### 修复 1：GitHub 导入 SKILL.md 检测优先级（边界情况）
+
+**问题**：`importSkillFromGithub` 中 `fileContents.find(f => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'))` 使用 OR 条件，若嵌套 SKILL.md（如 `references/SKILL.md`）在数组中先于根目录 SKILL.md 出现，会被误选为主 SKILL.md。
+
+**修复**：改为优先匹配根目录 `SKILL.md`，其次回退到嵌套 SKILL.md：
+```javascript
+const skillMdFile = fileContents.find(f => f.path === 'SKILL.md')
+    || fileContents.find(f => f.path.endsWith('/SKILL.md'));
+```
+
+**影响范围**：`assets/js/app.js` 第 8072-8074 行
+
+#### 修复 2：GitHub 导入二进制文件内容损坏（边界情况 + 优化）
+
+**问题**：`fetchGithubFile` 对所有文件使用 `resp.text()` 下载，二进制文件（图片、PDF 等）经 `.text()` 解码后内容损坏，虽然 `tool_skill_readfile` 会拒绝读取二进制文件，但损坏的内容仍被持久化到 IndexedDB，浪费存储空间。
+
+**修复**：导入时先判断 `isSkillFileText(relPath)`，二进制文件跳过内容下载（存储空字符串 + `node.size` 作为 size），节省带宽和存储：
+```javascript
+const isText = isSkillFileText(relPath);
+const content = isText ? await fetchGithubFile(...) : '';
+```
+
+**影响范围**：`assets/js/app.js` 第 8058-8070 行
+
+#### 修复 3：ZIP 导入二进制文件内容损坏（边界情况 + 优化）
+
+**问题**：`importSkillFromZip` 中 `entry.async('string')` 对所有文件解压，二进制文件经字符串解码后内容损坏，同样浪费存储。
+
+**修复**：与 GitHub 导入一致，二进制文件跳过内容解压：
+```javascript
+const isText = isSkillFileText(relPath);
+const content = isText ? await entry.async('string') : '';
+```
+
+**影响范围**：`assets/js/app.js` 第 8153-8168 行
+
+### 16.2 README.md 完全重构
+
+**改动内容**：
+- 删除旧版 README，完全重写
+- 首部附 Z.AI / 智谱清言 LOGO（从官网 `https://z.ai/` 提取，URL：`https://z-cdn.chatglm.cn/z-ai/static/logo.svg`）
+- 醒目位置标注「项目状态：测试阶段（Beta）」
+- 二创来源声明：RP-Hub（[STA1N156/RP-Hub](https://github.com/STA1N156/RP-Hub)）和 AI Sandbox Game（[hayowei/aisandboxgame](https://github.com/hayowei/aisandboxgame)）的官方仓库链接与作者
+- Coding 模型声明：GLM-5.2（附智谱清言 / Z.AI LOGO）
+- 功能概览表格（8 项增强功能）
+- SKILL 工具系统详解（三种导入方式、执行机制、二级分类、角色卡按需启用）
+- TRPG 模式、API 高级设置、MCP 工具导入说明
+- 快速开始、构建指南、差异对比、已知限制、目录结构、致谢
+
+### 16.3 仓库改名
+
+- **旧名称**：`LuzzyMeow/RP-Hub-LuzzyAPP`
+- **新名称**：`LuzzyMeow/Luzzy-RpTRPG`
+- 通过 GitHub API 执行仓库改名操作
+
+### 16.4 文件改动
+
+| 文件 | 改动类型 | 改动内容 |
+|------|----------|----------|
+| `assets/js/app.js` | 修改 | 3 项边界情况修复（SKILL.md 优先级、GitHub/ZIP 二进制文件处理） |
+| `README.md` | 重写 | 完全重构，附 Z.AI LOGO，二创来源声明，GLM-5.2 Coding 模型，测试阶段声明 |
+| `CHANGELOG.md` | 修改 | 本节（第十六轮改动记录） |
+
+### 16.5 保留功能
+
+- **成人内容注入预设完整保留**：`presets` 数组、注入逻辑、内置 NSFW 预设均未修改
+- **TRPG 代理机制不受影响**
+- **SKILL 工具系统功能不受影响**：3 项修复仅优化边界情况处理，不改变正常流程
+- **现有内置工具和 MCP 工具功能不变**
+
+### 16.6 验证清单
+
+- [ ] GitHub 导入含嵌套 SKILL.md 的仓库时，根目录 SKILL.md 被正确选为主文件
+- [ ] GitHub 导入含二进制文件的仓库时，二进制文件不报错，size 正确记录
+- [ ] ZIP 导入含二进制文件的压缩包时，二进制文件不报错，size 正确记录
+- [ ] README.md 首部 Z.AI LOGO 正常显示
+- [ ] README.md 测试阶段声明可见
+- [ ] README.md 二创来源声明包含 RP-Hub 和 aisandboxgame 链接
+- [ ] README.md Coding 模型声明包含 GLM-5.2 和智谱清言 LOGO
+- [ ] 成人内容注入预设功能完整保留
+
+---
+
 **最后更新**：2026-06-18
 **维护者**：LuzzyMeow

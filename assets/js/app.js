@@ -1126,6 +1126,37 @@ createApp({
         const MCP_PROTOCOL_VERSION = '2025-03-26';
         const MCP_CLIENT_INFO = { name: 'rp-hub', version: '1.7.1' };
         const MCP_REQUEST_TIMEOUT_MS = 60000;
+        // SKILL 工具类型
+        const ACTIVE_TOOL_SKILL_TYPE = 'skill';
+        const ACTIVE_TOOL_SKILL_READFILE_TYPE = 'skill_readfile';
+        const ACTIVE_TOOL_SKILL_DEFAULT_DESCRIPTION = '调用 SKILL 提示词包，将 SKILL.md 内容作为上下文注入。调用格式：<tool_skill_<sid>_add:任务描述>。注入后可使用 <tool_skill_readfile_add:skill_name/file_path> 读取该 SKILL 目录下的配套文件（如 references/ 内的资料）。';
+        const ACTIVE_TOOL_SKILL_DEFAULT_DISPLAY_DESCRIPTION = 'SKILL 工具：注入 SKILL.md 提示词包内容';
+        const ACTIVE_TOOL_SKILL_READFILE_DESCRIPTION = '读取指定 SKILL 目录下的配套文件内容（如 references/ 内的资料）。调用格式：<tool_skill_readfile_add:skill_name/file_path>，skill_name 为 SKILL 名称，file_path 为相对路径。仅支持文本文件。';
+        const ACTIVE_TOOL_SKILL_READFILE_DISPLAY_DESCRIPTION = '读取 SKILL 配套文件内容';
+        const ACTIVE_TOOL_ENABLE_MODE_ALL = 'all';
+        const ACTIVE_TOOL_ENABLE_MODE_CUSTOM = 'custom';
+        const SKILL_IMPORT_SOURCE_GITHUB = 'github';
+        const SKILL_IMPORT_SOURCE_ZIP = 'zip';
+        const SKILL_IMPORT_SOURCE_MANUAL = 'manual';
+        const SKILL_FILE_TEXT_EXTENSIONS = ['.md', '.txt', '.json', '.yaml', '.yml', '.js', '.ts', '.py', '.html', '.css', '.xml', '.csv', '.log', '.ini', '.toml', '.sh', '.bat', '.ps1'];
+        const SKILL_GITHUB_IGNORED_DIRS = ['.git', 'node_modules', '.github', '.vscode', '.idea', 'dist', 'build', '__pycache__', '.pytest_cache'];
+        const SKILL_DEFAULT_MD_TEMPLATE = `# SKILL 名称
+
+## 描述
+简要描述这个 SKILL 的用途和能力。
+
+## 触发条件
+描述何时应该调用这个 SKILL。
+
+## 工作流程
+1. 步骤一
+2. 步骤二
+3. 步骤三
+
+## 注意事项
+- 注意事项一
+- 注意事项二
+`;
         const ACTIVE_TOOL_MIN_RESULT_COUNT = 8;
         const ACTIVE_TOOL_DEFAULT_RESULT_COUNT = 8;
         const ACTIVE_TOOL_MAX_RESULT_COUNT = 12;
@@ -1240,7 +1271,45 @@ createApp({
             mcpTools: [],
             mcpLastFetchedAt: 0,
             mcpLastError: '',
+            enableMode: ACTIVE_TOOL_ENABLE_MODE_ALL,
+            allowedCharacterUuids: [],
             ...overrides
+        });
+
+        // SKILL 工具工厂
+        const createDefaultSkillTool = (overrides = {}) => ({
+            id: overrides.id || `tool_skill_${Date.now()}_${Math.floor(Math.random() * 1e6)}`,
+            name: overrides.name || '未命名 SKILL',
+            enabled: false,
+            type: ACTIVE_TOOL_SKILL_TYPE,
+            callName: overrides.callName || (overrides.id || 'tool_skill_unnamed'),
+            description: ACTIVE_TOOL_SKILL_DEFAULT_DESCRIPTION,
+            displayDescription: ACTIVE_TOOL_SKILL_DEFAULT_DISPLAY_DESCRIPTION,
+            skillConfig: {
+                skillName: '',
+                skillMd: '',
+                files: [],
+                source: SKILL_IMPORT_SOURCE_MANUAL,
+                sourceUrl: '',
+                createdAt: 0,
+                updatedAt: 0
+            },
+            enableMode: ACTIVE_TOOL_ENABLE_MODE_ALL,
+            allowedCharacterUuids: [],
+            ...overrides
+        });
+
+        // SKILL 文件阅读工具（内置，默认启用）
+        const createDefaultSkillReadfileTool = () => ({
+            id: 'tool_skill_readfile',
+            name: 'SKILL 文件阅读',
+            enabled: true,
+            type: ACTIVE_TOOL_SKILL_READFILE_TYPE,
+            callName: 'tool_skill_readfile',
+            resultCount: 1,
+            resultCountVersion: ACTIVE_TOOL_RESULT_COUNT_VERSION,
+            description: ACTIVE_TOOL_SKILL_READFILE_DESCRIPTION,
+            displayDescription: ACTIVE_TOOL_SKILL_READFILE_DISPLAY_DESCRIPTION
         });
 
         const normalizeWorldInfoAccessMode = (value) => (
@@ -1278,7 +1347,8 @@ createApp({
             createDefaultActiveTool(),
             createDefaultGrepTool(),
             createDefaultWebTool(),
-            createDefaultWorldTool()
+            createDefaultWorldTool(),
+            createDefaultSkillReadfileTool()
         ];
         const activeTools = ref(getDefaultActiveToolDefinitions());
 
@@ -1393,6 +1463,31 @@ createApp({
                 normalized.mcpTools = Array.isArray(tool.mcpTools) ? tool.mcpTools : [];
                 normalized.mcpLastFetchedAt = Number(tool.mcpLastFetchedAt) || 0;
                 normalized.mcpLastError = String(tool.mcpLastError || '');
+            }
+            if (normalizedType === ACTIVE_TOOL_SKILL_TYPE) {
+                normalized.skillConfig = {
+                    skillName: String(tool.skillConfig?.skillName || '').trim(),
+                    skillMd: String(tool.skillConfig?.skillMd || ''),
+                    files: Array.isArray(tool.skillConfig?.files) ? tool.skillConfig.files.map(f => ({
+                        path: String(f.path || '').trim(),
+                        content: String(f.content || ''),
+                        type: String(f.type || 'text'),
+                        size: Number(f.size) || 0
+                    })).filter(f => f.path) : [],
+                    source: [SKILL_IMPORT_SOURCE_GITHUB, SKILL_IMPORT_SOURCE_ZIP, SKILL_IMPORT_SOURCE_MANUAL].includes(tool.skillConfig?.source)
+                        ? tool.skillConfig.source : SKILL_IMPORT_SOURCE_MANUAL,
+                    sourceUrl: String(tool.skillConfig?.sourceUrl || ''),
+                    createdAt: Number(tool.skillConfig?.createdAt) || 0,
+                    updatedAt: Number(tool.skillConfig?.updatedAt) || 0
+                };
+            }
+            // 角色卡启用字段（仅 skill 和 mcp 工具）
+            if (normalizedType === ACTIVE_TOOL_SKILL_TYPE || normalizedType === ACTIVE_TOOL_MCP_HTTP_TYPE) {
+                normalized.enableMode = tool.enableMode === ACTIVE_TOOL_ENABLE_MODE_CUSTOM
+                    ? ACTIVE_TOOL_ENABLE_MODE_CUSTOM : ACTIVE_TOOL_ENABLE_MODE_ALL;
+                normalized.allowedCharacterUuids = Array.isArray(tool.allowedCharacterUuids)
+                    ? tool.allowedCharacterUuids.filter(uuid => typeof uuid === 'string' && uuid)
+                    : [];
             }
             return normalized;
         };
@@ -4848,6 +4943,35 @@ ${content}
         const getEnabledActiveTools = () => normalizeActiveTools()
             .filter(tool => tool.enabled !== false && tool.callName);
 
+        // 角色卡按需启用过滤：仅 skill 和 mcp 工具按角色卡过滤，内置工具全局启用
+        const isBuiltinActiveTool = (tool) => {
+            const t = tool?.type;
+            return t === ACTIVE_TOOL_VECTOR_TYPE
+                || t === ACTIVE_TOOL_KEYWORD_TYPE
+                || t === ACTIVE_TOOL_WEB_TYPE
+                || t === ACTIVE_TOOL_WORLD_TYPE
+                || t === ACTIVE_TOOL_SKILL_READFILE_TYPE;
+        };
+
+        const isSkillActiveTool = (tool) => tool?.type === ACTIVE_TOOL_SKILL_TYPE
+            || normalizeActiveToolBaseCallName(tool?.callName || '').startsWith('tool_skill_') && !normalizeActiveToolBaseCallName(tool?.callName || '').startsWith('tool_skill_readfile');
+
+        const isSkillReadfileActiveTool = (tool) => tool?.type === ACTIVE_TOOL_SKILL_READFILE_TYPE
+            || normalizeActiveToolBaseCallName(tool?.callName || '') === 'tool_skill_readfile';
+
+        const getEnabledActiveToolsForCurrentCharacter = () => {
+            const currentUuid = currentCharacter.value?.uuid || '';
+            return getEnabledActiveTools().filter(tool => {
+                if (isBuiltinActiveTool(tool)) return true;
+                // skill 和 mcp 工具按角色卡过滤
+                if (tool.type === ACTIVE_TOOL_SKILL_TYPE || tool.type === ACTIVE_TOOL_MCP_HTTP_TYPE) {
+                    if (!tool.allowedCharacterUuids || tool.allowedCharacterUuids.length === 0) return true;
+                    return currentUuid && tool.allowedCharacterUuids.includes(currentUuid);
+                }
+                return true;
+            });
+        };
+
         const isVectorActiveTool = (tool) => tool?.type === ACTIVE_TOOL_VECTOR_TYPE
             || normalizeActiveToolBaseCallName(tool?.callName) === 'tool_memory';
 
@@ -4876,6 +5000,24 @@ ${content}
             return { add: `${base}_add`, cover: `${base}_cover` };
         };
 
+        // SKILL 工具标签生成
+        const getSkillToolServerShortId = (tool) => {
+            const id = String(tool?.id || '');
+            return id.length >= 6 ? id.slice(-6) : id;
+        };
+
+        const getSkillToolCallLabels = (tool) => {
+            const sid = getSkillToolServerShortId(tool);
+            const base = `tool_skill_${sid}`;
+            return { add: `${base}_add`, cover: `${base}_cover` };
+        };
+
+        // 判断文件是否为文本文件（用于 skill_readfile）
+        const isSkillFileText = (filePath) => {
+            const lower = String(filePath || '').toLowerCase();
+            return SKILL_FILE_TEXT_EXTENSIONS.some(ext => lower.endsWith(ext));
+        };
+
         const getWorldInfoAccessMode = (tool) => normalizeWorldInfoAccessMode(tool?.worldInfoAccessMode || tool?.worldInfoMode || tool?.accessMode);
 
         const canEditWorldInfoWithTool = (tool) => getWorldInfoAccessMode(tool) === ACTIVE_TOOL_WORLD_ACCESS_EDIT;
@@ -4892,7 +5034,7 @@ ${content}
         const shouldSuppressStandardVectorMemoryRecall = () => false;
 
         const appendActiveToolReminderToLatestUserMessage = (msgArray) => {
-            if (getEnabledActiveTools().length === 0) return msgArray;
+            if (getEnabledActiveToolsForCurrentCharacter().length === 0) return msgArray;
             const reminder = getActiveToolLatestUserReminder();
             const latestUserMessage = [...msgArray].reverse().find(message => {
                 const content = String(message?.content || '');
@@ -4921,7 +5063,7 @@ ${content}
         };
 
         const buildActiveToolSystemPrompt = () => {
-            const tools = getEnabledActiveTools();
+            const tools = getEnabledActiveToolsForCurrentCharacter();
             if (tools.length === 0) return '';
             const activeToolReminder = getActiveToolLatestUserReminder();
             const activeToolAggressivenessLabel = getActiveToolAggressivenessLabel();
@@ -4971,6 +5113,42 @@ ${content}
                             `</tool>`
                         ].filter(Boolean).join('\n');
                     }).join('\n\n');
+                }
+                if (isSkillActiveTool(tool)) {
+                    const skillLabels = getSkillToolCallLabels(tool);
+                    const skillAdd = escapeXmlAttribute(skillLabels.add);
+                    const skillCover = escapeXmlAttribute(skillLabels.cover);
+                    const callPlaceholder = '任务描述';
+                    const returnLabel = 'SKILL.md 内容注入';
+                    const skillMd = String(tool.skillConfig?.skillMd || '');
+                    const skillName = String(tool.skillConfig?.skillName || tool.name || '');
+                    const files = Array.isArray(tool.skillConfig?.files) ? tool.skillConfig.files : [];
+                    const companionFileList = files
+                        .filter(f => f.path && f.path !== 'SKILL.md')
+                        .map(f => f.path)
+                        .slice(0, 50);
+                    const skillMdPreview = skillMd.slice(0, 500) + (skillMd.length > 500 ? '\n...(完整内容将在调用时注入)' : '');
+                    const fileHint = companionFileList.length > 0
+                        ? `配套文件（可用 <tool_skill_readfile_add:${skillName}/文件路径> 读取）：\n${companionFileList.map(p => '- ' + p).join('\n')}`
+                        : '（无配套文件）';
+                    return [
+                        formatToolOpenTag({ name: tool.name, addCallName: skillAdd, coverCallName: skillCover, callPlaceholder, returnLabel }),
+                        `说明：${tool.description || ACTIVE_TOOL_SKILL_DEFAULT_DESCRIPTION}`,
+                        `SKILL 名称：${skillName}`,
+                        `SKILL.md 预览：\n${skillMdPreview || '（空）'}`,
+                        fileHint,
+                        `</tool>`
+                    ].join('\n');
+                }
+                if (isSkillReadfileActiveTool(tool)) {
+                    const callPlaceholder = 'skill_name/file_path';
+                    const returnLabel = 'SKILL 配套文件内容';
+                    return [
+                        formatToolOpenTag({ name: tool.name, addCallName: escapeXmlAttribute(labels.add), coverCallName: escapeXmlAttribute(labels.cover), callPlaceholder, returnLabel }),
+                        `说明：${tool.description || ACTIVE_TOOL_SKILL_READFILE_DESCRIPTION}`,
+                        `用途：读取已启用 SKILL 目录下的配套文件（如 references/ 内的资料）。参数格式为 skill_name/file_path，skill_name 为 SKILL 名称，file_path 为相对路径。仅支持文本文件。`,
+                        `</tool>`
+                    ].join('\n');
                 }
                 if (worldTool) {
                     const worldCanEdit = canEditWorldInfoWithTool(tool);
@@ -7792,6 +7970,371 @@ ${content}
             showToast('已删除', 'info');
         };
 
+        // === SKILL 工具导入 UI 状态与逻辑 ===
+        const showSkillImport = ref(false);
+        const skillImportTab = ref('github');
+        const skillImportInput = reactive({
+            githubUrl: '',
+            skillName: '',
+            zipFile: null,
+            manualName: ''
+        });
+        const skillImportError = ref('');
+        const skillImportLoading = ref(false);
+
+        const openSkillImport = () => {
+            skillImportTab.value = 'github';
+            skillImportInput.githubUrl = '';
+            skillImportInput.skillName = '';
+            skillImportInput.zipFile = null;
+            skillImportInput.manualName = '';
+            skillImportError.value = '';
+            skillImportLoading.value = false;
+            showSkillImport.value = true;
+        };
+
+        // 解析 GitHub URL
+        // 支持: https://github.com/{owner}/{repo}
+        //       https://github.com/{owner}/{repo}/tree/{branch}
+        //       https://github.com/{owner}/{repo}/tree/{branch}/{subdir}
+        const parseGithubUrl = (url) => {
+            const cleaned = String(url || '').trim().replace(/^[`'"]|[`'"]$/g, '');
+            const match = cleaned.match(/^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)(?:\/tree\/([^\/]+)(?:\/(.+))?)?/);
+            if (!match) return null;
+            const owner = match[1];
+            const repo = match[2].replace(/\.git$/, '');
+            const branch = match[3] || 'main';
+            const subdir = match[4] || '';
+            return { owner, repo, branch, subdir };
+        };
+
+        // 获取仓库文件树（GitHub API）
+        const fetchGithubTree = async (owner, repo, branch) => {
+            const apiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
+            const resp = await fetch(apiUrl);
+            if (!resp.ok) {
+                if (resp.status === 404) throw new Error('仓库或分支不存在');
+                throw new Error(`GitHub API 错误: ${resp.status}`);
+            }
+            const data = await resp.json();
+            return Array.isArray(data.tree) ? data.tree : [];
+        };
+
+        // 下载单个文件内容（raw.githubusercontent.com）
+        const fetchGithubFile = async (owner, repo, branch, path) => {
+            const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${path}`;
+            const resp = await fetch(rawUrl);
+            if (!resp.ok) throw new Error(`下载失败: ${path} (${resp.status})`);
+            return await resp.text();
+        };
+
+        // GitHub 导入完整流程
+        const importSkillFromGithub = async () => {
+            const url = (skillImportInput.githubUrl || '').trim();
+            const skillName = (skillImportInput.skillName || '').trim();
+            if (!url) { skillImportError.value = '请输入 GitHub 仓库 URL'; return; }
+            if (!skillName) { skillImportError.value = '请输入 SKILL 名称'; return; }
+
+            const parsed = parseGithubUrl(url);
+            if (!parsed) { skillImportError.value = 'URL 格式无效，需为 https://github.com/{owner}/{repo}'; return; }
+
+            skillImportLoading.value = true;
+            skillImportError.value = '';
+            try {
+                const tree = await fetchGithubTree(parsed.owner, parsed.repo, parsed.branch);
+                const prefix = parsed.subdir ? `${parsed.subdir}/` : '';
+                const files = tree.filter(node => {
+                    if (node.type !== 'blob') return false;
+                    if (prefix && !node.path.startsWith(prefix)) return false;
+                    const relPath = prefix ? node.path.slice(prefix.length) : node.path;
+                    const topDir = relPath.split('/')[0];
+                    return !SKILL_GITHUB_IGNORED_DIRS.includes(topDir);
+                });
+
+                if (files.length === 0) {
+                    throw new Error('未找到可导入的文件');
+                }
+
+                const fileContents = [];
+                for (const node of files) {
+                    const relPath = prefix ? node.path.slice(prefix.length) : node.path;
+                    const isText = isSkillFileText(relPath);
+                    // 二进制文件跳过内容下载（skill_readfile 仅支持文本文件），避免 .text() 腐蚀字节并节省带宽/存储
+                    const content = isText ? await fetchGithubFile(parsed.owner, parsed.repo, parsed.branch, node.path) : '';
+                    fileContents.push({
+                        path: relPath,
+                        content: content,
+                        type: isText ? 'text' : 'binary',
+                        size: isText ? content.length : (node.size || 0)
+                    });
+                }
+
+                // 优先匹配根目录 SKILL.md，其次回退到嵌套 SKILL.md（如 docs/SKILL.md）
+                const skillMdFile = fileContents.find(f => f.path === 'SKILL.md')
+                    || fileContents.find(f => f.path.endsWith('/SKILL.md'));
+                const skillMd = skillMdFile ? skillMdFile.content : '';
+                if (!skillMdFile) {
+                    showToast('警告：未找到 SKILL.md 文件', 'info');
+                }
+
+                const newTool = createDefaultSkillTool({
+                    name: skillName,
+                    skillConfig: {
+                        skillName: skillName,
+                        skillMd: skillMd,
+                        files: fileContents,
+                        source: SKILL_IMPORT_SOURCE_GITHUB,
+                        sourceUrl: url,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    }
+                });
+                activeTools.value.push(newTool);
+                await saveData();
+                showToast(`已导入 SKILL「${skillName}」，包含 ${fileContents.length} 个文件`, 'success');
+                showSkillImport.value = false;
+            } catch (e) {
+                skillImportError.value = `导入失败: ${e.message}`;
+            } finally {
+                skillImportLoading.value = false;
+            }
+        };
+
+        // ZIP 文件选择处理
+        const onSkillZipSelected = (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                skillImportInput.zipFile = file;
+                if (!skillImportInput.skillName) {
+                    const baseName = file.name.replace(/\.zip$/i, '');
+                    skillImportInput.skillName = baseName;
+                }
+            }
+        };
+
+        // ZIP 导入完整流程
+        const importSkillFromZip = async () => {
+            const file = skillImportInput.zipFile;
+            const skillName = (skillImportInput.skillName || '').trim();
+            if (!file) { skillImportError.value = '请选择 ZIP 文件'; return; }
+            if (!skillName) { skillImportError.value = '请输入 SKILL 名称'; return; }
+            if (typeof JSZip === 'undefined') {
+                skillImportError.value = 'JSZip 库未加载，请检查网络';
+                return;
+            }
+
+            skillImportLoading.value = true;
+            skillImportError.value = '';
+            try {
+                const zip = await JSZip.loadAsync(file);
+                const entries = Object.values(zip.files).filter(e => !e.dir);
+
+                if (entries.length === 0) {
+                    throw new Error('ZIP 文件为空');
+                }
+
+                // 识别最外层目录：若所有文件都在同一个一级子目录下，则该子目录为 skill 根
+                const allPaths = entries.map(e => e.name);
+                const topDirs = new Set(allPaths.map(p => p.split('/')[0]));
+                const hasRootFiles = allPaths.some(p => !p.includes('/'));
+                let basePath = '';
+                if (!hasRootFiles && topDirs.size === 1) {
+                    basePath = [...topDirs][0] + '/';
+                }
+
+                const skillMdEntry = entries.find(e => {
+                    const rel = basePath && e.name.startsWith(basePath) ? e.name.slice(basePath.length) : e.name;
+                    return rel === 'SKILL.md';
+                });
+                if (!skillMdEntry) {
+                    showToast('警告：ZIP 中未找到最外层 SKILL.md', 'info');
+                }
+
+                const fileContents = [];
+                for (const entry of entries) {
+                    const relPath = basePath && entry.name.startsWith(basePath)
+                        ? entry.name.slice(basePath.length)
+                        : entry.name;
+                    if (!relPath) continue;
+                    const isText = isSkillFileText(relPath);
+                    // 二进制文件跳过内容解压（skill_readfile 仅支持文本文件），避免 async('string') 腐蚀字节并节省存储
+                    const content = isText ? await entry.async('string') : '';
+                    fileContents.push({
+                        path: relPath,
+                        content: content,
+                        type: isText ? 'text' : 'binary',
+                        size: isText ? content.length : (entry._data?.uncompressedSize || 0)
+                    });
+                }
+
+                const skillMd = skillMdEntry ? await skillMdEntry.async('string') : '';
+
+                const newTool = createDefaultSkillTool({
+                    name: skillName,
+                    skillConfig: {
+                        skillName: skillName,
+                        skillMd: skillMd,
+                        files: fileContents,
+                        source: SKILL_IMPORT_SOURCE_ZIP,
+                        sourceUrl: file.name,
+                        createdAt: Date.now(),
+                        updatedAt: Date.now()
+                    }
+                });
+                activeTools.value.push(newTool);
+                await saveData();
+                showToast(`已导入 SKILL「${skillName}」，包含 ${fileContents.length} 个文件`, 'success');
+                showSkillImport.value = false;
+            } catch (e) {
+                skillImportError.value = `导入失败: ${e.message}`;
+            } finally {
+                skillImportLoading.value = false;
+            }
+        };
+
+        // === SKILL 文件管理器状态 ===
+        const showSkillFileManager = ref(false);
+        const editingSkillToolId = ref(null);
+        const skillFileTree = ref([]);
+        const skillNewFilePath = ref('');
+        const skillNewFileContent = ref('');
+        const skillEditingFilePath = ref('');
+        const skillEditingFileContent = ref('');
+
+        const getEditingSkillTool = () => {
+            return activeTools.value.find(t => t.id === editingSkillToolId.value);
+        };
+
+        // 打开文件管理器（手动新建入口）
+        const openSkillFileManagerForManual = () => {
+            const skillName = (skillImportInput.manualName || '').trim();
+            if (!skillName) { skillImportError.value = '请输入 SKILL 名称'; return; }
+
+            const newTool = createDefaultSkillTool({
+                name: skillName,
+                enabled: false,
+                skillConfig: {
+                    skillName: skillName,
+                    skillMd: SKILL_DEFAULT_MD_TEMPLATE,
+                    files: [{
+                        path: 'SKILL.md',
+                        content: SKILL_DEFAULT_MD_TEMPLATE,
+                        type: 'text',
+                        size: SKILL_DEFAULT_MD_TEMPLATE.length
+                    }],
+                    source: SKILL_IMPORT_SOURCE_MANUAL,
+                    sourceUrl: '',
+                    createdAt: Date.now(),
+                    updatedAt: Date.now()
+                }
+            });
+            activeTools.value.push(newTool);
+            editingSkillToolId.value = newTool.id;
+            skillFileTree.value = JSON.parse(JSON.stringify(newTool.skillConfig.files));
+            skillImportError.value = '';
+            showSkillFileManager.value = true;
+        };
+
+        // 打开已有 skill 工具的文件管理器（编辑入口）
+        const openSkillFileManagerForEdit = (tool) => {
+            editingSkillToolId.value = tool.id;
+            skillFileTree.value = JSON.parse(JSON.stringify(tool.skillConfig.files));
+            skillEditingFilePath.value = '';
+            skillEditingFileContent.value = '';
+            showSkillFileManager.value = true;
+        };
+
+        // 新增文件
+        const addSkillFile = async () => {
+            const path = (skillNewFilePath.value || '').trim();
+            if (!path) { showToast('请输入文件路径', 'error'); return; }
+            const tool = getEditingSkillTool();
+            if (!tool) return;
+            if (tool.skillConfig.files.some(f => f.path === path)) {
+                showToast('文件已存在', 'error'); return;
+            }
+            const content = skillNewFileContent.value || '';
+            tool.skillConfig.files.push({
+                path: path,
+                content: content,
+                type: isSkillFileText(path) ? 'text' : 'binary',
+                size: content.length
+            });
+            if (path === 'SKILL.md') {
+                tool.skillConfig.skillMd = content;
+            }
+            tool.skillConfig.updatedAt = Date.now();
+            skillFileTree.value = JSON.parse(JSON.stringify(tool.skillConfig.files));
+            skillNewFilePath.value = '';
+            skillNewFileContent.value = '';
+            await saveData();
+            showToast('文件已添加', 'success');
+        };
+
+        // 编辑文件（加载内容到编辑器）
+        const editSkillFile = (filePath) => {
+            const tool = getEditingSkillTool();
+            if (!tool) return;
+            const file = tool.skillConfig.files.find(f => f.path === filePath);
+            if (!file) return;
+            skillEditingFilePath.value = filePath;
+            skillEditingFileContent.value = file.content;
+        };
+
+        // 更新文件
+        const updateSkillFile = async () => {
+            const path = skillEditingFilePath.value;
+            const content = skillEditingFileContent.value;
+            if (!path) return;
+            const tool = getEditingSkillTool();
+            if (!tool) return;
+            const file = tool.skillConfig.files.find(f => f.path === path);
+            if (!file) { showToast('文件不存在', 'error'); return; }
+            file.content = content;
+            file.size = content.length;
+            if (path === 'SKILL.md') {
+                tool.skillConfig.skillMd = content;
+            }
+            tool.skillConfig.updatedAt = Date.now();
+            skillFileTree.value = JSON.parse(JSON.stringify(tool.skillConfig.files));
+            await saveData();
+            showToast('文件已保存', 'success');
+            skillEditingFilePath.value = '';
+            skillEditingFileContent.value = '';
+        };
+
+        // 删除文件
+        const deleteSkillFile = async (filePath) => {
+            if (filePath === 'SKILL.md') {
+                showToast('不能删除 SKILL.md', 'error'); return;
+            }
+            const tool = getEditingSkillTool();
+            if (!tool) return;
+            tool.skillConfig.files = tool.skillConfig.files.filter(f => f.path !== filePath);
+            tool.skillConfig.updatedAt = Date.now();
+            skillFileTree.value = JSON.parse(JSON.stringify(tool.skillConfig.files));
+            await saveData();
+            showToast('文件已删除', 'info');
+        };
+
+        // 删除 SKILL 工具
+        const removeSkillTool = async (tool) => {
+            activeTools.value = activeTools.value.filter(t => t.id !== tool.id);
+            await saveData();
+            showToast('SKILL 已删除', 'info');
+        };
+
+        // 确认导入（统一入口，根据 tab 分发）
+        const confirmSkillImport = async () => {
+            if (skillImportTab.value === 'github') {
+                await importSkillFromGithub();
+            } else if (skillImportTab.value === 'zip') {
+                await importSkillFromZip();
+            } else if (skillImportTab.value === 'manual') {
+                await openSkillFileManagerForManual();
+            }
+        };
+
         const getEnabledWorldInfoToolEntries = () => {
             const entries = Array.isArray(worldInfo.value) ? worldInfo.value : [];
             return entries
@@ -8225,7 +8768,7 @@ ${content}
 
         const normalizeActiveToolResultContext = (resultContext, tool, query, mode = 'add') => {
             const text = String(resultContext || '').trim();
-            const hasResultBody = /<(?:description|error|memory_fragment|dialogue_fragment|web_source|web_page|failed_page|world_info_[a-z_]+)\b/i.test(text);
+            const hasResultBody = /<(?:description|error|memory_fragment|dialogue_fragment|web_source|web_page|failed_page|world_info_[a-z_]+|mcp_result|skill_result|skill_file_result)\b/i.test(text);
             if (!text || text === '</active_tool_result>' || !text.includes('<active_tool_result') || !hasResultBody) {
                 return formatActiveToolNoticeContext(
                     tool,
@@ -8479,6 +9022,66 @@ ${content}
                     '</active_tool_result>'
                 ].join('\n');
             }
+            if (isSkillActiveTool(tool)) {
+                const modeDescription = modeValue === 'cover'
+                    ? '本次调用模式为覆盖：系统会用本次结果替换本轮此前已检索的工具结果。'
+                    : '本次调用模式为追加：系统会把本次结果追加到本轮此前已检索的工具结果后。';
+
+                if (!Array.isArray(results) || results.length === 0) {
+                    return [
+                        `<active_tool_result name="${title}" call="${callName}" mode="${modeValue}" query="${escapeXmlAttribute(cleanQuery)}" status="empty">`,
+                        `  <description>本次 SKILL 调用没有返回内容。${modeDescription}请检查 SKILL.md 是否为空。</description>`,
+                        '</active_tool_result>'
+                    ].join('\n');
+                }
+
+                const formattedResults = results.map(item => {
+                    const errorAttr = item.isError ? ' is_error="true"' : '';
+                    const contentText = indentXmlText(item.text || '', 4);
+                    return [
+                        `  <skill_result${errorAttr}>`,
+                        contentText ? `    <content>\n${contentText}\n    </content>` : '',
+                        '  </skill_result>'
+                    ].filter(Boolean).join('\n');
+                }).join('\n\n');
+
+                return [
+                    `<active_tool_result name="${title}" call="${callName}" mode="${modeValue}" query="${escapeXmlAttribute(cleanQuery)}">`,
+                    `  <description>以下是系统注入的 SKILL.md 内容和配套文件提示。${modeDescription}本段内容由系统插入最后一条用户消息结尾。请依据 SKILL.md 的指令和配套文件内容继续回答；如需读取配套文件，使用 <tool_skill_readfile_add:skill_name/file_path> 调用文件阅读工具。</description>`,
+                    formattedResults,
+                    '</active_tool_result>'
+                ].join('\n');
+            }
+            if (isSkillReadfileActiveTool(tool)) {
+                const modeDescription = modeValue === 'cover'
+                    ? '本次调用模式为覆盖：系统会用本次结果替换本轮此前已检索的工具结果。'
+                    : '本次调用模式为追加：系统会把本次结果追加到本轮此前已检索的工具结果后。';
+
+                if (!Array.isArray(results) || results.length === 0) {
+                    return [
+                        `<active_tool_result name="${title}" call="${callName}" mode="${modeValue}" query="${escapeXmlAttribute(cleanQuery)}" status="empty">`,
+                        `  <description>本次 SKILL 文件读取没有返回内容。${modeDescription}请检查 skill_name 和 file_path 是否正确。</description>`,
+                        '</active_tool_result>'
+                    ].join('\n');
+                }
+
+                const formattedResults = results.map(item => {
+                    const errorAttr = item.isError ? ' is_error="true"' : '';
+                    const contentText = indentXmlText(item.text || '', 4);
+                    return [
+                        `  <skill_file_result${errorAttr}>`,
+                        contentText ? `    <content>\n${contentText}\n    </content>` : '',
+                        '  </skill_file_result>'
+                    ].filter(Boolean).join('\n');
+                }).join('\n\n');
+
+                return [
+                    `<active_tool_result name="${title}" call="${callName}" mode="${modeValue}" query="${escapeXmlAttribute(cleanQuery)}">`,
+                    `  <description>以下是系统读取的 SKILL 配套文件内容。${modeDescription}本段内容由系统插入最后一条用户消息结尾。请依据文件内容继续回答。</description>`,
+                    formattedResults,
+                    '</active_tool_result>'
+                ].join('\n');
+            }
             const modeDescription = modeValue === 'cover'
                 ? '本次调用模式为覆盖：系统会用本次结果替换本轮此前已检索的工具结果。'
                 : '本次调用模式为追加：系统会把本次结果追加到本轮此前已检索的工具结果后。';
@@ -8553,7 +9156,7 @@ ${content}
             const originalContent = String(text || '');
             if (!originalContent) return [];
             const mainContent = stripCodeBlocksForToolDetection(parseCot(originalContent).main);
-            const tools = getEnabledActiveTools();
+            const tools = getEnabledActiveToolsForCurrentCharacter();
             const calls = [];
             const seen = new Set();
 
@@ -8624,7 +9227,7 @@ ${content}
             const originalContent = String(text || '');
             if (!originalContent) return null;
             const mainContent = stripCodeBlocksForToolDetection(parseCot(originalContent).main);
-            const tools = getEnabledActiveTools();
+            const tools = getEnabledActiveToolsForCurrentCharacter();
             const candidates = [];
 
             for (const tool of tools) {
@@ -9194,6 +9797,84 @@ ${content}
                                 text: mcpResult.text || '',
                                 isError: mcpResult.isError,
                                 sourceType: 'mcp'
+                            }];
+                        })()
+                        : isSkillActiveTool(toolCall.tool)
+                        ? await (async () => {
+                            const skillMd = String(toolCall.tool.skillConfig?.skillMd || '');
+                            const skillName = String(toolCall.tool.skillConfig?.skillName || toolCall.tool.name || '');
+                            const files = Array.isArray(toolCall.tool.skillConfig?.files) ? toolCall.tool.skillConfig.files : [];
+                            const companionFiles = files.filter(f => f.path && f.path !== 'SKILL.md').map(f => f.path);
+                            const fileHint = companionFiles.length > 0
+                                ? `\n\n可用 <tool_skill_readfile_add:${skillName}/文件路径> 读取以下配套文件：\n${companionFiles.map(p => '- ' + p).join('\n')}`
+                                : '';
+                            return [{
+                                index: 1,
+                                text: `<skill_content name="${skillName}">\n${skillMd}\n</skill_content>${fileHint}`,
+                                isError: false,
+                                sourceType: 'skill'
+                            }];
+                        })()
+                        : isSkillReadfileActiveTool(toolCall.tool)
+                        ? await (async () => {
+                            // 解析 skill_name/file_path 参数
+                            const rawQuery = String(toolCall.query || '').trim();
+                            const slashIdx = rawQuery.indexOf('/');
+                            if (slashIdx <= 0) {
+                                return [{
+                                    index: 1,
+                                    text: '参数格式错误，应为 skill_name/file_path',
+                                    isError: true,
+                                    sourceType: 'skill_readfile'
+                                }];
+                            }
+                            const skillName = rawQuery.slice(0, slashIdx).trim();
+                            const filePath = rawQuery.slice(slashIdx + 1).trim();
+                            if (!skillName || !filePath) {
+                                return [{
+                                    index: 1,
+                                    text: 'skill_name 或 file_path 为空',
+                                    isError: true,
+                                    sourceType: 'skill_readfile'
+                                }];
+                            }
+                            // 查找对应的 skill 工具
+                            const skillTool = activeTools.value.find(t =>
+                                t.type === ACTIVE_TOOL_SKILL_TYPE &&
+                                t.skillConfig &&
+                                t.skillConfig.skillName === skillName
+                            );
+                            if (!skillTool) {
+                                return [{
+                                    index: 1,
+                                    text: `未找到 SKILL "${skillName}"`,
+                                    isError: true,
+                                    sourceType: 'skill_readfile'
+                                }];
+                            }
+                            const targetFile = (skillTool.skillConfig.files || []).find(f => f.path === filePath);
+                            if (!targetFile) {
+                                const available = (skillTool.skillConfig.files || []).map(f => f.path).join(', ');
+                                return [{
+                                    index: 1,
+                                    text: `SKILL "${skillName}" 中未找到文件 "${filePath}"。可用文件：${available || '无'}`,
+                                    isError: true,
+                                    sourceType: 'skill_readfile'
+                                }];
+                            }
+                            if (!isSkillFileText(filePath)) {
+                                return [{
+                                    index: 1,
+                                    text: `文件 "${filePath}" 不是文本文件，无法读取。`,
+                                    isError: true,
+                                    sourceType: 'skill_readfile'
+                                }];
+                            }
+                            return [{
+                                index: 1,
+                                text: `<skill_file_content skill="${skillName}" path="${filePath}">\n${targetFile.content}\n</skill_file_content>`,
+                                isError: false,
+                                sourceType: 'skill_readfile'
                             }];
                         })()
                         : await searchVectorMemoriesForTool(
@@ -11324,6 +12005,13 @@ image###生成的提示词###
             activeTools, activeToolAggressivenessOptions: ACTIVE_TOOL_AGGRESSIVENESS_OPTIONS, getActiveToolAggressivenessLabel, editingActiveTool, normalizeActiveTools, isWebActiveTool, isWorldInfoActiveTool, getWorldInfoAccessMode, getActiveToolDisplayDescription, canConfigureActiveToolResultCount, getActiveToolResultCountMin, getActiveToolResultCountMax,
             // MCP HTTP 工具导入相关导出
             showMcpToolImport, mcpImportInput, mcpImportError, openMcpToolImport, parseMcpImportJson, testMcpConnection, confirmMcpToolImport, refreshMcpTool, removeMcpTool,
+            // SKILL 工具导入相关导出
+            showSkillImport, skillImportTab, skillImportInput, skillImportError, skillImportLoading,
+            openSkillImport, onSkillZipSelected, confirmSkillImport, importSkillFromGithub, importSkillFromZip,
+            showSkillFileManager, editingSkillToolId, skillFileTree, skillNewFilePath, skillNewFileContent,
+            skillEditingFilePath, skillEditingFileContent,
+            openSkillFileManagerForManual, openSkillFileManagerForEdit, addSkillFile, editSkillFile, updateSkillFile, deleteSkillFile, removeSkillTool,
+            isBuiltinActiveTool, isSkillActiveTool, isSkillReadfileActiveTool,
             getToolCallModeText, hasThinkingOrTools, isMessageThinkingOrRunning, isThinkingSummaryOpen, toggleThinkingSummary, markThinkingSummaryDetailOpened, getTimelineSteps,
             activeRegexCount, activeWorldInfoCount, activeUiTemplateCount, chatRoundStats, totalContextLength,
             editingCharacter, editingPreset, editingUiTemplate, toasts, chatContainer, isChatFullscreen, isMobileKeyboardOpen, inputBox, messageElements,

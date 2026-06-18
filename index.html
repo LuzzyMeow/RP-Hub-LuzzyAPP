@@ -16,6 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -2920,103 +2921,211 @@
                 </div>
 
                 <div id="active-tools-list" class="space-y-4">
-                    <!-- 添加 MCP 工具按钮 -->
-                    <button type="button" @click="openMcpToolImport"
-                        class="w-full p-3 rounded-xl border-2 border-dashed border-primary-200 bg-primary-50/40 hover:bg-primary-50 text-primary-600 hover:text-primary-700 font-bold text-sm transition-all flex items-center justify-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                        </svg>
-                        添加 MCP 工具
-                    </button>
-                    <div v-for="(tool, index) in activeTools" :key="tool.id || index"
-                        class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center">
-                        <!-- MCP 工具专属渲染分支 -->
-                        <div v-if="tool.type === 'mcp_http'" class="flex-1 min-w-0 mr-4">
-                            <div class="flex items-center">
-                                <div class="text-primary-600 bg-primary-50 mr-3 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                                    </svg>
-                                </div>
-                                <div class="min-w-0">
-                                    <h3 class="font-bold text-gray-800 truncate">{{ tool.name || '未命名 MCP 工具' }}</h3>
-                                    <div class="text-xs text-gray-500 mt-1 truncate">MCP · {{ tool.mcpConfig?.url }}</div>
-                                    <div v-if="tool.mcpLastError" class="mt-1 text-[11px] font-bold text-red-600 truncate">
-                                        {{ tool.mcpLastError }}
-                                    </div>
-                                    <div v-else class="mt-1 text-[11px] text-gray-500">
-                                        <span v-if="tool.mcpTools && tool.mcpTools.length">包含工具：{{ tool.mcpTools.length }} 个</span>
-                                        <span v-else class="text-amber-600">未拉取工具列表</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <!-- 内建工具渲染分支（保持原样） -->
-                        <button v-else type="button" @click="editActiveTool(index)"
-                            class="flex-1 min-w-0 mr-4 flex items-center text-left">
-                            <div class="text-primary-600 bg-primary-50 mr-3 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
-                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94L14.7 6.3z">
-                                    </path>
-                                </svg>
-                            </div>
-                            <div class="min-w-0">
-                                <div class="flex items-center">
-                                    <h3 class="font-bold text-gray-800 truncate">{{ tool.name || '未命名工具' }}</h3>
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1 tool-description-preview">
-                                    {{ getActiveToolDisplayDescription(tool) }}
-                                </div>
-                                <div v-if="isWebActiveTool(tool) && tool.enabled && !tool.tavilyApiKey"
-                                    class="mt-1 text-[11px] font-bold text-amber-600">
-                                    需要填写 Tavily API Key
-                                </div>
-                            </div>
+                    <!-- 添加按钮区 -->
+                    <div class="flex gap-2">
+                        <button type="button" @click="openMcpToolImport"
+                            class="flex-1 p-3 rounded-xl border-2 border-dashed border-primary-200 bg-primary-50/40 hover:bg-primary-50 text-primary-600 hover:text-primary-700 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            添加 MCP 工具
                         </button>
-                        <div class="flex items-center space-x-4 flex-shrink-0">
-                            <label class="relative inline-flex items-center cursor-pointer" @click.stop>
-                                <input type="checkbox" v-model="tool.enabled" @change="normalizeActiveTools()"
-                                    class="sr-only peer">
-                                <div
-                                    class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600">
-                                </div>
-                            </label>
-                            <div class="flex space-x-1 border-l border-gray-200 pl-4">
-                                <!-- MCP 工具：刷新 + 删除按钮 -->
-                                <template v-if="tool.type === 'mcp_http'">
-                                    <button @click="refreshMcpTool(tool)"
-                                        class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                                        title="刷新工具列表">
+                        <button type="button" @click="openSkillImport"
+                            class="flex-1 p-3 rounded-xl border-2 border-dashed border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50 text-emerald-600 hover:text-emerald-700 font-bold text-sm transition-all flex items-center justify-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            添加 SKILL
+                        </button>
+                    </div>
+
+                    <!-- 组1：内置工具 -->
+                    <div class="space-y-2">
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">内置工具</div>
+                        <template v-for="(tool, index) in activeTools" :key="tool.id || index">
+                            <div v-if="isBuiltinActiveTool(tool)"
+                                class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center">
+                                <!-- 内建工具渲染分支 -->
+                                <button type="button" @click="editActiveTool(index)"
+                                    class="flex-1 min-w-0 mr-4 flex items-center text-left">
+                                    <div class="text-primary-600 bg-primary-50 mr-3 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                                d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94L14.7 6.3z">
                                             </path>
                                         </svg>
-                                    </button>
-                                    <button @click="removeMcpTool(tool)"
-                                        class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                        title="删除">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                            </path>
-                                        </svg>
-                                    </button>
-                                </template>
-                                <!-- 内建工具：编辑按钮（保持原样） -->
-                                <button v-else @click="editActiveTool(index)"
-                                    class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                                    title="编辑">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
-                                        </path>
-                                    </svg>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <div class="flex items-center">
+                                            <h3 class="font-bold text-gray-800 truncate">{{ tool.name || '未命名工具' }}</h3>
+                                        </div>
+                                        <div class="text-xs text-gray-500 mt-1 tool-description-preview">
+                                            {{ getActiveToolDisplayDescription(tool) }}
+                                        </div>
+                                        <div v-if="isWebActiveTool(tool) && tool.enabled && !tool.tavilyApiKey"
+                                            class="mt-1 text-[11px] font-bold text-amber-600">
+                                            需要填写 Tavily API Key
+                                        </div>
+                                    </div>
                                 </button>
+                                <div class="flex items-center space-x-4 flex-shrink-0">
+                                    <label class="relative inline-flex items-center cursor-pointer" @click.stop>
+                                        <input type="checkbox" v-model="tool.enabled" @change="normalizeActiveTools()"
+                                            class="sr-only peer">
+                                        <div
+                                            class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600">
+                                        </div>
+                                    </label>
+                                    <div class="flex space-x-1 border-l border-gray-200 pl-4">
+                                        <button @click="editActiveTool(index)"
+                                            class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                            title="编辑">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                                </path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        </template>
+                    </div>
+
+                    <!-- 组2：MCP 工具 -->
+                    <div v-if="activeTools.some(t => t.type === 'mcp_http')" class="space-y-2">
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">MCP 工具</div>
+                        <template v-for="(tool, index) in activeTools" :key="tool.id || index">
+                            <div v-if="tool.type === 'mcp_http'"
+                                class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center">
+                                <!-- MCP 工具专属渲染分支 -->
+                                <div class="flex-1 min-w-0 mr-4">
+                                    <div class="flex items-center">
+                                        <div class="text-primary-600 bg-primary-50 mr-3 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                            </svg>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <h3 class="font-bold text-gray-800 truncate">{{ tool.name || '未命名 MCP 工具' }}</h3>
+                                            <div class="text-xs text-gray-500 mt-1 truncate">MCP · {{ tool.mcpConfig?.url }}</div>
+                                            <div v-if="tool.mcpLastError" class="mt-1 text-[11px] font-bold text-red-600 truncate">
+                                                {{ tool.mcpLastError }}
+                                            </div>
+                                            <div v-else class="mt-1 text-[11px] text-gray-500">
+                                                <span v-if="tool.mcpTools && tool.mcpTools.length">包含工具：{{ tool.mcpTools.length }} 个</span>
+                                                <span v-else class="text-amber-600">未拉取工具列表</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-4 flex-shrink-0">
+                                    <label class="relative inline-flex items-center cursor-pointer" @click.stop>
+                                        <input type="checkbox" v-model="tool.enabled" @change="normalizeActiveTools()"
+                                            class="sr-only peer">
+                                        <div
+                                            class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600">
+                                        </div>
+                                    </label>
+                                    <div class="flex space-x-1 border-l border-gray-200 pl-4">
+                                        <button @click="editActiveTool(index)"
+                                            class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                            title="角色卡配置">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                                </path>
+                                            </svg>
+                                        </button>
+                                        <button @click="refreshMcpTool(tool)"
+                                            class="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+                                            title="刷新工具列表">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                                                </path>
+                                            </svg>
+                                        </button>
+                                        <button @click="removeMcpTool(tool)"
+                                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="删除">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                                </path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- 组3：SKILL 工具 -->
+                    <div v-if="activeTools.some(t => t.type === 'skill')" class="space-y-2">
+                        <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide px-1">SKILL</div>
+                        <template v-for="(tool, index) in activeTools" :key="tool.id || index">
+                            <div v-if="tool.type === 'skill'"
+                                class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all flex justify-between items-center">
+                                <div class="flex-1 min-w-0 mr-4">
+                                    <div class="flex items-center">
+                                        <div class="text-emerald-600 bg-emerald-50 mr-3 rounded-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                                            </svg>
+                                        </div>
+                                        <div class="min-w-0">
+                                            <h3 class="font-bold text-gray-800 truncate">{{ tool.name || '未命名 SKILL' }}</h3>
+                                            <div class="text-xs text-gray-500 mt-1 truncate">
+                                                SKILL · {{ tool.skillConfig?.files?.length || 0 }} 个文件 · 来源：{{ tool.skillConfig?.source }}
+                                            </div>
+                                            <div v-if="tool.skillConfig?.sourceUrl" class="mt-0.5 text-[11px] text-gray-400 truncate">
+                                                {{ tool.skillConfig.sourceUrl }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-4 flex-shrink-0">
+                                    <label class="relative inline-flex items-center cursor-pointer" @click.stop>
+                                        <input type="checkbox" v-model="tool.enabled" @change="normalizeActiveTools()"
+                                            class="sr-only peer">
+                                        <div
+                                            class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600">
+                                        </div>
+                                    </label>
+                                    <div class="flex space-x-1 border-l border-gray-200 pl-4">
+                                        <button @click="openSkillFileManagerForEdit(tool)"
+                                            class="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                            title="文件管理器">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                                            </svg>
+                                        </button>
+                                        <button @click="editActiveTool(index)"
+                                            class="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                            title="角色卡配置">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                                </path>
+                                            </svg>
+                                        </button>
+                                        <button @click="removeSkillTool(tool)"
+                                            class="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="删除">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                                </path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -4447,6 +4556,51 @@
                                 placeholder="tvly-...">
                         </div>
                     </div>
+
+                    <!-- 角色卡启用范围配置（仅 skill 和 mcp 工具显示） -->
+                    <div v-if="editingActiveTool.data.type === 'skill' || editingActiveTool.data.type === 'mcp_http'"
+                        class="max-w-2xl mx-auto bg-white border border-gray-200 rounded-2xl p-5 md:p-6 shadow-sm space-y-4">
+                        <div>
+                            <div class="text-sm font-bold text-gray-800">角色卡启用范围</div>
+                            <div class="text-xs text-gray-500 mt-1">设置哪些角色卡可以感知和使用此工具（内置工具始终全局启用）</div>
+                        </div>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
+                                <input type="radio" v-model="editingActiveTool.data.enableMode" value="all"
+                                    class="text-primary-600 focus:ring-primary-500">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-800">所有角色卡可用（默认）</div>
+                                    <div class="text-xs text-gray-500">任何角色卡都能感知和使用此工具</div>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50">
+                                <input type="radio" v-model="editingActiveTool.data.enableMode" value="custom"
+                                    class="text-primary-600 focus:ring-primary-500">
+                                <div>
+                                    <div class="text-sm font-medium text-gray-800">自定义角色卡</div>
+                                    <div class="text-xs text-gray-500">仅选中的角色卡可感知和使用此工具</div>
+                                </div>
+                            </label>
+                        </div>
+                        <div v-if="editingActiveTool.data.enableMode === 'custom'"
+                            class="border border-gray-200 rounded-xl p-3 max-h-60 overflow-y-auto space-y-1">
+                            <label v-for="char in characters" :key="char.uuid"
+                                class="flex items-center gap-3 cursor-pointer hover:bg-gray-50 p-2 rounded-lg">
+                                <input type="checkbox" :value="char.uuid" v-model="editingActiveTool.data.allowedCharacterUuids"
+                                    class="text-primary-600 focus:ring-primary-500 rounded">
+                                <div class="flex items-center gap-2 flex-1 min-w-0">
+                                    <img v-if="char.avatar" :src="char.avatar" class="w-6 h-6 rounded-full object-cover flex-shrink-0">
+                                    <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0" v-else>
+                                        <span class="text-xs text-gray-500">{{ (char.name || '?')[0] }}</span>
+                                    </div>
+                                    <span class="text-sm text-gray-800 truncate">{{ char.name || '未命名角色' }}</span>
+                                </div>
+                            </label>
+                            <div v-if="characters.length === 0" class="text-xs text-gray-400 text-center py-4">
+                                暂无角色卡，请先导入角色卡
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div
@@ -4553,6 +4707,260 @@
                             </path>
                         </svg>
                         导入工具
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SKILL Import Modal -->
+        <div v-if="showSkillImport"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+            <div
+                class="bg-white rounded-2xl border border-gray-200 w-full max-w-2xl flex flex-col shadow-2xl max-h-[90vh] overflow-hidden">
+                <div
+                    class="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800 leading-tight">导入 SKILL</h3>
+                            <p class="text-xs text-gray-500">导入 SKILL 提示词包，支持 GitHub、ZIP、手动新建</p>
+                        </div>
+                    </div>
+                    <button @click="showSkillImport = false"
+                        class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-all">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Tab 切换 -->
+                <div class="flex border-b border-gray-200 flex-shrink-0">
+                    <button type="button"
+                        :class="skillImportTab === 'github' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        @click="skillImportTab = 'github'"
+                        class="flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-all">
+                        GitHub 仓库
+                    </button>
+                    <button type="button"
+                        :class="skillImportTab === 'zip' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        @click="skillImportTab = 'zip'"
+                        class="flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-all">
+                        上传 ZIP
+                    </button>
+                    <button type="button"
+                        :class="skillImportTab === 'manual' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                        @click="skillImportTab = 'manual'"
+                        class="flex-1 px-4 py-3 text-sm font-medium border-b-2 transition-all">
+                        手动新建
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-5 bg-gray-50/30">
+                    <!-- GitHub Tab -->
+                    <div v-if="skillImportTab === 'github'" class="max-w-xl mx-auto space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">GitHub 仓库 URL</label>
+                            <input v-model.trim="skillImportInput.githubUrl" type="text"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all"
+                                placeholder="https://github.com/user/repo">
+                            <p class="mt-1.5 text-[11px] text-gray-500 leading-relaxed">
+                                支持格式：<br>
+                                • <code class="bg-gray-100 px-1 rounded">https://github.com/{owner}/{repo}</code>（默认 main 分支，根目录）<br>
+                                • <code class="bg-gray-100 px-1 rounded">https://github.com/{owner}/{repo}/tree/{branch}</code>（指定分支）<br>
+                                • <code class="bg-gray-100 px-1 rounded">https://github.com/{owner}/{repo}/tree/{branch}/{subdir}</code>（子目录）
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">SKILL 名称（目录名）</label>
+                            <input v-model.trim="skillImportInput.skillName" type="text"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all"
+                                placeholder="例如：my-skill">
+                        </div>
+                    </div>
+
+                    <!-- ZIP Tab -->
+                    <div v-if="skillImportTab === 'zip'" class="max-w-xl mx-auto space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">ZIP 文件</label>
+                            <input type="file" accept=".zip" @change="onSkillZipSelected"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all">
+                            <p class="mt-1.5 text-[11px] text-gray-500 leading-relaxed">
+                                ZIP 最外层需包含 SKILL.md 文件，将完整解压所有文件至 SKILL 目录。<br>
+                                若 ZIP 内所有文件都在同一个一级子目录下，该子目录将作为 SKILL 根目录。
+                            </p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">SKILL 名称（目录名）</label>
+                            <input v-model.trim="skillImportInput.skillName" type="text"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all"
+                                placeholder="例如：my-skill">
+                        </div>
+                    </div>
+
+                    <!-- Manual Tab -->
+                    <div v-if="skillImportTab === 'manual'" class="max-w-xl mx-auto space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">SKILL 名称（目录名）</label>
+                            <input v-model.trim="skillImportInput.manualName" type="text"
+                                class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-800 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 focus:outline-none transition-all"
+                                placeholder="例如：my-skill">
+                            <p class="mt-1.5 text-[11px] text-gray-500 leading-relaxed">
+                                创建后将打开文件管理器，可新建文件夹、子文件夹和 .md 文件。<br>
+                                默认会创建一个 SKILL.md 模板文件。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- 校验错误提示 -->
+                    <div v-if="skillImportError"
+                        class="max-w-xl mx-auto bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700 flex items-start gap-2">
+                        <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z">
+                            </path>
+                        </svg>
+                        <span>{{ skillImportError }}</span>
+                    </div>
+                </div>
+
+                <div
+                    class="p-4 md:p-5 border-t border-gray-100 flex justify-end space-x-3 bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
+                    <button @click="showSkillImport = false"
+                        class="px-5 py-2.5 bg-white hover:bg-gray-100 text-gray-700 border border-gray-200 rounded-xl transition-all shadow-sm font-medium text-sm active:scale-95">取消</button>
+                    <button @click="confirmSkillImport" :disabled="skillImportLoading"
+                        class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg font-bold text-sm active:scale-95 flex items-center disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg v-if="!skillImportLoading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <svg v-if="skillImportLoading" class="animate-spin w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        {{ skillImportLoading ? '导入中...' : (skillImportTab === 'manual' ? '创建并编辑' : '导入') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SKILL File Manager Modal -->
+        <div v-if="showSkillFileManager"
+            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+            <div
+                class="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl flex flex-col shadow-2xl max-h-[90vh] overflow-hidden">
+                <div
+                    class="p-4 md:p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
+                    <div class="flex items-center gap-3">
+                        <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800 leading-tight">SKILL 文件管理器</h3>
+                            <p class="text-xs text-gray-500">管理 SKILL 目录下的文件</p>
+                        </div>
+                    </div>
+                    <button @click="showSkillFileManager = false"
+                        class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-2 rounded-full transition-all">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 bg-gray-50/30">
+                    <!-- 文件列表 -->
+                    <div class="max-w-2xl mx-auto">
+                        <div class="text-sm font-bold text-gray-800 mb-3">文件列表（{{ skillFileTree.length }} 个文件）</div>
+                        <div v-if="skillFileTree.length === 0" class="text-center py-8 text-sm text-gray-400">
+                            暂无文件，请在下方新增
+                        </div>
+                        <div v-else class="space-y-2">
+                            <div v-for="file in skillFileTree" :key="file.path"
+                                class="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3 hover:shadow-sm transition-all">
+                                <div class="flex items-center gap-3 flex-1 min-w-0">
+                                    <div class="text-gray-400 flex-shrink-0">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="text-sm font-medium text-gray-800 truncate">{{ file.path }}</div>
+                                        <div class="text-xs text-gray-500">{{ file.size }} 字节 · {{ file.type }}</div>
+                                    </div>
+                                </div>
+                                <div class="flex space-x-2 flex-shrink-0">
+                                    <button type="button" @click="editSkillFile(file.path)"
+                                        class="px-3 py-1 text-xs bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors">编辑</button>
+                                    <button type="button" @click="deleteSkillFile(file.path)"
+                                        class="px-3 py-1 text-xs bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors">删除</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 新增文件 -->
+                    <div class="max-w-2xl mx-auto bg-white border border-gray-200 rounded-xl p-4 space-y-3">
+                        <div class="text-sm font-bold text-gray-800">新增文件</div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">文件路径</label>
+                            <input v-model.trim="skillNewFilePath" type="text"
+                                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none"
+                                placeholder="例如：references/guide.md 或 SKILL.md">
+                            <p class="mt-1 text-[11px] text-gray-400">支持子目录路径，如 references/guide.md</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-1.5">文件内容</label>
+                            <textarea v-model="skillNewFileContent" rows="4"
+                                class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none resize-y"
+                                placeholder="文件内容..."></textarea>
+                        </div>
+                        <button type="button" @click="addSkillFile"
+                            class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors flex items-center">
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            添加文件
+                        </button>
+                    </div>
+
+                    <!-- 编辑文件 -->
+                    <div v-if="skillEditingFilePath" class="max-w-2xl mx-auto bg-emerald-50/50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="text-sm font-bold text-gray-800">编辑：{{ skillEditingFilePath }}</div>
+                            <button type="button" @click="skillEditingFilePath = ''; skillEditingFileContent = ''"
+                                class="text-gray-400 hover:text-gray-600 p-1 rounded">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <textarea v-model="skillEditingFileContent" rows="10"
+                            class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 focus:outline-none resize-y"></textarea>
+                        <div class="flex space-x-2">
+                            <button type="button" @click="updateSkillFile"
+                                class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors">保存</button>
+                            <button type="button" @click="skillEditingFilePath = ''; skillEditingFileContent = ''"
+                                class="px-4 py-2 bg-white text-gray-700 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition-colors">取消</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    class="p-4 md:p-5 border-t border-gray-100 flex justify-end bg-gray-50/80 backdrop-blur-sm flex-shrink-0">
+                    <button @click="showSkillFileManager = false"
+                        class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg font-bold text-sm active:scale-95">
+                        完成
                     </button>
                 </div>
             </div>
