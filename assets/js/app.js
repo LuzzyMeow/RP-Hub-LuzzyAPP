@@ -318,6 +318,7 @@ createApp({
         const popularModelFamilies = ['claude', 'gemini', 'deepseek', 'llama', 'glm', 'minimax', 'moonshot', 'grok'];
         const characterSearchQuery = ref('');
         const availableModels = ref([]);
+        const customModelInput = ref('');
         const toasts = ref([]);
         let toastIdSeed = 0;
         const chatContainer = ref(null);
@@ -3976,7 +3977,7 @@ ${content}
         const fetchModels = async (isManual = false) => {
             try {
                 if (isManual) showToast('正在获取模型列表...', 'info');
-                const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/models` : `${settings.apiUrl}/v1/models`;
+                const url = getOpenAICompatUrl('models');
                 const response = await fetch(url, {
                     headers: { 'Authorization': `Bearer ${settings.apiKey}` }
                 });
@@ -3992,6 +3993,7 @@ ${content}
 
         const openModelSelector = (target) => {
             modelSelectionTarget.value = target;
+            customModelInput.value = '';
             if (target === 'memoryEmbeddingModel') {
                 modelSearchQuery.value = 'embedding';
                 activeModelTag.value = 'all';
@@ -4021,6 +4023,16 @@ ${content}
             showModelSelector.value = false;
         };
 
+        const confirmCustomModel = () => {
+            const trimmed = customModelInput.value.trim();
+            if (!trimmed) {
+                showToast('请输入模型名称', 'warning');
+                return;
+            }
+            selectModel(trimmed);
+            customModelInput.value = '';
+        };
+
         // Removed Multiplayer Logic
         // --- Status Check functions ---
         const checkApiStatus = async () => {
@@ -4034,7 +4046,7 @@ ${content}
                 const id = setTimeout(() => controller.abort(), 10000);
                 const startTime = performance.now();
 
-                const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/models` : `${settings.apiUrl}/v1/models`;
+                const url = getOpenAICompatUrl('models');
                 const response = await fetch(url, {
                     headers: { 'Authorization': `Bearer ${settings.apiKey}` },
                     signal: controller.signal
@@ -4393,7 +4405,7 @@ ${content}
                 finishUiTemplateStatusAsToast('未选择变量分析模型', 'warning');
                 return false;
             }
-            const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/chat/completions` : `${settings.apiUrl}/v1/chat/completions`;
+            const url = getOpenAICompatUrl('chat/completions');
 
             try {
                 const updateRun = startUiTemplateUpdateRun();
@@ -5675,7 +5687,7 @@ ${content}
             };
 
             try {
-                        const url = settings.apiUrl.endsWith('/v1') ? `${settings.apiUrl}/chat/completions` : `${settings.apiUrl}/v1/chat/completions`;
+                        const url = getOpenAICompatUrl('chat/completions');
                         const response = await fetch(url, {
                             method: 'POST',
                             headers: {
@@ -5686,7 +5698,7 @@ ${content}
                                 model: settings.model,
                                 messages: apiMessages,
                                 temperature: settings.temperature,
-                                stream: settings.stream
+                                stream: getEffectiveStream()
                             }),
                             signal: abortController.value.signal
                         });
@@ -5714,7 +5726,7 @@ ${content}
 
                         // Check Content-Type to determine if we should stream
                         const contentType = response.headers.get('content-type');
-                        const isStream = settings.stream && contentType && contentType.includes('text/event-stream');
+                        const isStream = getEffectiveStream() && contentType && contentType.includes('text/event-stream');
 
                         if (isStream) {
                             const reader = response.body.getReader();
@@ -6047,9 +6059,15 @@ ${content}
 
         const getOpenAICompatUrl = (endpoint) => {
             const baseUrl = (settings.apiUrl || '').replace(/\/+$/, '');
-            const apiUrl = baseUrl.endsWith('/v1') ? baseUrl : `${baseUrl}/v1`;
+            const apiUrl = /\/v\d+$/.test(baseUrl) ? baseUrl : `${baseUrl}/v1`;
             return `${apiUrl}/${endpoint.replace(/^\/+/, '')}`;
         };
+
+        // Capacitor native environment detection: CapacitorHttp patches fetch but does NOT support
+        // true streaming (response.body.getReader() returns full data at once on Android).
+        // Force-disable streaming in native APK to avoid broken chat experience.
+        const isNativePlatform = () => !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+        const getEffectiveStream = () => settings.stream && !isNativePlatform();
 
         const trimMemoryText = (text, maxLength = 1800) => {
             const cleanText = String(text || '').replace(/\n{3,}/g, '\n\n').trim();
@@ -8960,6 +8978,40 @@ ${content}
             reader.readAsText(file);
         };
 
+        // 万相广场自动导入：原生 DownloadListener 捕获下载 URL 后调用此函数
+        // 直接 fetch URL（CapacitorHttp 绕过 CORS）→ 构造 File → 调用现有导入逻辑
+        // 角色卡（PNG）→ importCharacter，UI 模板（.ui）→ importUiTemplates
+        // 只下载一次，直接导入到 app，无需用户手动从文件系统导入
+        window.RPHubAutoImport = async (url, mimetype) => {
+            try {
+                showToast('正在下载并导入...', 'info');
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const blob = await response.blob();
+
+                const isImage = (mimetype && mimetype.startsWith('image/'))
+                    || /\.png(\?|$)/i.test(url);
+                const ext = isImage ? 'png' : 'ui';
+                const file = new File([blob], `download.${ext}`, {
+                    type: mimetype || (isImage ? 'image/png' : 'application/octet-stream')
+                });
+
+                // 构造假 event 对象，复用现有导入逻辑
+                const fakeEvent = { target: { files: [file], value: '' } };
+
+                if (isImage) {
+                    // 角色卡（PNG 格式，内嵌 JSON）
+                    importCharacter(fakeEvent);
+                } else {
+                    // UI 模板（.ui 文件，本质是 JSON）
+                    importUiTemplates(fakeEvent);
+                }
+            } catch (e) {
+                console.error('[RPHubAutoImport] Failed:', e);
+                showToast(`自动导入失败: ${e.message}`, 'error');
+            }
+        };
+
         const deleteCharacter = (index) => {
             confirmAction('确定要删除这个角色吗？此操作无法撤销。', async () => {
                 try {
@@ -10673,7 +10725,7 @@ image###生成的提示词###
             showCharacterExportModal, characterToExportIndex, openCharacterExportModal, confirmCharacterExport, // Character Export Modal
             showUpdateModal, updateCountdown, latestUpdate, closeUpdateModal, isUpdateScrolledToBottom, checkUpdateScroll, // Update Modal
             showConfirmModal, confirmMessage, modelMode, showNoMemoryNeededModal, // Export for template
-            isGenerating, isRemoteGenerating, remoteEstimatedTime, isReceiving, isThinking, hasActiveToolInlineWork, activeToolInlineStatusText, isConversationBusy, activeToolContinuationMessageId, activeToolContinuationToolCallId, activeToolContinuationHasResponse, activeNativeReasoning, userInput, modelSearchQuery, activeModelTag, modelTags, characterSearchQuery, availableModels, filteredModels, filteredCharacters,
+            isGenerating, isRemoteGenerating, remoteEstimatedTime, isReceiving, isThinking, hasActiveToolInlineWork, activeToolInlineStatusText, isConversationBusy, activeToolContinuationMessageId, activeToolContinuationToolCallId, activeToolContinuationHasResponse, activeNativeReasoning, userInput, modelSearchQuery, activeModelTag, modelTags, characterSearchQuery, availableModels, customModelInput, filteredModels, filteredCharacters,
             user, settings, apiProviderOptions, selectedApiProvider, isCustomApiProvider, customApiProviderOption, customApiProviderOptions, showApiProviderSelector, selectApiProvider, characters, currentCharacter, currentCharacterIndex, chatHistory, displayedChatMessages, handleChatScroll, presets, presetRoleOptions, fontFamilyOptions, imageStyleOptions, imageSizeOptions, imageGenCountOptions, scopeOptions, uiTemplatePlacementOptions, worldInfoPositionOptions, getPresetRoleLabel, getPresetRoleDisplayLabel, getPresetRoleBadgeClass, regexScripts, worldInfo,
             activeTools, activeToolAggressivenessOptions: ACTIVE_TOOL_AGGRESSIVENESS_OPTIONS, getActiveToolAggressivenessLabel, editingActiveTool, normalizeActiveTools, isWebActiveTool, isWorldInfoActiveTool, getWorldInfoAccessMode, getActiveToolDisplayDescription, canConfigureActiveToolResultCount, getActiveToolResultCountMin, getActiveToolResultCountMax,
             getToolCallModeText, hasThinkingOrTools, isMessageThinkingOrRunning, isThinkingSummaryOpen, toggleThinkingSummary, markThinkingSummaryDetailOpened, getTimelineSteps,
@@ -10824,7 +10876,7 @@ image###生成的提示词###
             },
             toggleMobileMenu, closeMobileMenu,
             scrollToPreviousMessage, scrollToNextMessage,
-            fetchModels, selectModel, sendMessage, autoResizeInput, handleChatInputFocus, handleChatInputBlur, stopGeneration, clearChat, toggleChatFullscreen,
+            fetchModels, selectModel, confirmCustomModel, sendMessage, autoResizeInput, handleChatInputFocus, handleChatInputBlur, stopGeneration, clearChat, toggleChatFullscreen,
             handleConfirm, handleCancel, // Export handlers
             manualSave,
             copyMessage, deleteMessage, regenerateMessage, printAIRequestLogs,
