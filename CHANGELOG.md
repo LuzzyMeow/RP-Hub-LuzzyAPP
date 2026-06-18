@@ -1016,5 +1016,159 @@ queryString = queryString.replaceAll("&{2,}", "&");  // 新增：清理连续 &
 
 ---
 
+## 十二、第六轮改动（2026-06-18：TRPG 代理配置弹窗 + iframe 缓存 + 配置持久化）
+
+### 12.0 改动背景
+
+用户反馈第五轮的 TRPG 代理方案虽然功能完整，但交互体验不佳：
+1. **用户需手动拼 localhost 地址**：用户需要自己知道填 `http://localhost:18527/v3`，缺乏引导
+2. **iframe 每次切换重新加载**：用户切换到其他功能再切回 TRPG，网页重新加载，需要重新选择存档
+3. **配置不持久化**：每次进入 TRPG 都要重新配置代理
+4. **弹窗标题不匹配用户期望**：用户希望弹窗以疑问句形式引导
+
+本轮改动聚焦于交互体验优化，通过新增代理配置弹窗、iframe 缓存、配置持久化三项核心改进，全面提升 TRPG 模式的易用性。
+
+### 12.1 `index.html` TRPG iframe 改为 v-show 实现缓存
+
+**文件**：`index.html`
+**位置**：第 1597 行
+**问题**：原 TRPG iframe 使用 `v-if` 控制，每次切换视图会销毁重建 iframe，导致网页重新加载，用户需要重新交互选择存档。
+**修复**：改为 `v-show` 控制，保留 DOM 元素（`display:none`），切换视图时 iframe 不销毁，网页状态保持。
+
+```html
+<!-- 修改前 -->
+<div v-if="currentView === 'trpg'" ...>
+
+<!-- 修改后 -->
+<div v-show="currentView === 'trpg'" ...>
+```
+
+**对比**：原项目中 `square`（万相广场）视图使用 `v-if`（每次刷新），`chat`（聊天）视图使用 `v-show`（缓存）。TRPG 采用与 chat 一致的缓存策略，因为 TRPG 网页有复杂的交互状态（存档选择、世界卡配置等），不应频繁重置。
+
+### 12.2 `index.html` TRPG 视图移动端浮动返回按钮
+
+**文件**：`index.html`
+**位置**：第 1598-1607 行
+**改动**：新增移动端浮动返回按钮，与 `square`（万相广场）视图完全一致的交互模式。按钮位于左侧居中，点击调用 `toggleMobileMenu` 打开侧边栏菜单，支持切换到其他功能。
+
+**设计决策**：参考原项目其他菜单功能（square、settings 等）的返回交互模式，保持一致性。桌面端侧边栏始终可见，移动端通过浮动按钮打开侧边栏。
+
+### 12.3 `index.html` 新增 TRPG 代理配置弹窗
+
+**文件**：`index.html`
+**位置**：第 4895-4975 行（globalConfirmModal 之后）
+**改动**：新增完整的代理配置弹窗，包含以下元素：
+
+| 元素 | 功能 | 对应用户要求 |
+|------|------|-------------|
+| 弹窗标题 | "是否需要代理 API 请求？"（疑问句引导） | 要求1 |
+| 说明区域 | 解释 CORS 限制原因和操作指引 | 要求1.1 |
+| 启用代理勾选框 | `trpgProxyEnabled`，@change 触发保存 | 要求1.2 |
+| API 地址输入框 | `trpgProxyTargetUrl`，@input 触发生成+保存 | 要求1.3 |
+| 自动生成地址显示 | `trpgProxyLocalUrl`，只读展示 | 要求1.4 |
+| 一键复制按钮 | `copyTrpgProxyUrl`，调用 clipboard API | 要求1.4 |
+| 确认按钮 | `confirmTrpgProxy`，校验+保存+关闭 | 要求1.5 |
+| 关闭按钮（X） | 直接关闭弹窗 | - |
+
+**弹窗样式**：`z-[150]`、`bg-black/50 backdrop-blur-sm` 遮罩，白色圆角卡片，`primary-600` 确认按钮，与原项目 `globalConfirmModal` 等模态框风格完全一致。
+
+### 12.4 `index.html` 弹窗标题和说明文字优化
+
+**文件**：`index.html`
+**位置**：第 4909 行（标题）、第 4922-4924 行（说明）
+**改动**：
+- 标题从陈述句"TRPG 代理设置"改为疑问句"是否需要代理 API 请求？"，更贴近用户要求的引导性提示
+- 说明文字增加"CORS 限制"原因解释，明确"系统将自动生成本地代理地址供您复制"
+
+### 12.5 `assets/js/app.js` 新增配置状态和持久化逻辑
+
+**文件**：`assets/js/app.js`
+**位置**：第 1608-1707 行
+**改动**：新增以下内容：
+
+1. **存储键常量**：`TRPG_PROXY_STORAGE_KEY = 'rphub_trpg_proxy_config'`
+2. **`saveTrpgProxyConfig()` 函数**：将 `trpgProxyEnabled` 和 `trpgProxyTargetUrl` 持久化到 localStorage
+3. **`loadTrpgProxyConfig()` 函数**：初始化时从 localStorage 读取配置，并自动重新生成本地代理地址（不调用 saveTrpgProxyConfig 避免循环）
+4. **初始化调用**：`loadTrpgProxyConfig()` 在函数定义后立即调用
+
+**持久化决策**：用户要求"每次弹出弹窗"，但未明确是否记住配置。基于 UX 最佳实践，决定记住配置（localStorage），弹窗每次弹出供用户确认/修改。这满足"每次弹出"要求，同时避免重复输入。
+
+### 12.6 `assets/js/app.js` generateLocalProxyUrl 函数
+
+**文件**：`assets/js/app.js`
+**位置**：第 1621-1650 行
+**改动**：新增 `generateLocalProxyUrl` 函数，根据用户输入的真实 API 地址自动生成本地代理地址：
+
+- **火山方舟 Coding Plan**：识别 `ark.cn-beijing.volces.com` + `api/coding/v3` 路径 → 生成 `http://localhost:18527/v3`（无需 `_target` 参数）
+- **其他 OpenAI 兼容 API**：提取 `url.origin` 作为 `targetBase`，生成 `http://localhost:18527/<path>?_target=<targetBase>`
+- **URL 末尾斜杠处理**：`path` 去除首尾斜杠，避免 `api/coding/v3/` 与 `api/coding/v3` 不匹配
+
+**职责分离**：`generateLocalProxyUrl` 只负责生成 URL，不负责保存。保存由 `@input` 事件中单独调用 `saveTrpgProxyConfig()` 完成，避免 early return 跳过保存的 bug。
+
+### 12.7 `assets/js/app.js` confirmTrpgProxy 增加校验逻辑
+
+**文件**：`assets/js/app.js`
+**位置**：第 1722-1732 行
+**改动**：`confirmTrpgProxy` 函数增加两项逻辑：
+
+1. **校验**：如果 `trpgProxyEnabled` 为 true 但 `trpgProxyTargetUrl` 为空，显示警告 toast"已勾选代理但未填写 API 地址，请填写或取消勾选"，不关闭弹窗
+2. **保存**：校验通过后调用 `saveTrpgProxyConfig()` 持久化配置
+
+**边界情况处理**：避免用户勾选了代理但未填地址就确认，导致代理无效却以为已配置成功。
+
+### 12.8 `assets/js/app.js` watch currentView 逻辑修改
+
+**文件**：`assets/js/app.js`
+**位置**：第 1745-1748 行
+**改动**：进入 TRPG 视图时，不再刷新 iframe URL（保持缓存），改为弹出代理配置弹窗。
+
+```javascript
+// 修改前
+} else if (newView === 'trpg') {
+    isTrpgLoading.value = true;
+    trpgUrl.value = `https://aisandboxgame.com/?t=${Date.now()}`;
+}
+
+// 修改后
+} else if (newView === 'trpg') {
+    // 每次进入 TRPG 都弹出代理配置弹窗（不刷新 iframe，保持缓存）
+    showTrpgProxyModal.value = true;
+}
+```
+
+**对比**：`generator` 和 `square` 视图仍使用 `?t=${Date.now()}` 刷新 URL（每次重新加载），TRPG 视图不刷新（保持缓存）。
+
+### 12.9 `assets/js/app.js` 导出新增函数
+
+**文件**：`assets/js/app.js`
+**位置**：第 10876-10877 行
+**改动**：在 return 对象中导出 `saveTrpgProxyConfig`，供模板 `@change` 和 `@input` 事件调用。
+
+### 12.10 `index.html` 勾选框和输入框事件绑定
+
+**文件**：`index.html`
+**位置**：第 4928-4930 行（勾选框）、第 4940-4941 行（输入框）
+**改动**：
+- 勾选框增加 `@change="saveTrpgProxyConfig"`，勾选状态变更时立即保存
+- 输入框 `@input` 改为 `generateLocalProxyUrl(); saveTrpgProxyConfig()`，同时生成地址和保存配置
+
+### 12.11 预期产出
+- 优化后的 APK（`RP-Hub-v1.7.1-debug.apk`）
+- Release：重新发布 `RP-Hub v1.7.1 (Android APK)`，附上最新 APK
+- 更新的 CHANGELOG.md 和 README.md
+- 推送到远程仓库
+
+### 12.12 验证清单
+- [x] 首次进入 TRPG → 弹窗弹出，配置为空
+- [x] 勾选代理 → 填入火山方舟地址 → 自动生成 `http://localhost:18527/v3`
+- [x] 一键复制 → toast 提示"已复制到剪贴板"
+- [x] 确认 → 弹窗关闭 → toast 提示
+- [x] 切换到聊天 → 切回 TRPG → 弹窗再次弹出，配置已记住（localStorage 持久化）
+- [x] iframe 未重新加载（v-show 缓存生效）
+- [x] 勾选代理但清空地址 → 确认 → 警告 toast，弹窗不关闭（校验逻辑）
+- [x] 填入其他 API（如 DeepSeek）→ 自动生成 `http://localhost:18527/v1?_target=https://api.deepseek.com`
+
+---
+
 **最后更新**：2026-06-18
 **维护者**：LuzzyMeow
