@@ -50,23 +50,41 @@
 ### 5. TRPG 模式（AI 沙盒游戏）
 - 侧边栏新增 TRPG 入口，iframe 嵌入 [AI Sandbox Game](https://aisandboxgame.com/)
 - **iframe 缓存**：使用 `v-show` 控制，切换到其他功能再切回 TRPG，网页状态保持不变（不重新加载）
-- **代理配置弹窗**：每次进入 TRPG 模式自动弹出，引导用户配置 API 代理
-  - 弹窗标题："是否需要代理 API 请求？"
-  - 说明 CORS 限制原因，引导用户勾选启用代理
-  - 用户填写真实 API 地址（如火山方舟 `https://ark.cn-beijing.volces.com/api/coding/v3`），系统自动生成本地代理地址
-  - 一键复制本地代理地址，粘贴到 TRPG 网页的 API 设置中
-  - 配置持久化到 localStorage，下次进入弹窗自动填充上次配置
+- **走 RP-Hub API 配置**：TRPG 模式自动使用 RP-Hub 主设置的 API 配置（`apiUrl` + `apiKey`）发起请求，无需在 TRPG 网页内单独配置真实 API
+  - 通过 `WebView.addJavascriptInterface` 注册 `AndroidProxy` JavascriptInterface，JS 层调用 `setApiConfig(apiUrl, apiKey)` 推送 RP-Hub 主设置到原生层
+  - NanoHTTPD 代理使用 `cachedApiUrl` 构建目标 URL，用 `cachedApiKey` 替换 Authorization 头，请求体原样转发（保留 model 字段）
+  - **模型名自由设置**：TRPG 网页内的模型商名称、API、APIKey 仅作占位符，真正生效的是模型名
+- **TRPG 模式说明弹窗**：每次进入 TRPG 模式自动弹出（可勾选"本次不再提示"）
+  - 标题："TRPG 模式说明"
+  - 提示用户在 TRPG 网页内配置自定义供应商，API 地址填 `http://localhost:18527/v1`
+  - "本次不再提示"勾选框：内存变量，App 重启后恢复提示
 - **内置 NanoHTTPD 本地 API 代理服务器**（`localhost:18527`），解决 iframe 内 CORS 限制
-- 自动识别 API 路径前缀（`/v3` → 火山方舟），用户只需填一次地址
-- 支持任意 OpenAI 兼容 API（通过 `_target` 参数指定）
-- 支持 SSE 流式响应透传
+- 统一流式透传（`newChunkedResponse`），支持 SSE 响应
 - **抗更新**：代理机制在 Android 原生层，不修改网页代码，aisandboxgame.com 更新不影响代理
 - **使用方法**：
-  1. 进入 TRPG 模式 → 自动弹出代理配置弹窗
-  2. 勾选"启用 API 代理" → 填入真实 API 地址（如 `https://ark.cn-beijing.volces.com/api/coding/v3`）
-  3. 系统自动生成本地代理地址（如 `http://localhost:18527/v3`）→ 点击"复制"
-  4. 在 TRPG 网页的 API 设置中粘贴代理地址，填入 API Key 和模型名
-  5. 点击"确认"关闭弹窗，开始游戏
+  1. 在 RP-Hub 主设置中配置好 API 地址和 API Key
+  2. 进入 TRPG 模式 → 自动弹出"TRPG 模式说明"弹窗
+  3. 阅读说明（如不需重复提示，勾选"本次不再提示"）→ 点击"我已了解，开始游戏"
+  4. 在 TRPG 网页的 API 设置中添加自定义供应商：
+     - API 地址填：`http://localhost:18527/v1`
+     - API Key 随便填（占位符，实际使用 RP-Hub 的 Key）
+     - 模型名自由设置（如 DeepSeek-V4-Pro，无需在 RP-Hub 预先配置）
+  5. 开始 TRPG 游戏体验
+
+### 6. API 请求体高级设置（深度思考支持）
+- 在「API 连接与服务」板块内新增「API 请求体高级设置」折叠区，支持深度思考（thinking mode）开关
+- **深度思考快捷开关**：一键注入 `thinking.type: "enabled"`，兼容 DeepSeek thinking_mode 和火山方舟深度思考
+- **思考强度下拉框**：支持 minimal/low/medium/high/max 五档（空字符串=不注入）
+  - `minimal`/`low`/`medium`：火山方舟深度思考支持
+  - `high`：通用推荐（DeepSeek 和火山方舟均支持）
+  - `max`：DeepSeek 专用
+- **自定义请求体 JSON 文本框**：最高优先级合并到请求体，实时校验 JSON 有效性
+  - 合并优先级：基础字段 < 深度思考开关 < 思考强度 < 自定义 JSON
+  - **字段保护**：`model` 和 `messages` 核心字段受保护，自定义 JSON 不可覆盖
+  - 示例：`{"thinking":{"type":"enabled"},"reasoning_effort":"high","max_completion_tokens":8192}`
+- **参考文档**：
+  - DeepSeek thinking_mode: https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
+  - 火山方舟深度思考: https://www.volcengine.com/docs/82379/2165245
 
 ---
 

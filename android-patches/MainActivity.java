@@ -60,6 +60,23 @@ public class MainActivity extends BridgeActivity {
     private boolean downloadListenerRegistered = false;
     private ApiProxyServer proxyServer;
 
+    // 配置缓存（由 JS 层通过 JavascriptInterface 推送）
+    private volatile String cachedApiUrl = "";
+    private volatile String cachedApiKey = "";
+
+    /**
+     * JS 接口，供 RP-Hub 主页面推送 API 配置到原生层。
+     * NanoHTTPD 代理使用此配置转发 TRPG iframe 内的请求。
+     */
+    private class ProxyConfigInterface {
+        @android.webkit.JavascriptInterface
+        public void setApiConfig(String apiUrl, String apiKey) {
+            cachedApiUrl = apiUrl != null ? apiUrl : "";
+            cachedApiKey = apiKey != null ? apiKey : "";
+            Log.i(TAG, "API config updated: url=" + apiUrl + " key=***");
+        }
+    }
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -99,6 +116,9 @@ public class MainActivity extends BridgeActivity {
                 Log.i(TAG, "Download forwarded to JS: " + url);
             }
         });
+        // 注册 JavascriptInterface，供 JS 层推送 API 配置
+        webView.addJavascriptInterface(new ProxyConfigInterface(), "AndroidProxy");
+        Log.i(TAG, "ProxyConfigInterface registered as window.AndroidProxy");
         downloadListenerRegistered = true;
         Log.i(TAG, "DownloadListener registered");
     }
@@ -157,24 +177,29 @@ public class MainActivity extends BridgeActivity {
                 String uri = session.getUri();
                 Method method = session.getMethod();
 
-                // 解析请求体（POST/PUT/PATCH 的 body）
-                Map<String, String> params = new HashMap<>();
-                session.parseBody(params);
-
-                // 确定目标 API 基础地址
-                String targetBase = resolveTargetBase(session, uri);
-                if (targetBase == null) {
-                    Response errResp = newFixedLengthResponse(Response.Status.BAD_REQUEST,
+                // 检查 RP-Hub 配置是否可用
+                if (cachedApiUrl == null || cachedApiUrl.isEmpty()) {
+                    Response errResp = newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE,
                         "application/json",
-                        "{\"error\":\"Cannot determine API target. Use /v3 for Volcano Ark, or add _target parameter.\"}");
+                        "{\"error\":\"RP-Hub API config not set. Please configure API in RP-Hub settings first.\"}");
                     addCorsHeaders(errResp);
                     return errResp;
                 }
 
-                // 构建目标 URL（移除 _target 参数）
-                String targetUrl = targetBase + uri;
-                String queryString = buildQueryString(session);
+                // 解析请求体（POST/PUT/PATCH 的 body）
+                Map<String, String> params = new HashMap<>();
+                session.parseBody(params);
 
+                // 提取 endpoint（去掉版本前缀 /v1、/v3、/v2 等）
+                String endpoint = uri.replaceFirst("^/v\\d+", "");
+                if (endpoint.startsWith("/")) endpoint = endpoint.substring(1);
+
+                // 构建目标 URL：RP-Hub apiUrl + endpoint
+                String baseUrl = cachedApiUrl.replaceAll("/+$", ""); // 去掉末尾斜杠
+                String targetUrl = baseUrl + "/" + endpoint;
+
+                // 保留 query string（移除 _target 参数，向后兼容）
+                String queryString = buildQueryString(session);
                 if (queryString != null && !queryString.isEmpty()) {
                     targetUrl += "?" + queryString;
                 }
@@ -186,21 +211,27 @@ public class MainActivity extends BridgeActivity {
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod(method.name());
                 conn.setConnectTimeout(30000);
-                conn.setReadTimeout(180000); // 3 分钟超时，适配长对话
+                conn.setReadTimeout(120000); // 降低到 2 分钟
                 conn.setDoInput(true);
 
-                // 复制请求头（排除不需要转发的头）
+                // 复制请求头（排除不需要转发的头，排除占位符 Authorization）
                 for (Map.Entry<String, String> header : session.getHeaders().entrySet()) {
                     String key = header.getKey().toLowerCase();
                     if ("host".equals(key) || "connection".equals(key) ||
                         "content-length".equals(key) || "accept-encoding".equals(key) ||
-                        "origin".equals(key) || "referer".equals(key)) {
+                        "origin".equals(key) || "referer".equals(key) ||
+                        "authorization".equals(key)) {
                         continue;
                     }
                     conn.setRequestProperty(header.getKey(), header.getValue());
                 }
 
-                // 写入请求体（POST/PUT/PATCH）
+                // 使用 RP-Hub 的 apiKey 设置 Authorization
+                if (cachedApiKey != null && !cachedApiKey.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + cachedApiKey);
+                }
+
+                // 写入请求体（保留原样，包括 model 字段）
                 if (method == Method.POST || method == Method.PUT || method == Method.PATCH) {
                     conn.setDoOutput(true);
                     String postData = params.get("postData");
@@ -220,37 +251,18 @@ public class MainActivity extends BridgeActivity {
 
                 InputStream inputStream = responseCode >= 400 ? conn.getErrorStream() : conn.getInputStream();
 
-                // 检测是否为 SSE 流式响应
-                boolean isSSE = contentType != null &&
-                    (contentType.contains("text/event-stream") || contentType.contains("application/stream"));
+                Log.i(TAG, "Proxy response: " + responseCode + " type=" + contentType + " for " + targetUrl);
 
-                Log.i(TAG, "Proxy response: " + responseCode + " type=" + contentType +
-                    " sse=" + isSSE + " for " + targetUrl);
-
-                if (isSSE) {
-                    // SSE 流式响应：使用 Chunked 编码透传
-                    final InputStream proxyInput = inputStream;
-                    Response response = newChunkedResponse(
-                        Response.Status.lookup(responseCode),
-                        contentType,
-                        proxyInput
-                    );
-                    addCorsHeaders(response);
-                    copyResponseHeaders(conn, response);
-                    return response;
-                } else {
-                    // 普通响应：读取完整内容
-                    String responseBody = readFully(inputStream);
-                    Response response = newFixedLengthResponse(
-                        Response.Status.lookup(responseCode),
-                        contentType,
-                        responseBody
-                    );
-                    addCorsHeaders(response);
-                    copyResponseHeaders(conn, response);
-                    conn.disconnect();
-                    return response;
-                }
+                // 统一使用流式透传（修复延迟和乱码）
+                final InputStream proxyInput = inputStream;
+                Response response = newChunkedResponse(
+                    Response.Status.lookup(responseCode),
+                    contentType,
+                    proxyInput
+                );
+                addCorsHeaders(response);
+                copyResponseHeaders(conn, response);
+                return response;
 
             } catch (Exception e) {
                 Log.e(TAG, "Proxy error: " + e.getMessage(), e);
@@ -318,7 +330,8 @@ public class MainActivity extends BridgeActivity {
                 if (entry.getKey() != null &&
                     !"Content-Type".equalsIgnoreCase(entry.getKey()) &&
                     !"Content-Length".equalsIgnoreCase(entry.getKey()) &&
-                    !"Transfer-Encoding".equalsIgnoreCase(entry.getKey())) {
+                    !"Transfer-Encoding".equalsIgnoreCase(entry.getKey()) &&
+                    !"Content-Encoding".equalsIgnoreCase(entry.getKey())) {
                     for (String value : entry.getValue()) {
                         response.addHeader(entry.getKey(), value);
                     }

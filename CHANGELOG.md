@@ -1170,5 +1170,221 @@ queryString = queryString.replaceAll("&{2,}", "&");  // 新增：清理连续 &
 
 ---
 
+## 十三、第七轮改动（2026-06-18：API 请求体 JSON 设置 + TRPG 代理改造走 RP-Hub 配置 + Bug 修复）
+
+### 13.0 改动背景
+
+用户提出两项增量需求：
+1. **API 请求体 JSON 设置**：在「API 连接与服务」板块内新增 API 请求体 JSON 设置，满足 DeepSeek thinking_mode 和火山方舟深度思考的开关需求
+2. **TRPG 代理改造**：解决上一版 TRPG 代理的乱码（返回 `034d6512-...` 等乱码内容）和延迟（400+ 秒）问题，改为走 RP-Hub 主设置的 API 配置
+
+**硬约束**：保留成人内容注入提示词（预设）的相关设置完全不变，不允许修改、精简。
+
+### 13.1 新增功能：API 请求体高级设置（深度思考支持）
+
+**文件**：`assets/js/app.js` + `index.html`
+
+#### 13.1.1 `assets/js/app.js` settings 对象新增三字段
+**位置**：第 566-568 行
+**改动**：在 settings 对象中新增三个字段，用于控制 API 请求体的深度思考相关参数。
+
+```javascript
+// API 请求体高级设置
+enableThinking: false,           // 深度思考快捷开关
+reasoningEffort: '',             // 思考强度（空字符串=不注入）
+customRequestBody: ''            // 自定义请求体 JSON（最高优先级）
+```
+
+#### 13.1.2 `assets/js/app.js` 新增三个辅助函数
+**位置**：第 6130-6182 行
+**改动**：新增 `parseCustomRequestBody`、`validateCustomRequestBody`、`buildApiRequestBody` 三个函数。
+
+- `parseCustomRequestBody()`：解析自定义请求体 JSON 文本，返回对象或 null
+- `validateCustomRequestBody()`：校验 JSON 文本有效性，返回 `{valid, error}` 对象供模板实时显示校验状态
+- `buildApiRequestBody(baseBody)`：合并基础字段、深度思考开关、思考强度、自定义 JSON，构建最终请求体
+
+**合并优先级**：基础字段 < 深度思考开关 < 思考强度 < 自定义 JSON
+**字段保护**：`model` 和 `messages` 核心字段受保护，自定义 JSON 不可覆盖
+
+```javascript
+const buildApiRequestBody = (baseBody) => {
+    const result = { ...baseBody };
+    if (settings.enableThinking) {
+        result.thinking = { type: 'enabled' };
+    }
+    if (settings.reasoningEffort) {
+        result.reasoning_effort = settings.reasoningEffort;
+    }
+    const customBody = parseCustomRequestBody();
+    if (customBody) {
+        for (const key of Object.keys(customBody)) {
+            if (key === 'model' || key === 'messages') continue;  // 保护核心字段
+            result[key] = customBody[key];
+        }
+    }
+    return result;
+};
+```
+
+#### 13.1.3 `assets/js/app.js` 主对话请求体改造
+**位置**：第 5750-5755 行
+**改动**：主对话请求体从硬编码 4 字段改为调用 `buildApiRequestBody(...)`，由该函数合并深度思考开关、思考强度、自定义 JSON。
+
+```javascript
+// 修改前
+body: JSON.stringify({
+    model: settings.model,
+    messages: apiMessages,
+    temperature: settings.temperature,
+    stream: getEffectiveStream()
+}),
+
+// 修改后
+body: JSON.stringify(buildApiRequestBody({
+    model: settings.model,
+    messages: apiMessages,
+    temperature: settings.temperature,
+    stream: getEffectiveStream()
+})),
+```
+
+#### 13.1.4 `assets/js/app.js` 新增 showAdvancedApiSettings 状态变量
+**位置**：第 1533 行
+**改动**：新增 `showAdvancedApiSettings` 响应式变量，控制折叠区展开/收起，与项目现有 `showXxxSettings` 模式一致。
+
+#### 13.1.5 `index.html` 新增 API 请求体高级设置折叠区
+**位置**：第 2177-2246 行（插入在「API 连接与服务」板块内，模型配置区之后、生成参数区之前）
+**改动**：新增折叠区，包含三个控件：
+1. **深度思考快捷开关**：`v-model="settings.enableThinking"`，开启后自动注入 `thinking.type: "enabled"`
+2. **思考强度下拉框**：`v-model="settings.reasoningEffort"`，支持 minimal/low/medium/high/max 五档
+3. **自定义请求体 JSON 文本框**：`v-model="settings.customRequestBody"`，实时校验 JSON 有效性，显示绿色"JSON 有效"或红色"JSON 无效"徽章
+
+**折叠交互**：使用 `v-show` + 箭头 SVG 旋转 180°，与项目现有折叠模式一致。
+
+**参考文档**：
+- DeepSeek thinking_mode: https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
+- 火山方舟深度思考: https://www.volcengine.com/docs/82379/2165245
+
+### 13.2 TRPG 代理改造：走 RP-Hub API 配置
+
+**文件**：`android-patches/MainActivity.java` + `assets/js/app.js` + `index.html`
+
+#### 13.2.1 `android-patches/MainActivity.java` 新增 ProxyConfigInterface
+**位置**：第 64-78 行
+**改动**：新增 `cachedApiUrl`/`cachedApiKey` 配置缓存字段和 `ProxyConfigInterface` 内部类，通过 `@JavascriptInterface setApiConfig(apiUrl, apiKey)` 方法接收 JS 层推送的 RP-Hub 主设置。
+
+```java
+private volatile String cachedApiUrl = "";
+private volatile String cachedApiKey = "";
+
+private class ProxyConfigInterface {
+    @android.webkit.JavascriptInterface
+    public void setApiConfig(String apiUrl, String apiKey) {
+        cachedApiUrl = apiUrl != null ? apiUrl : "";
+        cachedApiKey = apiKey != null ? apiKey : "";
+    }
+}
+```
+
+#### 13.2.2 `android-patches/MainActivity.java` 注册 JavascriptInterface
+**位置**：第 120 行
+**改动**：在 `registerDownloadListenerIfNeeded` 中注册 `AndroidProxy` JavascriptInterface。
+
+```java
+webView.addJavascriptInterface(new ProxyConfigInterface(), "AndroidProxy");
+```
+
+#### 13.2.3 `android-patches/MainActivity.java` serve 方法改造
+**位置**：第 168-277 行
+**改动**：代理服务器使用 `cachedApiUrl` 构建目标 URL，提取 endpoint（去掉 `/v1`/`/v3` 版本前缀），用 `cachedApiKey` 替换 Authorization 头，请求体原样转发（保留 model 字段）。
+
+- 检查 `cachedApiUrl` 是否可用，不可用返回 503 错误
+- 构建目标 URL：`cachedApiUrl + endpoint`
+- 使用 `cachedApiKey` 设置 `Authorization: Bearer`
+- 请求体原样转发（TRPG 网页内的 model 字段直接生效）
+
+#### 13.2.4 `assets/js/app.js` 新增 pushApiConfigToNative 函数
+**位置**：第 1625 行
+**改动**：新增 `pushApiConfigToNative` 函数，调用 `window.AndroidProxy.setApiConfig(apiUrl, apiKey)` 推送配置到原生层。watch `settings.apiUrl` 和 `settings.apiKey` 变化时自动推送，初始化时 `nextTick` 推送一次。
+
+#### 13.2.5 `assets/js/app.js` 弹窗状态管理
+**位置**：第 1617 行
+**改动**：新增 `trpgProxyModalDismissed`（内存变量，App 重启后重置）和 `trpgProxyDismissThisSession`（"本次不再提示"勾选框状态）。`confirmTrpgProxy` 函数处理"本次不再提示"逻辑。
+
+#### 13.2.6 `assets/js/app.js` watch currentView 逻辑修改
+**位置**：第 1645-1649 行
+**改动**：进入 TRPG 视图时，检查 `trpgProxyModalDismissed` 状态，未 dismissed 则弹出说明弹窗。
+
+#### 13.2.7 `index.html` TRPG 弹窗 UI 改造
+**位置**：第 4978 行起
+**改动**：弹窗标题改为"TRPG 模式说明"，移除 API 地址输入框和复制按钮，改为提示说明区域（指导在 TRPG 网页内配置自定义供应商，API 地址填 `http://localhost:18527/v1`），新增"本次不再提示"勾选框。
+
+#### 13.2.8 `assets/js/app.js` 旧函数清理
+**改动**：删除上一版 TRPG 代理相关函数：`TRPG_PROXY_STORAGE_KEY`、`generateLocalProxyUrl`、`saveTrpgProxyConfig`、`loadTrpgProxyConfig`、`copyTrpgProxyUrl`、`trpgProxyEnabled`、`trpgProxyTargetUrl`、`trpgProxyLocalUrl`。
+
+### 13.3 Bug 修复
+
+#### 13.3.1 代理乱码修复
+**文件**：`android-patches/MainActivity.java`
+**位置**：第 328-340 行（`copyResponseHeaders` 方法）
+**问题**：`copyResponseHeaders` 透传了 `Content-Encoding: gzip` 头，但 `HttpURLConnection` 默认自动解压响应体，导致客户端看到 gzip 头却收到明文，二次解压失败产生乱码（如 `034d6512-7ed0-4d68-8fc9-162b582facc1`）。
+**修复**：在 `copyResponseHeaders` 中过滤 `Content-Encoding` 头。
+
+```java
+if (entry.getKey() != null &&
+    !"Content-Type".equalsIgnoreCase(entry.getKey()) &&
+    !"Content-Length".equalsIgnoreCase(entry.getKey()) &&
+    !"Transfer-Encoding".equalsIgnoreCase(entry.getKey()) &&
+    !"Content-Encoding".equalsIgnoreCase(entry.getKey())) {  // 新增过滤
+    // ...
+}
+```
+
+#### 13.3.2 代理延迟修复（400+ 秒 → 正常）
+**文件**：`android-patches/MainActivity.java`
+**位置**：第 258-262 行、第 214 行
+**问题**：非 SSE 响应使用 `readFully()` 完全缓冲阻塞读取，配合 180 秒 `readTimeout`，导致 400 秒延迟。
+**修复**：统一使用 `newChunkedResponse` 流式透传，移除 `readFully` 阻塞读取，降低 `readTimeout` 到 120 秒。
+
+```java
+// 修改前：readFully 阻塞读取 + 180 秒超时
+String body = readFully(inputStream);
+Response response = newFixedLengthResponse(Response.Status.lookup(responseCode), contentType, body);
+conn.setReadTimeout(180000);
+
+// 修改后：统一流式透传 + 120 秒超时
+Response response = newChunkedResponse(
+    Response.Status.lookup(responseCode), contentType, inputStream);
+conn.setReadTimeout(120000);
+```
+
+### 13.4 保留功能
+
+**成人内容注入提示词（预设）功能完整保留**，包括：
+- `presets` 响应式数组与持久化逻辑
+- 预设注入到请求消息逻辑
+- 内置预设定义：`roleplay_hub_default`、4 个破限预注入预设、`色情内容增强`（NSFW）、`防抢话`、`防神化`
+- `buildApiRequestBody` 仅作用于 `thinking`/`reasoning_effort`/自定义 JSON 字段，**不触及 `messages` 数组**（受保护），因此预设注入的 messages 内容不受影响
+
+### 13.5 预期产出
+- 优化后的 APK（`app-debug.apk`）
+- Release：发布 `RP-Hub v1.7.1 v2 (Android APK)`，附上最新 APK
+- 更新的 CHANGELOG.md 和 README.md
+- 推送到远程仓库
+
+### 13.6 验证清单
+- [ ] API 请求体高级设置折叠区可正常展开/折叠
+- [ ] 深度思考开关可切换，开启后请求体包含 `thinking.type: "enabled"`
+- [ ] 思考强度下拉框可选，选择后请求体包含 `reasoning_effort` 字段
+- [ ] 自定义 JSON 文本框可输入并实时校验有效性
+- [ ] 自定义 JSON 中包含 `model` 或 `messages` 字段时被保护不覆盖
+- [ ] TRPG 模式弹窗显示"TRPG 模式说明"，含"本次不再提示"勾选框
+- [ ] 勾选"本次不再提示"后，本次 App 运行期间不再弹出
+- [ ] TRPG 代理请求不再出现乱码
+- [ ] TRPG 代理请求延迟恢复正常（不再 400+ 秒）
+- [ ] 成人内容注入预设功能正常（预设列表、启用/禁用、注入到请求）
+
+---
+
 **最后更新**：2026-06-18
 **维护者**：LuzzyMeow

@@ -2174,7 +2174,76 @@
                                     </div>
                                 </div>
 
+                                <!-- API 请求体高级设置（折叠区） -->
+                                <div class="pt-6 border-t border-gray-100 mt-6">
+                                    <button @click="showAdvancedApiSettings = !showAdvancedApiSettings"
+                                        type="button"
+                                        :class="['w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all',
+                                                 showAdvancedApiSettings ? 'bg-teal-50 text-teal-700' : 'text-gray-700 hover:bg-gray-50']">
+                                        <span class="flex items-center text-xs font-bold uppercase tracking-wider">
+                                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                                            </svg>
+                                            API 请求体高级设置
+                                        </span>
+                                        <svg :class="{'transform rotate-180': showAdvancedApiSettings}"
+                                            class="w-5 h-5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </button>
 
+                                    <div v-show="showAdvancedApiSettings" class="px-1 pb-2 pt-4 space-y-4 animate-fade-in">
+                                        <!-- 深度思考快捷开关 -->
+                                        <div class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200">
+                                            <label class="flex items-center justify-between cursor-pointer">
+                                                <div>
+                                                    <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">深度思考</div>
+                                                    <div class="text-xs text-gray-400">开启后自动注入 <code class="bg-gray-100 px-1 rounded text-teal-600">thinking.type: "enabled"</code>（兼容 DeepSeek / 火山方舟）</div>
+                                                </div>
+                                                <input type="checkbox" v-model="settings.enableThinking"
+                                                    class="w-5 h-5 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer">
+                                            </label>
+                                        </div>
+
+                                        <!-- 思考强度 -->
+                                        <div class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200">
+                                            <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">思考强度</label>
+                                            <select v-model="settings.reasoningEffort"
+                                                class="w-full h-10 bg-white border-2 border-gray-100 rounded-lg px-3 text-sm text-gray-800 focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 transition-all">
+                                                <option value="">默认（不注入）</option>
+                                                <option value="minimal">minimal（火山方舟）</option>
+                                                <option value="low">low（火山方舟）</option>
+                                                <option value="medium">medium（火山方舟默认）</option>
+                                                <option value="high">high（通用推荐）</option>
+                                                <option value="max">max（DeepSeek）</option>
+                                            </select>
+                                            <p class="text-xs text-gray-400 mt-1.5">非"默认"时自动注入 <code class="bg-gray-100 px-1 rounded text-teal-600">reasoning_effort</code> 字段</p>
+                                        </div>
+
+                                        <!-- 自定义请求体 JSON -->
+                                        <div class="bg-gray-50/60 p-4 rounded-xl border border-gray-100 hover:bg-white hover:border-gray-200 hover:shadow-sm transition-all duration-200">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">自定义请求体 JSON</label>
+                                                <span v-if="settings.customRequestBody.trim()"
+                                                    :class="['text-[10px] font-bold px-1.5 py-0.5 rounded',
+                                                             validateCustomRequestBody().valid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700']">
+                                                    {{ validateCustomRequestBody().valid ? 'JSON 有效' : 'JSON 无效' }}
+                                                </span>
+                                            </div>
+                                            <textarea v-model="settings.customRequestBody"
+                                                rows="6"
+                                                placeholder='{"thinking":{"type":"enabled"},"reasoning_effort":"high","max_completion_tokens":8192}'
+                                                :class="['w-full font-mono text-xs p-3 border-2 rounded-lg bg-white transition-all focus:outline-none focus:ring-2 focus:ring-teal-100',
+                                                         validateCustomRequestBody().valid ? 'border-gray-100 focus:border-teal-500' : 'border-red-200 focus:border-red-400 focus:ring-red-100']"></textarea>
+                                            <p class="text-xs text-gray-400 mt-1.5">
+                                                合并到请求体（最高优先级）。<strong class="text-gray-500">model</strong> 和 <strong class="text-gray-500">messages</strong> 受保护不可覆盖。
+                                            </p>
+                                            <p v-if="!validateCustomRequestBody().valid && settings.customRequestBody.trim()"
+                                                class="text-xs text-red-500 mt-1">{{ validateCustomRequestBody().error }}</p>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <!-- Generation Settings (Integrated) -->
                                 <div class="pt-6 border-t border-gray-100 mt-6">
@@ -4906,7 +4975,7 @@
                                         d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
                                 </svg>
                             </div>
-                            <h3 class="text-lg font-bold text-gray-800">是否需要代理 API 请求？</h3>
+                            <h3 class="text-lg font-bold text-gray-800">TRPG 模式说明</h3>
                         </div>
                         <button @click="showTrpgProxyModal = false"
                             class="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100">
@@ -4918,57 +4987,38 @@
 
                     <!-- Body -->
                     <div class="flex-1 overflow-y-auto p-5 space-y-4">
-                        <!-- 说明 -->
-                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800 leading-relaxed">
-                            部分API（如火山方舟 Coding Plan）不支持前端直接访问（CORS 限制），需要通过本地代理转发请求。请勾选下方选项并填写您的真实 API 地址，系统将自动生成本地代理地址供您复制到 TRPG 网页使用。
+                        <!-- 说明区域 -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 leading-relaxed space-y-2">
+                            <div class="font-bold">TRPG 模式将使用 RP-Hub 主设置的 API 配置发起请求。</div>
+                            <div>请在 TRPG 网页内按以下步骤配置自定义供应商：</div>
+                            <ol class="list-decimal list-inside space-y-1 ml-2">
+                                <li>进入 TRPG 网页的 API 设置页</li>
+                                <li>添加自定义供应商（Custom Provider）</li>
+                                <li>API 地址填：<code class="bg-blue-100 px-1 rounded">http://localhost:18527/v1</code></li>
+                                <li>API Key 随便填（占位符，实际使用 RP-Hub 的 Key）</li>
+                                <li>模型名自由设置（如 DeepSeek-V4-Pro，无需在 RP-Hub 预先配置）</li>
+                            </ol>
+                            <div class="mt-2 pt-2 border-t border-blue-200">
+                                <strong>注意</strong>：模型商名称、API、APIKey 只作为占位符，真正生效的是模型名。请求将通过 RP-Hub 的 API 接口转发。
+                            </div>
                         </div>
 
-                        <!-- 启用代理勾选框 -->
+                        <!-- 本次不再提示勾选框 -->
                         <label class="flex items-center gap-3 cursor-pointer p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                            <input type="checkbox" v-model="trpgProxyEnabled"
-                                @change="saveTrpgProxyConfig"
+                            <input type="checkbox" v-model="trpgProxyDismissThisSession"
                                 class="w-5 h-5 rounded border-gray-300 text-primary-600 focus:ring-primary-500 cursor-pointer">
                             <div>
-                                <div class="text-sm font-medium text-gray-800">启用 API 代理</div>
-                                <div class="text-xs text-gray-500">勾选后将在本地启动代理服务器转发请求</div>
+                                <div class="text-sm font-medium text-gray-800">本次不再提示</div>
+                                <div class="text-xs text-gray-500">本次开启 App 内不再弹出此提示，重启 App 后恢复</div>
                             </div>
                         </label>
-
-                        <!-- API 地址输入 -->
-                        <div v-if="trpgProxyEnabled" class="space-y-2 animate-fade-in">
-                            <label class="block text-sm font-medium text-gray-700">需要代理的 API 地址</label>
-                            <input v-model="trpgProxyTargetUrl" type="text"
-                                @input="generateLocalProxyUrl(); saveTrpgProxyConfig()"
-                                placeholder="https://ark.cn-beijing.volces.com/api/coding/v3"
-                                class="w-full border rounded-lg px-3 py-2.5 text-sm bg-gray-50/60 border-gray-300 text-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:bg-white transition-all font-mono">
-                            <p class="text-xs text-gray-500">填写您实际使用的 API 完整地址</p>
-                        </div>
-
-                        <!-- 生成的本地代理地址 -->
-                        <div v-if="trpgProxyEnabled && trpgProxyLocalUrl" class="space-y-2 animate-fade-in">
-                            <label class="block text-sm font-medium text-gray-700">请在 TRPG 网页内填写以下地址</label>
-                            <div class="flex gap-2 items-center">
-                                <div class="flex-1 bg-gray-100 border border-gray-200 rounded-lg px-3 py-2.5 text-sm font-mono text-gray-800 break-all">
-                                    {{ trpgProxyLocalUrl }}
-                                </div>
-                                <button @click="copyTrpgProxyUrl"
-                                    class="shrink-0 px-3 py-2.5 text-sm font-bold text-white bg-primary-600 rounded-lg hover:bg-primary-700 active:scale-95 transition-all whitespace-nowrap flex items-center gap-1.5">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                    </svg>
-                                    复制
-                                </button>
-                            </div>
-                            <p class="text-xs text-gray-500">在 TRPG 网页的 API 设置中粘贴此地址，并填入您的 API Key 和模型名</p>
-                        </div>
                     </div>
 
                     <!-- Footer -->
                     <div class="bg-gray-50 px-5 py-4 rounded-b-xl">
                         <button @click="confirmTrpgProxy"
                             class="w-full py-2.5 px-4 bg-primary-600 hover:bg-primary-500 text-white font-bold rounded-xl shadow-md hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary-400 active:scale-[0.98]">
-                            确认
+                            我已了解，开始游戏
                         </button>
                     </div>
                 </div>

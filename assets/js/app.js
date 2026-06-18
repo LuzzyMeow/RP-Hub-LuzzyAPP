@@ -560,7 +560,12 @@ createApp({
             imageGenCount: 2,
             qualityModel: DEFAULT_API_CONFIG.qualityModel,
             balancedModel: DEFAULT_API_CONFIG.balancedModel,
-            fastModel: DEFAULT_API_CONFIG.fastModel
+            fastModel: DEFAULT_API_CONFIG.fastModel,
+
+            // API 请求体高级设置
+            enableThinking: false,           // 深度思考快捷开关
+            reasoningEffort: '',             // 思考强度（空字符串=不注入）
+            customRequestBody: ''            // 自定义请求体 JSON（最高优先级）
         });
 
         const normalizeFontFamily = (value) => ['modern', 'serif', 'system'].includes(value) ? value : 'modern';
@@ -1525,6 +1530,7 @@ createApp({
         const showMemorySettings = ref(false);
         const showActiveToolSettings = ref(false);
         const showUiTemplateSettings = ref(false);
+        const showAdvancedApiSettings = ref(false);
         const worldInfoSettings = reactive({
             scanDepth: 2,
             maxDepth: 0,
@@ -1606,127 +1612,36 @@ createApp({
         };
 
         // TRPG Proxy Configuration State
-        const TRPG_PROXY_STORAGE_KEY = 'rphub_trpg_proxy_config';
         const showTrpgProxyModal = ref(false);
-        const trpgProxyEnabled = ref(false);
-        const trpgProxyTargetUrl = ref('');
-        const trpgProxyLocalUrl = ref('');
+        // 本次不再提示（内存变量，app 重启后重置）
+        const trpgProxyModalDismissed = ref(false);
+        // "本次不再提示"勾选框状态（非持久化，每次确认时重置）
+        const trpgProxyDismissThisSession = ref(false);
 
         /**
-         * 根据用户输入的真实 API 地址生成本地代理地址。
-         * 火山方舟 https://ark.cn-beijing.volces.com/api/coding/v3 → http://localhost:18527/v3
-         * DeepSeek https://api.deepseek.com/v1 → http://localhost:18527/v1?_target=https://api.deepseek.com
-         * 其他 → http://localhost:18527/<path>?_target=<base>
+         * 推送 API 配置到 Android 原生层（NanoHTTPD 代理使用）
+         * 在 settings.apiUrl 或 settings.apiKey 变化时自动调用
          */
-        const generateLocalProxyUrl = () => {
-            const input = (trpgProxyTargetUrl.value || '').trim();
-            if (!input) {
-                trpgProxyLocalUrl.value = '';
-                return;
-            }
-            try {
-                const url = new URL(input);
-                const path = url.pathname.replace(/^\/+/, '').replace(/\/+$/, ''); // 去除首尾斜杠
-                const PROXY_BASE = 'http://localhost:18527';
-                const VOLCANO_ARK_PATH = 'api/coding/v3';
-
-                // 火山方舟 coding plan：自动识别 /v3 路径，无需 _target
-                if (url.hostname === 'ark.cn-beijing.volces.com' && path === VOLCANO_ARK_PATH) {
-                    trpgProxyLocalUrl.value = `${PROXY_BASE}/v3`;
-                    return;
-                }
-
-                // 其他 API：提取 base（origin）和 path，用 _target 参数指定 base
-                const targetBase = url.origin;
-                if (path) {
-                    trpgProxyLocalUrl.value = `${PROXY_BASE}/${path}?_target=${encodeURIComponent(targetBase)}`;
-                } else {
-                    trpgProxyLocalUrl.value = `${PROXY_BASE}?_target=${encodeURIComponent(targetBase)}`;
-                }
-            } catch (e) {
-                // URL 解析失败，清空
-                trpgProxyLocalUrl.value = '';
+        const pushApiConfigToNative = () => {
+            if (window.AndroidProxy && typeof window.AndroidProxy.setApiConfig === 'function') {
+                window.AndroidProxy.setApiConfig(settings.apiUrl || '', settings.apiKey || '');
+                console.log('[TRPG] API config pushed to native proxy');
             }
         };
 
-        /**
-         * 持久化 TRPG 代理配置到 localStorage
-         */
-        const saveTrpgProxyConfig = () => {
-            try {
-                localStorage.setItem(TRPG_PROXY_STORAGE_KEY, JSON.stringify({
-                    enabled: trpgProxyEnabled.value,
-                    targetUrl: trpgProxyTargetUrl.value
-                }));
-            } catch (e) {
-                console.warn('[TRPG] Failed to save proxy config:', e);
-            }
-        };
-
-        /**
-         * 从 localStorage 加载已保存的 TRPG 代理配置
-         */
-        const loadTrpgProxyConfig = () => {
-            try {
-                const saved = localStorage.getItem(TRPG_PROXY_STORAGE_KEY);
-                if (saved) {
-                    const config = JSON.parse(saved);
-                    trpgProxyEnabled.value = !!config.enabled;
-                    trpgProxyTargetUrl.value = config.targetUrl || '';
-                    if (trpgProxyTargetUrl.value) {
-                        // 重新生成本地代理地址（不调用 saveTrpgProxyConfig 避免循环）
-                        const input = trpgProxyTargetUrl.value.trim();
-                        try {
-                            const url = new URL(input);
-                            const path = url.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
-                            const PROXY_BASE = 'http://localhost:18527';
-                            const VOLCANO_ARK_PATH = 'api/coding/v3';
-                            if (url.hostname === 'ark.cn-beijing.volces.com' && path === VOLCANO_ARK_PATH) {
-                                trpgProxyLocalUrl.value = `${PROXY_BASE}/v3`;
-                            } else {
-                                const targetBase = url.origin;
-                                if (path) {
-                                    trpgProxyLocalUrl.value = `${PROXY_BASE}/${path}?_target=${encodeURIComponent(targetBase)}`;
-                                } else {
-                                    trpgProxyLocalUrl.value = `${PROXY_BASE}?_target=${encodeURIComponent(targetBase)}`;
-                                }
-                            }
-                        } catch (e) {
-                            trpgProxyLocalUrl.value = '';
-                        }
-                    }
-                }
-            } catch (e) {
-                console.warn('[TRPG] Failed to load proxy config:', e);
-            }
-        };
-
-        // 初始化时加载已保存的配置
-        loadTrpgProxyConfig();
-
-        const copyTrpgProxyUrl = () => {
-            if (!trpgProxyLocalUrl.value) {
-                showToast('没有可复制的地址', 'warning');
-                return;
-            }
-            navigator.clipboard.writeText(trpgProxyLocalUrl.value).then(() => {
-                showToast('已复制到剪贴板', 'success');
-            }).catch(err => {
-                console.error('Copy failed', err);
-                showToast('复制失败', 'error');
-            });
-        };
+        // watch settings 变化时推送配置到原生层
+        watch(() => settings.apiUrl, () => { pushApiConfigToNative(); });
+        watch(() => settings.apiKey, () => { pushApiConfigToNative(); });
+        // 初始化时推送一次配置（延迟执行，确保 WebView 已就绪）
+        nextTick(() => { pushApiConfigToNative(); });
 
         const confirmTrpgProxy = () => {
-            // 校验：勾选了代理但未填地址
-            if (trpgProxyEnabled.value && !trpgProxyTargetUrl.value.trim()) {
-                showToast('已勾选代理但未填写 API 地址，请填写或取消勾选', 'warning');
-                return;
+            // 如果勾选了"本次不再提示"，设置内存变量
+            if (trpgProxyDismissThisSession.value) {
+                trpgProxyModalDismissed.value = true;
             }
-            // 保存配置到 localStorage
-            saveTrpgProxyConfig();
             showTrpgProxyModal.value = false;
-            showToast(trpgProxyEnabled.value ? '代理设置已保存，请在 TRPG 网页内填写代理地址' : '已关闭代理', 'info');
+            showToast('TRPG 模式已就绪，请在网页内配置自定义供应商', 'info');
         };
 
         // Watch view change to refresh generator/plaza
@@ -1740,8 +1655,10 @@ createApp({
                 // Add timestamp to force refresh
                 squareUrl.value = `https://rphforum.zeabur.app/?t=${Date.now()}`;
             } else if (newView === 'trpg') {
-                // 每次进入 TRPG 都弹出代理配置弹窗（不刷新 iframe，保持缓存）
-                showTrpgProxyModal.value = true;
+                // 检查"本次不再提示"状态
+                if (!trpgProxyModalDismissed.value) {
+                    showTrpgProxyModal.value = true;
+                }
             } else if (newView === 'presets') {
                 nextTick(() => {
                     const el = document.getElementById('presets-list');
@@ -5830,12 +5747,12 @@ ${content}
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${settings.apiKey}`
                             },
-                            body: JSON.stringify({
+                            body: JSON.stringify(buildApiRequestBody({
                                 model: settings.model,
                                 messages: apiMessages,
                                 temperature: settings.temperature,
                                 stream: getEffectiveStream()
-                            }),
+                            })),
                             signal: abortController.value.signal
                         });
 
@@ -6204,6 +6121,66 @@ ${content}
         // Force-disable streaming in native APK to avoid broken chat experience.
         const isNativePlatform = () => !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
         const getEffectiveStream = () => settings.stream && !isNativePlatform();
+
+        // === API 请求体高级设置辅助函数 ===
+        /**
+         * 解析用户输入的自定义请求体 JSON
+         * @returns {object|null} 解析后的对象，无效或空则返回 null
+         */
+        const parseCustomRequestBody = () => {
+            const text = (settings.customRequestBody || '').trim();
+            if (!text) return null;
+            try {
+                const parsed = JSON.parse(text);
+                return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : null;
+            } catch (e) {
+                console.error('[API] 自定义请求体 JSON 解析失败:', e);
+                return null;
+            }
+        };
+
+        /**
+         * 校验自定义请求体 JSON 格式（供 UI 实时反馈使用）
+         * @returns {{valid: boolean, error: string}}
+         */
+        const validateCustomRequestBody = () => {
+            const text = (settings.customRequestBody || '').trim();
+            if (!text) return { valid: true, error: '' };
+            try {
+                const parsed = JSON.parse(text);
+                if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                    return { valid: false, error: '必须是 JSON 对象' };
+                }
+                return { valid: true, error: '' };
+            } catch (e) {
+                return { valid: false, error: e.message };
+            }
+        };
+
+        /**
+         * 构建最终请求体（合并基础字段 + 快捷开关 + 自定义 JSON）
+         * 合并优先级：基础字段 < 深度思考开关 < 思考强度 < 自定义 JSON
+         * 保护核心字段：model 和 messages 不允许被自定义 JSON 覆盖
+         * @param {object} baseBody - 基础请求体（含 model, messages, temperature, stream）
+         * @returns {object} 合并后的最终请求体
+         */
+        const buildApiRequestBody = (baseBody) => {
+            const result = { ...baseBody };
+            if (settings.enableThinking) {
+                result.thinking = { type: 'enabled' };
+            }
+            if (settings.reasoningEffort) {
+                result.reasoning_effort = settings.reasoningEffort;
+            }
+            const customBody = parseCustomRequestBody();
+            if (customBody) {
+                for (const key of Object.keys(customBody)) {
+                    if (key === 'model' || key === 'messages') continue;
+                    result[key] = customBody[key];
+                }
+            }
+            return result;
+        };
 
         const trimMemoryText = (text, maxLength = 1800) => {
             const cleanText = String(text || '').replace(/\n{3,}/g, '\n\n').trim();
@@ -10871,8 +10848,9 @@ image###生成的提示词###
             isGeneratorLoading, generatorUrl, onGeneratorLoad, syncSettingsToGenerator, // Generator exports
             isSquareLoading, squareUrl, onSquareLoad, // Square exports
             isTrpgLoading, trpgUrl, onTrpgLoad, // TRPG exports
-            showTrpgProxyModal, trpgProxyEnabled, trpgProxyTargetUrl, trpgProxyLocalUrl,
-            generateLocalProxyUrl, copyTrpgProxyUrl, confirmTrpgProxy, saveTrpgProxyConfig, // TRPG Proxy exports
+            showTrpgProxyModal, trpgProxyModalDismissed, trpgProxyDismissThisSession,
+            confirmTrpgProxy, pushApiConfigToNative, // TRPG Proxy exports
+            validateCustomRequestBody, // API 请求体高级设置导出
             editorTab, characterDisplayLimit, displayedCharacters, loadMoreCharacters,
             isAutoImageGenEnabled,
             apiStatus, apiLatency, imageGenStatus, imageGenLatency, checkAllStatuses, // Status Exports
@@ -11400,7 +11378,7 @@ image###生成的提示词###
 
             processRegex,
             showRegexEditor, showWorldInfoEditor, editingRegex, editingWorldInfo,
-            worldInfoSettings, showWorldInfoSettings, showMemorySettings, showActiveToolSettings, showUiTemplateSettings, estimatedGenerationTime, currentWaitTime,
+            worldInfoSettings, showWorldInfoSettings, showMemorySettings, showActiveToolSettings, showUiTemplateSettings, showAdvancedApiSettings, estimatedGenerationTime, currentWaitTime,
             globalConfirmModal, showVueConfirmModal,
             togglePlacement: (val) => {
                 if (!editingRegex.data.placement) editingRegex.data.placement = [];
