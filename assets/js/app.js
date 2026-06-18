@@ -1605,6 +1605,130 @@ createApp({
             console.log('%c[TRPG] AI Sandbox Game Iframe Loaded', 'color: #8b5cf6; font-weight: bold;');
         };
 
+        // TRPG Proxy Configuration State
+        const TRPG_PROXY_STORAGE_KEY = 'rphub_trpg_proxy_config';
+        const showTrpgProxyModal = ref(false);
+        const trpgProxyEnabled = ref(false);
+        const trpgProxyTargetUrl = ref('');
+        const trpgProxyLocalUrl = ref('');
+
+        /**
+         * 根据用户输入的真实 API 地址生成本地代理地址。
+         * 火山方舟 https://ark.cn-beijing.volces.com/api/coding/v3 → http://localhost:18527/v3
+         * DeepSeek https://api.deepseek.com/v1 → http://localhost:18527/v1?_target=https://api.deepseek.com
+         * 其他 → http://localhost:18527/<path>?_target=<base>
+         */
+        const generateLocalProxyUrl = () => {
+            const input = (trpgProxyTargetUrl.value || '').trim();
+            if (!input) {
+                trpgProxyLocalUrl.value = '';
+                return;
+            }
+            try {
+                const url = new URL(input);
+                const path = url.pathname.replace(/^\/+/, '').replace(/\/+$/, ''); // 去除首尾斜杠
+                const PROXY_BASE = 'http://localhost:18527';
+                const VOLCANO_ARK_PATH = 'api/coding/v3';
+
+                // 火山方舟 coding plan：自动识别 /v3 路径，无需 _target
+                if (url.hostname === 'ark.cn-beijing.volces.com' && path === VOLCANO_ARK_PATH) {
+                    trpgProxyLocalUrl.value = `${PROXY_BASE}/v3`;
+                    return;
+                }
+
+                // 其他 API：提取 base（origin）和 path，用 _target 参数指定 base
+                const targetBase = url.origin;
+                if (path) {
+                    trpgProxyLocalUrl.value = `${PROXY_BASE}/${path}?_target=${encodeURIComponent(targetBase)}`;
+                } else {
+                    trpgProxyLocalUrl.value = `${PROXY_BASE}?_target=${encodeURIComponent(targetBase)}`;
+                }
+            } catch (e) {
+                // URL 解析失败，清空
+                trpgProxyLocalUrl.value = '';
+            }
+        };
+
+        /**
+         * 持久化 TRPG 代理配置到 localStorage
+         */
+        const saveTrpgProxyConfig = () => {
+            try {
+                localStorage.setItem(TRPG_PROXY_STORAGE_KEY, JSON.stringify({
+                    enabled: trpgProxyEnabled.value,
+                    targetUrl: trpgProxyTargetUrl.value
+                }));
+            } catch (e) {
+                console.warn('[TRPG] Failed to save proxy config:', e);
+            }
+        };
+
+        /**
+         * 从 localStorage 加载已保存的 TRPG 代理配置
+         */
+        const loadTrpgProxyConfig = () => {
+            try {
+                const saved = localStorage.getItem(TRPG_PROXY_STORAGE_KEY);
+                if (saved) {
+                    const config = JSON.parse(saved);
+                    trpgProxyEnabled.value = !!config.enabled;
+                    trpgProxyTargetUrl.value = config.targetUrl || '';
+                    if (trpgProxyTargetUrl.value) {
+                        // 重新生成本地代理地址（不调用 saveTrpgProxyConfig 避免循环）
+                        const input = trpgProxyTargetUrl.value.trim();
+                        try {
+                            const url = new URL(input);
+                            const path = url.pathname.replace(/^\/+/, '').replace(/\/+$/, '');
+                            const PROXY_BASE = 'http://localhost:18527';
+                            const VOLCANO_ARK_PATH = 'api/coding/v3';
+                            if (url.hostname === 'ark.cn-beijing.volces.com' && path === VOLCANO_ARK_PATH) {
+                                trpgProxyLocalUrl.value = `${PROXY_BASE}/v3`;
+                            } else {
+                                const targetBase = url.origin;
+                                if (path) {
+                                    trpgProxyLocalUrl.value = `${PROXY_BASE}/${path}?_target=${encodeURIComponent(targetBase)}`;
+                                } else {
+                                    trpgProxyLocalUrl.value = `${PROXY_BASE}?_target=${encodeURIComponent(targetBase)}`;
+                                }
+                            }
+                        } catch (e) {
+                            trpgProxyLocalUrl.value = '';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn('[TRPG] Failed to load proxy config:', e);
+            }
+        };
+
+        // 初始化时加载已保存的配置
+        loadTrpgProxyConfig();
+
+        const copyTrpgProxyUrl = () => {
+            if (!trpgProxyLocalUrl.value) {
+                showToast('没有可复制的地址', 'warning');
+                return;
+            }
+            navigator.clipboard.writeText(trpgProxyLocalUrl.value).then(() => {
+                showToast('已复制到剪贴板', 'success');
+            }).catch(err => {
+                console.error('Copy failed', err);
+                showToast('复制失败', 'error');
+            });
+        };
+
+        const confirmTrpgProxy = () => {
+            // 校验：勾选了代理但未填地址
+            if (trpgProxyEnabled.value && !trpgProxyTargetUrl.value.trim()) {
+                showToast('已勾选代理但未填写 API 地址，请填写或取消勾选', 'warning');
+                return;
+            }
+            // 保存配置到 localStorage
+            saveTrpgProxyConfig();
+            showTrpgProxyModal.value = false;
+            showToast(trpgProxyEnabled.value ? '代理设置已保存，请在 TRPG 网页内填写代理地址' : '已关闭代理', 'info');
+        };
+
         // Watch view change to refresh generator/plaza
         watch(currentView, (newView) => {
             if (newView === 'generator') {
@@ -1616,8 +1740,8 @@ createApp({
                 // Add timestamp to force refresh
                 squareUrl.value = `https://rphforum.zeabur.app/?t=${Date.now()}`;
             } else if (newView === 'trpg') {
-                isTrpgLoading.value = true;
-                trpgUrl.value = `https://aisandboxgame.com/?t=${Date.now()}`;
+                // 每次进入 TRPG 都弹出代理配置弹窗（不刷新 iframe，保持缓存）
+                showTrpgProxyModal.value = true;
             } else if (newView === 'presets') {
                 nextTick(() => {
                     const el = document.getElementById('presets-list');
@@ -10747,6 +10871,8 @@ image###生成的提示词###
             isGeneratorLoading, generatorUrl, onGeneratorLoad, syncSettingsToGenerator, // Generator exports
             isSquareLoading, squareUrl, onSquareLoad, // Square exports
             isTrpgLoading, trpgUrl, onTrpgLoad, // TRPG exports
+            showTrpgProxyModal, trpgProxyEnabled, trpgProxyTargetUrl, trpgProxyLocalUrl,
+            generateLocalProxyUrl, copyTrpgProxyUrl, confirmTrpgProxy, saveTrpgProxyConfig, // TRPG Proxy exports
             editorTab, characterDisplayLimit, displayedCharacters, loadMoreCharacters,
             isAutoImageGenEnabled,
             apiStatus, apiLatency, imageGenStatus, imageGenLatency, checkAllStatuses, // Status Exports

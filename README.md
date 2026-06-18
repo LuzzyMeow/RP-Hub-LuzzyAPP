@@ -49,12 +49,24 @@
 
 ### 5. TRPG 模式（AI 沙盒游戏）
 - 侧边栏新增 TRPG 入口，iframe 嵌入 [AI Sandbox Game](https://aisandboxgame.com/)
-- 内置 NanoHTTPD 本地 API 代理服务器（`localhost:18527`），解决 iframe 内 CORS 限制
+- **iframe 缓存**：使用 `v-show` 控制，切换到其他功能再切回 TRPG，网页状态保持不变（不重新加载）
+- **代理配置弹窗**：每次进入 TRPG 模式自动弹出，引导用户配置 API 代理
+  - 弹窗标题："是否需要代理 API 请求？"
+  - 说明 CORS 限制原因，引导用户勾选启用代理
+  - 用户填写真实 API 地址（如火山方舟 `https://ark.cn-beijing.volces.com/api/coding/v3`），系统自动生成本地代理地址
+  - 一键复制本地代理地址，粘贴到 TRPG 网页的 API 设置中
+  - 配置持久化到 localStorage，下次进入弹窗自动填充上次配置
+- **内置 NanoHTTPD 本地 API 代理服务器**（`localhost:18527`），解决 iframe 内 CORS 限制
 - 自动识别 API 路径前缀（`/v3` → 火山方舟），用户只需填一次地址
 - 支持任意 OpenAI 兼容 API（通过 `_target` 参数指定）
 - 支持 SSE 流式响应透传
 - **抗更新**：代理机制在 Android 原生层，不修改网页代码，aisandboxgame.com 更新不影响代理
-- 使用方法：在 TRPG 网页内配置 API 地址为 `http://localhost:18527/v3`（火山方舟）
+- **使用方法**：
+  1. 进入 TRPG 模式 → 自动弹出代理配置弹窗
+  2. 勾选"启用 API 代理" → 填入真实 API 地址（如 `https://ark.cn-beijing.volces.com/api/coding/v3`）
+  3. 系统自动生成本地代理地址（如 `http://localhost:18527/v3`）→ 点击"复制"
+  4. 在 TRPG 网页的 API 设置中粘贴代理地址，填入 API Key 和模型名
+  5. 点击"确认"关闭弹窗，开始游戏
 
 ---
 
