@@ -1526,7 +1526,15 @@ const MCP_REQUEST_TIMEOUT_MS = 60000;
 **`assets/js/app.js` 改动**：
 - 新增 `showMcpToolImport`/`mcpImportInput`/`mcpImportError` 状态变量
 - 新增 `openMcpToolImport`/`parseMcpImportJson`/`testMcpConnection`/`confirmMcpToolImport`/`refreshMcpTool`/`removeMcpTool` 函数
-- 用户输入 JSON 格式：`{ "url": "...", "headers": {...}, "protocolVersion": "2025-03-26" }`
+- 新增 `extractMcpRemoteConfig` 辅助函数：从 mcp-remote 桥接的 stdio args 中提取 HTTP URL 和 headers
+- `parseMcpImportJson` 增强支持两种 JSON 输入格式：
+  - **① 扁平格式**（HTTP transport）：`{ url, headers, protocolVersion }`
+  - **② mcpServers 嵌套格式**（Claude Desktop / Cursor 通用）：`{ mcpServers: { <name>: { ... } } }`
+    - 自动识别 HTTP transport（有 url 字段）→ 直接提取
+    - 自动识别 mcp-remote 桥接（command+args 含 mcp-remote）→ 从 args 提取 URL 和 `--header`
+    - 纯 stdio 本地命令不支持，给出明确错误提示
+    - `${VAR}` 环境变量语法当字面值处理（浏览器无环境变量）
+    - URL 自动清理反引号/引号包裹
 
 #### 14.3.5 AI 调用：标签调度集成
 

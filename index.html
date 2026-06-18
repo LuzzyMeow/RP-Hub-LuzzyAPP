@@ -4509,12 +4509,16 @@
                             class="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-mono text-gray-800 focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 focus:outline-none transition-all resize-y"
                             placeholder='{ "url": "https://my-mcp-server.example.com/mcp" }'></textarea>
                         <div class="mt-2 text-[11px] text-gray-500 leading-relaxed">
-                            <p>支持字段：</p>
-                            <ul class="list-disc list-inside mt-1 space-y-0.5">
+                            <p>支持两种 JSON 格式：</p>
+                            <p class="mt-1 font-bold text-gray-600">① 扁平格式（HTTP transport）</p>
+                            <ul class="list-disc list-inside ml-2 space-y-0.5">
                                 <li><code class="bg-gray-100 px-1 rounded">url</code>（必填）：MCP server 端点</li>
                                 <li><code class="bg-gray-100 px-1 rounded">headers</code>（可选）：自定义头，如 <code class="bg-gray-100 px-1 rounded">{ "Authorization": "Bearer ..." }</code></li>
                                 <li><code class="bg-gray-100 px-1 rounded">protocolVersion</code>（可选）：默认 <code class="bg-gray-100 px-1 rounded">2025-03-26</code></li>
                             </ul>
+                            <p class="mt-2 font-bold text-gray-600">② mcpServers 嵌套格式（Claude Desktop / Cursor 通用）</p>
+                            <p class="ml-2">自动识别 HTTP transport 或 mcp-remote 桥接，提取 url + headers。</p>
+                            <p class="mt-1 ml-2 text-amber-600">注：纯 stdio 本地命令不支持；<code class="bg-amber-50 px-1 rounded">${VAR}</code> 环境变量语法会当字面值处理。</p>
                         </div>
                     </div>
 

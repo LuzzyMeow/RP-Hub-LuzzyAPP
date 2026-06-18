@@ -7612,6 +7612,50 @@ ${content}
             showMcpToolImport.value = true;
         };
 
+        // 从 mcp-remote 桥接的 stdio args 中提取 HTTP URL 和 headers
+        // mcp-remote 用法：npx -y mcp-remote <url> [--header "Key: Value"]...
+        const extractMcpRemoteConfig = (server) => {
+            const args = Array.isArray(server.args) ? server.args : [];
+            const hasMcpRemote = args.some(a => typeof a === 'string' && a.includes('mcp-remote'));
+            if (!hasMcpRemote) return null;
+
+            let url = '';
+            const headers = {};
+
+            for (let i = 0; i < args.length; i++) {
+                let arg = String(args[i] || '').trim();
+                // 跳过选项标志
+                if (arg === '-y' || arg === 'mcp-remote' || arg === '--') continue;
+                if (arg.startsWith('-') && arg !== '--header' && arg !== '-H') continue;
+
+                // --header / -H 后面跟 "Key: Value"
+                if (arg === '--header' || arg === '-H') {
+                    const next = String(args[i + 1] || '').trim();
+                    const colonIdx = next.indexOf(':');
+                    if (colonIdx > 0) {
+                        const key = next.slice(0, colonIdx).trim();
+                        let value = next.slice(colonIdx + 1).trim();
+                        // 处理 ${VAR} 环境变量语法：浏览器无环境变量，当字面值处理
+                        value = value.replace(/\$\{([^}]+)\}/g, (_, inner) => inner.trim());
+                        headers[key] = value;
+                        i++;
+                    }
+                    continue;
+                }
+
+                // 第一个 http(s):// 开头的参数是 URL（可能被反引号/引号包裹）
+                if (!url) {
+                    const cleaned = arg.replace(/^[`'"]|[`'"]$/g, '').trim();
+                    if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+                        url = cleaned;
+                    }
+                }
+            }
+
+            if (!url) return null;
+            return { url, headers, protocolVersion: undefined };
+        };
+
         const parseMcpImportJson = () => {
             const text = (mcpImportInput.json || '').trim();
             if (!text) { mcpImportError.value = 'JSON 不能为空'; return null; }
@@ -7622,20 +7666,69 @@ ${content}
                 mcpImportError.value = '必须是 JSON 对象';
                 return null;
             }
-            if (!parsed.url || typeof parsed.url !== 'string') {
+
+            // 支持两种输入格式：
+            // 1. 扁平格式：{ url, headers, protocolVersion }
+            // 2. mcpServers 嵌套格式（Claude Desktop / Cursor 通用）：{ mcpServers: { <name>: { ... } } }
+            let config = parsed;
+            if (parsed.mcpServers && typeof parsed.mcpServers === 'object' && !Array.isArray(parsed.mcpServers)) {
+                const serverNames = Object.keys(parsed.mcpServers);
+                if (serverNames.length === 0) {
+                    mcpImportError.value = 'mcpServers 为空';
+                    return null;
+                }
+                // 优先匹配用户填的 name，否则取第一个
+                const serverName = (mcpImportInput.name && parsed.mcpServers[mcpImportInput.name])
+                    ? mcpImportInput.name
+                    : serverNames[0];
+                const server = parsed.mcpServers[serverName];
+                if (!server || typeof server !== 'object') {
+                    mcpImportError.value = `mcpServers.${serverName} 不是有效对象`;
+                    return null;
+                }
+
+                // 情况 A：HTTP transport（直接有 url 字段）
+                if (server.url && typeof server.url === 'string') {
+                    config = {
+                        url: server.url,
+                        headers: server.headers || {},
+                        protocolVersion: server.protocolVersion
+                    };
+                    if (!mcpImportInput.name) mcpImportInput.name = serverName;
+                }
+                // 情况 B：stdio transport + mcp-remote 桥接
+                else if (server.command && Array.isArray(server.args)) {
+                    const extracted = extractMcpRemoteConfig(server);
+                    if (!extracted) {
+                        mcpImportError.value = 'stdio transport 仅支持 mcp-remote 桥接的 HTTP server；纯本地命令（无 mcp-remote）不支持。请直接提供 url 字段，或使用 mcp-remote 桥接远程 HTTP server。';
+                        return null;
+                    }
+                    config = extracted;
+                    if (!mcpImportInput.name) mcpImportInput.name = serverName;
+                }
+                else {
+                    mcpImportError.value = `mcpServers.${serverName} 缺少 url 字段或 command+args`;
+                    return null;
+                }
+            }
+
+            // 校验扁平格式
+            if (!config.url || typeof config.url !== 'string') {
                 mcpImportError.value = '缺少 url 字段';
                 return null;
             }
-            try { new URL(parsed.url); } catch (_) {
+            // 清理 URL（可能被反引号/引号包裹）
+            config.url = config.url.replace(/^[`'"]|[`'"]$/g, '').trim();
+            try { new URL(config.url); } catch (_) {
                 mcpImportError.value = 'url 不是合法 URL';
                 return null;
             }
-            if (parsed.headers && (typeof parsed.headers !== 'object' || Array.isArray(parsed.headers))) {
+            if (config.headers && (typeof config.headers !== 'object' || Array.isArray(config.headers))) {
                 mcpImportError.value = 'headers 必须是对象';
                 return null;
             }
             mcpImportError.value = '';
-            return parsed;
+            return config;
         };
 
         const testMcpConnection = async () => {

@@ -90,19 +90,44 @@
 ### 7. MCP HTTP 工具导入
 - 在工具面板新增「+ 添加 MCP 工具」按钮，支持通过 JSON 形式导入 MCP（Model Context Protocol）远程工具服务器
 - **传输协议**：MCP Streamable HTTP transport（2025-03-26 规范，单端点 POST 返回 JSON 或 SSE）
-- **JSON 输入格式**（MCP server 连接信息）：
-  ```json
-  {
-    "url": "https://my-mcp-server.example.com/mcp",
-    "headers": {
-      "Authorization": "Bearer <token>"
-    },
-    "protocolVersion": "2025-03-26"
+- **支持两种 JSON 输入格式**：
+
+#### ① 扁平格式（HTTP transport）
+```json
+{
+  "url": "https://my-mcp-server.example.com/mcp",
+  "headers": {
+    "Authorization": "Bearer <token>"
+  },
+  "protocolVersion": "2025-03-26"
+}
+```
+- `url`（必填）：MCP server 端点
+- `headers`（可选）：自定义头，如鉴权 token
+- `protocolVersion`（可选）：默认 `2025-03-26`
+
+#### ② mcpServers 嵌套格式（Claude Desktop / Cursor 通用）
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "https://my-mcp-server.example.com/mcp",
+        "--header",
+        "Authorization: Bearer <token>"
+      ]
+    }
   }
-  ```
-  - `url`（必填）：MCP server 端点
-  - `headers`（可选）：自定义头，如鉴权 token
-  - `protocolVersion`（可选）：默认 `2025-03-26`
+}
+```
+- 自动识别 HTTP transport（有 `url` 字段）或 mcp-remote 桥接（`command`+`args` 含 `mcp-remote`）
+- 从 `mcp-remote` 的 args 中自动提取 URL 和 `--header` 头
+- 纯 stdio 本地命令（无 mcp-remote 桥接）不支持
+- `${VAR}` 环境变量语法当字面值处理（浏览器无环境变量）
+
 - **导入流程**：填入 JSON → 点击「测试连接」验证可达 → 点击「导入工具」执行 `initialize` + `tools/list` 拉取工具清单 → 工具卡显示包含的子工具数量
 - **AI 调用机制**：复用现有 `<tool_*>` 标签协议，AI 在正文输出 `<tool_mcp_<serverShortId>_<toolName>:argsJSON>` 标签触发 `tools/call`，结果注入下一轮上下文
 - **作用范围**：**仅 RP-Hub 主聊天生效**，TRPG 模式不生效（TRPG iframe 跨 origin 无法注入工具说明 prompt）
