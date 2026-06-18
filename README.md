@@ -50,9 +50,11 @@
 ### 5. TRPG 模式（AI 沙盒游戏）
 - 侧边栏新增 TRPG 入口，iframe 嵌入 [AI Sandbox Game](https://aisandboxgame.com/)
 - 内置 NanoHTTPD 本地 API 代理服务器（`localhost:18527`），解决 iframe 内 CORS 限制
-- 支持火山方舟、DeepSeek、OpenAI 等多种 API 提供商
+- 自动识别 API 路径前缀（`/v3` → 火山方舟），用户只需填一次地址
+- 支持任意 OpenAI 兼容 API（通过 `_target` 参数指定）
 - 支持 SSE 流式响应透传
-- 使用方法：在 TRPG 网页内配置 API 地址为 `http://localhost:18527/v3`（火山方舟）即可
+- **抗更新**：代理机制在 Android 原生层，不修改网页代码，aisandboxgame.com 更新不影响代理
+- 使用方法：在 TRPG 网页内配置 API 地址为 `http://localhost:18527/v3`（火山方舟）
 
 ---
 
