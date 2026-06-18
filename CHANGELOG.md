@@ -1386,5 +1386,201 @@ conn.setReadTimeout(120000);
 
 ---
 
+## 十四、第八轮改动（2026-06-18：TRPG 代理字节透传修复 + 高级设置作用域文档化 + MCP HTTP 工具导入）
+
+### 14.0 改动背景
+
+用户提出三项增量需求：
+1. **TRPG 代理乱码根治**：TRPG 模式内 agent 调用工具后下一轮输出即变成乱码，前几轮未实质性修复，需保持原有需求结构
+2. **高级设置可用性验证**：检查 RP-Hub 设置页「API 请求体高级设置」是否真的可用，明确作用域
+3. **MCP 工具接入**：调研工具栏内 Tavily 等是否是 MCP 包装；扩展该部分，新增以 JSON 形式导入 HTTP MCP 工具的设置接口
+
+**硬约束**：保留成人内容注入提示词（预设）的相关设置完全不变，不允许修改、精简。MCP 工具仅对 RP-Hub 主聊天生效，对 TRPG 模式不生效。
+
+### 14.1 A 组：TRPG 代理字节透传修复（`android-patches/MainActivity.java`）
+
+#### 14.1.1 乱码根因定位
+
+经与官方 `aisandboxgame@v3.7.9` 源码（`js/services/aiAdapters.js#L2059-L2087`）交叉验证，确认乱码根因为 NanoHTTPD `parseBody()` 的 ISO-8859-1 解码 + `getBytes("UTF-8")` 重编码导致的 latin-1 → UTF-8 双重编码。
+
+**为什么第一轮看不到、工具调用后下一轮才暴露**：
+- 第一轮 body 中文密度低（玩家单句输入 + system prompt 多为英文 ReAct DSML），模型容错把受损字节当噪声丢弃
+- 第二轮 follow-up 请求的 `messages[].role:'tool'.content` 与 `tool_calls[].function.arguments` 中注入了大量中文长字符串（NPC 档案、状态摘要、世界书片段），双重编码后模型 context 里看到的就是 mojibake
+
+#### 14.1.2 字节透传改造
+
+**文件**：`android-patches/MainActivity.java` + `android/app/src/main/java/com/luzzymeow/rphub/MainActivity.java`（手工同步）
+
+**改动核心**：完全弃用 `session.parseBody(...).get("postData")`，改为从 `session.getInputStream()` 直接读字节，并按 chunked streaming 模式写出到 `HttpURLConnection`。
+
+```java
+// 删除：Map<String, String> params = new HashMap<>(); session.parseBody(params);
+// 删除：String postData = params.get("postData"); byte[] body = postData.getBytes("UTF-8");
+
+// 新增：字节透传逻辑
+if (method == Method.POST || method == Method.PUT || method == Method.PATCH) {
+    conn.setDoOutput(true);
+    String contentLengthHeader = session.getHeaders().get("content-length");
+    int contentLength = -1;
+    if (contentLengthHeader != null) {
+        try { contentLength = Integer.parseInt(contentLengthHeader.trim()); }
+        catch (NumberFormatException ignore) { contentLength = -1; }
+    }
+    conn.setChunkedStreamingMode(0);
+    InputStream clientIn = session.getInputStream();
+    try (OutputStream upstreamOut = conn.getOutputStream()) {
+        byte[] buf = new byte[8192];
+        long total = 0;
+        while (true) {
+            int toRead = (contentLength >= 0)
+                ? (int) Math.min(buf.length, contentLength - total)
+                : buf.length;
+            if (toRead <= 0) break;
+            int n = clientIn.read(buf, 0, toRead);
+            if (n <= 0) break;
+            upstreamOut.write(buf, 0, n);
+            total += n;
+            if (contentLength >= 0 && total >= contentLength) break;
+        }
+        upstreamOut.flush();
+    }
+}
+```
+
+**为什么 chunked 而不是固定长度**：经过中间任何字节再编码后长度都不可信，chunked 是行业最稳方案。
+
+#### 14.1.3 `readFully` 死代码处理
+
+保留死代码不强制移除（与项目历史「保留向后兼容」一致），仅在头注释加一行：`// @Deprecated 已废弃；自第十一轮起所有响应统一走 newChunkedResponse 流式透传`。
+
+#### 14.1.4 预期行为
+
+- 工具调用后下一轮 follow-up 请求中文不再经过 latin-1 → UTF-8 双重编码 → 上游模型看到的是原始 UTF-8 中文 → 乱码消除
+- 去掉 `parseBody` 的 1MB 临时文件落盘 → 大请求体不再因磁盘 IO 抖动放大延迟
+- 头方向已在第十一轮过滤 `Content-Encoding`，请求方向去字符串中转后，整链路对中文字节完全透明
+
+### 14.2 B 组：高级设置静态可用性验证（仅文档同步，无代码改动）
+
+#### 14.2.1 静态调用链审计结果
+
+| 调用点 | 文件位置 | 是否经过 buildApiRequestBody | 备注 |
+|--------|----------|------------------------------|------|
+| 主聊天 `chat/completions` | `app.js#L5824` | ✅ 是 | 用户配置生效 |
+| UI 模板分析 `chat/completions` | `app.js#L4567-L4583` | ❌ 否（硬编码） | 设计意图：UI 变量分析无需 thinking |
+| 向量嵌入 `embeddings` | `app.js#L6447-L6457` | ❌ 否 | 嵌入端点不支持 thinking 字段 |
+| 模型列表 `fetchModels` | `app.js#L4030-L4045` | — | GET 无请求体 |
+| 状态检查 `checkApiStatus` | `app.js#L4091-L4120` | — | GET 无请求体 |
+
+#### 14.2.2 高级设置作用域
+
+| 作用范围 | 是否生效 | 说明 |
+|----------|----------|------|
+| RP-Hub 主聊天 chat/completions | ✅ 生效 | 通过 `buildApiRequestBody` 注入 thinking/reasoning_effort/自定义 JSON |
+| UI 模板分析 | ❌ 不生效 | 硬编码请求体，设计意图无需 thinking |
+| 向量嵌入 embeddings | ❌ 不生效 | 嵌入端点协议级不支持 thinking 字段 |
+| TRPG iframe 内 aisandboxgame 请求 | ❌ 不生效 | aisandbox iframe 内 fetch 跨 origin 不受 RP-Hub 控制；代理仅原样转发请求体 |
+
+**结论**：高级设置功能本身可用且持久化正常，但**作用域仅限 RP-Hub 主聊天**。用户若需在 TRPG 模式启用深度思考，需在 aisandbox 网页内的 API 设置或 system prompt 中自行配置。
+
+### 14.3 C 组：MCP HTTP 工具接入（核心新增功能）
+
+#### 14.3.1 设计原则与边界
+
+- **传输**：MCP Streamable HTTP transport（2025-03-26 规范，单端点 POST 返回 JSON 或 SSE）
+- **JSON 输入格式**：MCP server 连接信息（url + headers + protocolVersion），不是直接列 tools 数组
+- **生命周期**：导入时立刻执行 `initialize` + `tools/list` 抓取工具清单缓存到本地；用户「刷新工具列表」按钮重新拉取
+- **AI 调用**：复用现有 `<tool_*>` 标签机制，新标签格式 `<tool_mcp_<serverShortId>_<toolName>:argsJSON>`（`add` / `cover` 后缀同现有约定）
+- **作用范围**：**仅 RP-Hub 主聊天**（同 4 个内建工具），TRPG iframe 不受影响
+- **工程归一**：把 MCP 工具与 4 个内建工具同样放入 `activeTools` 数组，作为 `type='mcp_http'` 的新工具类型
+
+#### 14.3.2 数据结构（`assets/js/app.js`）
+
+新增常量：
+```javascript
+const ACTIVE_TOOL_MCP_HTTP_TYPE = 'mcp_http';
+const ACTIVE_TOOL_MCP_DEFAULT_DESCRIPTION = '通过 MCP 协议调用远程工具服务器';
+const ACTIVE_TOOL_MCP_DEFAULT_DISPLAY_DESCRIPTION = 'MCP HTTP 工具';
+const MCP_PROTOCOL_VERSION = '2025-03-26';
+const MCP_CLIENT_INFO = { name: 'rp-hub', version: '1.7.1' };
+const MCP_REQUEST_TIMEOUT_MS = 60000;
+```
+
+新增 `createDefaultMcpHttpTool` 工厂函数（含 `mcpConfig`/`mcpSessionId`/`mcpTools`/`mcpLastFetchedAt`/`mcpLastError` 字段）。
+
+#### 14.3.3 MCP 协议层（`assets/js/app.js`）
+
+新增 5 个协议函数：
+- `mcpRpcCall(tool, method, params, signal)` - 通用 JSON-RPC 调用，支持 application/json 和 text/event-stream 响应
+- `mcpInitialize(tool, signal)` - 握手 + notifications/initialized 通知
+- `mcpListTools(tool, signal)` - 拉取工具清单
+- `mcpCallTool(tool, toolName, args, signal)` - 调用具体工具，返回 {text, isError, raw}
+- `mcpRefreshTool(tool, signal)` - 一键刷新（initialize → tools/list）
+
+#### 14.3.4 UI 入口与导入流程
+
+**`index.html` 改动**：
+- 工具列表头部新增「+ 添加 MCP 工具」按钮
+- 工具列表渲染对 `tool.type === 'mcp_http'` 有专属分支（显示 URL、工具数量、错误信息、刷新/删除按钮）
+- 新增 MCP 工具导入弹窗（工具命名输入、JSON 文本框、校验提示、测试连接/导入/取消按钮）
+
+**`assets/js/app.js` 改动**：
+- 新增 `showMcpToolImport`/`mcpImportInput`/`mcpImportError` 状态变量
+- 新增 `openMcpToolImport`/`parseMcpImportJson`/`testMcpConnection`/`confirmMcpToolImport`/`refreshMcpTool`/`removeMcpTool` 函数
+- 用户输入 JSON 格式：`{ "url": "...", "headers": {...}, "protocolVersion": "2025-03-26" }`
+
+#### 14.3.5 AI 调用：标签调度集成
+
+- **标签格式**：`<tool_mcp_<serverShortId>_<toolName>:argsJSON>`（`serverShortId` 取 `tool.id` 末 6 位）
+- **系统提示拼装**：`buildActiveToolSystemPrompt` 对 `mcp_http` 类型工具展开为多个 `<tool_mcp_<sid>_<name>>` 子条目，每条带 description + inputSchema 摘要
+- **标签拦截**：`findActiveToolCallsInText` 支持 MCP 子工具的 add/cover 标签检测，添加 `mcpSubToolName` 字段
+- **结果格式化**：`formatActiveToolResultContext` 添加 MCP 结果格式化分支，使用 `<mcp_result>` 标签包裹
+- **调度执行**：`runActiveToolCallSafely` 添加 MCP 分支，调用 `mcpCallTool`
+
+#### 14.3.6 持久化与回填
+
+- `activeTools` 已纳入 `saveData()`/`loadData()` 持久化（IndexedDB），新字段自动随之保存
+- 启动时不主动拉取 `tools/list`（避免开机就发请求），用户在工具卡上手动点「↻ 刷新」或在导入时自动拉取
+- `normalizeActiveTool` 添加 MCP 字段保留逻辑，确保工具规范化时不丢失
+
+### 14.4 保留功能
+
+**成人内容注入提示词（预设）功能完整保留**，包括：
+- `presets` 响应式数组与持久化逻辑
+- 预设注入到请求消息逻辑
+- 内置预设定义：`roleplay_hub_default`、4 个破限预注入预设、`色情内容增强`（NSFW）、`防抢话`、`防神化`
+- 本轮所有改动均不触及 `presets` 数组、注入逻辑、内置 NSFW 预设
+
+**TRPG 代理保留**：
+- 仍走 `cachedApiUrl + endpoint`、`cachedApiKey` 替换 Authorization、aisandbox 请求体保留 model 字段
+- 仅请求体读取方式从字符串中转改为字节透传
+
+### 14.5 文件改动清单
+
+| 文件 | 改动类型 | 改动内容 |
+|------|----------|----------|
+| `android-patches/MainActivity.java` | 修改 | `serve` 方法请求体读取改为字节透传；`readFully` 加 `@Deprecated` 注释 |
+| `android/app/src/main/java/com/luzzymeow/rphub/MainActivity.java` | 修改 | 与 `android-patches/MainActivity.java` 同步（手工复制） |
+| `assets/js/app.js` | 修改 | 新增 6 个 MCP 常量；新增 `createDefaultMcpHttpTool` 工厂；新增 5 个 MCP 协议函数；新增 3 个 MCP UI 状态 + 6 个 MCP UI 函数；调度器分支；工具说明 prompt 拼装；setup() return 导出更新；`normalizeActiveTool` MCP 字段保留 |
+| `index.html` | 修改 | 工具列表新增「+ 添加 MCP 工具」按钮；MCP 工具列表卡片渲染分支；新增 MCP 工具导入弹窗 |
+| `CHANGELOG.md` | 修改 | 新增「第十四轮改动」节 |
+| `README.md` | 修改 | 第 6 节末尾追加「高级设置作用域」说明；新增第 7 节「MCP HTTP 工具导入」介绍 |
+
+### 14.6 验证清单
+
+- [ ] TRPG 代理不再调用 `session.parseBody(params)`
+- [ ] TRPG 代理使用 `session.getInputStream()` + `setChunkedStreamingMode(0)` 字节透传
+- [ ] `android-patches/` 与 `android/app/src/main/java/com/luzzymeow/rphub/` 两份 MainActivity.java 字节一致
+- [ ] 高级设置（enableThinking/reasoningEffort/customRequestBody）仅作用于主聊天 chat/completions
+- [ ] 工具列表头部出现「+ 添加 MCP 工具」按钮
+- [ ] MCP 工具导入弹窗结构完整（命名输入、JSON 文本框、测试连接/导入/取消按钮）
+- [ ] MCP 工具列表卡片显示 URL、工具数量、刷新/删除按钮
+- [ ] `buildActiveToolSystemPrompt` 对 mcp_http 工具展开为多个子条目
+- [ ] `findActiveToolCallsInText` 支持 MCP 子工具标签检测
+- [ ] `runActiveToolCallSafely` 调度器有 MCP 分支
+- [ ] setup() return 包含所有 MCP 导出
+- [ ] 成人内容注入预设功能完整保留（预设列表、启用/禁用、注入到请求）
+
+---
+
 **最后更新**：2026-06-18
 **维护者**：LuzzyMeow

@@ -186,9 +186,10 @@ public class MainActivity extends BridgeActivity {
                     return errResp;
                 }
 
-                // 解析请求体（POST/PUT/PATCH 的 body）
-                Map<String, String> params = new HashMap<>();
-                session.parseBody(params);
+                // 注意：不再调用 session.parseBody(params)。
+                // parseBody 会用 ISO-8859-1 解码请求体到 String，再 getBytes("UTF-8") 重编码
+                // 会造成 latin-1 → UTF-8 双重编码，导致中文（尤其是工具回填后的 tool_calls.arguments
+                // 与 role:'tool'.content）变成 mojibake。改为字节透传，见下方 POST/PUT/PATCH 分支。
 
                 // 提取 endpoint（去掉版本前缀 /v1、/v3、/v2 等）
                 String endpoint = uri.replaceFirst("^/v\\d+", "");
@@ -231,16 +232,40 @@ public class MainActivity extends BridgeActivity {
                     conn.setRequestProperty("Authorization", "Bearer " + cachedApiKey);
                 }
 
-                // 写入请求体（保留原样，包括 model 字段）
+                // 写入请求体（字节透传，保留原样包括 model 字段与中文）
+                // 关键修复：弃用 parseBody().get("postData") 字符串中转路径，
+                // 改为直接从 session.getInputStream() 读字节并透传，彻底避免编码损坏。
                 if (method == Method.POST || method == Method.PUT || method == Method.PATCH) {
                     conn.setDoOutput(true);
-                    String postData = params.get("postData");
-                    if (postData != null && !postData.isEmpty()) {
-                        byte[] body = postData.getBytes("UTF-8");
-                        try (OutputStream os = conn.getOutputStream()) {
-                            os.write(body);
-                            os.flush();
+                    // 读取请求体字节长度（NanoHTTPD 已把 Content-Length 解析进 headers）
+                    String contentLengthHeader = session.getHeaders().get("content-length");
+                    int contentLength = -1;
+                    if (contentLengthHeader != null) {
+                        try {
+                            contentLength = Integer.parseInt(contentLengthHeader.trim());
+                        } catch (NumberFormatException ignore) {
+                            contentLength = -1;
                         }
+                    }
+                    // 用 chunked streaming，避免重算 / 截断风险
+                    conn.setChunkedStreamingMode(0);
+                    InputStream clientIn = session.getInputStream();
+                    try (OutputStream upstreamOut = conn.getOutputStream()) {
+                        byte[] buf = new byte[8192];
+                        long total = 0;
+                        while (true) {
+                            // 若 Content-Length 已知，避免读到下一个请求
+                            int toRead = (contentLength >= 0)
+                                ? (int) Math.min(buf.length, contentLength - total)
+                                : buf.length;
+                            if (toRead <= 0) break;
+                            int n = clientIn.read(buf, 0, toRead);
+                            if (n <= 0) break;
+                            upstreamOut.write(buf, 0, n);
+                            total += n;
+                            if (contentLength >= 0 && total >= contentLength) break;
+                        }
+                        upstreamOut.flush();
                     }
                 }
 
@@ -344,6 +369,7 @@ public class MainActivity extends BridgeActivity {
             return (values != null && !values.isEmpty()) ? values.get(0) : null;
         }
 
+        // @Deprecated 已废弃；自第十一轮起所有响应统一走 newChunkedResponse 流式透传
         private String readFully(InputStream inputStream) throws Exception {
             if (inputStream == null) return "";
             StringBuilder sb = new StringBuilder();
