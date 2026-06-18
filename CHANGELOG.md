@@ -1,7 +1,7 @@
 # RP-Hub Fork 改动工作日志
 
 > **Fork 源仓库**：https://github.com/STA1N156/RP-Hub
-> **Fork 目标仓库**：https://github.com/LuzzyMeow/RP-Hub（私有）
+> **Fork 目标仓库**：https://github.com/LuzzyMeow/RP-Hub-LuzzyAPP（公开）
 > **Fork 时间**：2026-06-17
 > **改动目的**：修复模型选择缺陷 + 配置火山方舟 API + 编译 Android APK + 修复万相广场下载
 
@@ -761,3 +761,53 @@ applicationVariants.all { variant ->
 
 **最后更新**：2026-06-18
 **维护者**：LuzzyMeow
+
+---
+
+## 九、第三轮改动（2026-06-18：版本号对齐 + 仓库公开 + Release 发布）
+
+### 9.1 版本号对齐原作者最新版本
+**文件**：`package.json`、`android/app/build.gradle`
+**改动**：版本号从 `1.0` / `1.0.0` 对齐到原作者最新版本 **1.7.1**
+```json
+// package.json
+"version": "1.7.1"
+```
+```groovy
+// build.gradle
+versionCode 171
+versionName "1.7.1"
+```
+**APK 输出文件名自动变为**：`RP-Hub-v1.7.1-debug.apk`
+
+### 9.2 仓库公开
+**操作**：`gh repo edit LuzzyMeow/RP-Hub --visibility public --accept-visibility-change-consequences`
+**结果**：仓库从私有切换为公开
+
+### 9.3 仓库更名
+**操作**：`gh repo rename RP-Hub-LuzzyAPP --repo LuzzyMeow/RP-Hub --yes`
+**结果**：仓库名从 `RP-Hub` 改为 `RP-Hub-LuzzyAPP`
+**新地址**：https://github.com/LuzzyMeow/RP-Hub-LuzzyAPP
+
+### 9.4 仓库描述和 Topics 更新
+**Description**：`基于 STA1N156/RP-Hub 的增强 Fork | Android APK 支持 | 火山方舟 API 兼容 | 模型自由输入 | 万相广场自动导入`
+**Homepage**：指向原项目 `https://github.com/STA1N156/RP-Hub`
+**Topics**：`roleplay` `android` `capacitor` `vue3` `volcengine` `apk`
+
+### 9.5 发布 Release v1.7.1
+**操作**：`gh release create v1.7.1` 上传 APK + Release Notes
+**Release 页面**：https://github.com/LuzzyMeow/RP-Hub-LuzzyAPP/releases/tag/v1.7.1
+**附件**：`RP-Hub-v1.7.1-debug.apk`（4.25 MB）
+**Release Notes 内容**：
+- 下载表格 + 安装说明（可折叠）
+- 5 大新增功能详解
+- 与原项目的差异对比表
+- 已知限制
+- 致谢和协议说明
+- CHANGELOG 链接
+
+### 9.6 本地 git remote 更新
+**注意**：仓库更名后本地 remote URL 需更新：
+```bash
+git remote set-url origin https://github.com/LuzzyMeow/RP-Hub-LuzzyAPP.git
+```

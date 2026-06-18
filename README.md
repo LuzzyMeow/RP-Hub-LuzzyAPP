@@ -5,7 +5,7 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 [![Capacitor](https://img.shields.io/badge/Capacitor-8-119EFF?logo=capacitor&logoColor=white)](https://capacitorjs.com/)
 
-> **基于 [STA1N156/RP-Hub](https://github.com/STA1N156/RP-Hub) 的个人 Fork，新增 Android APK 构建支持、火山方舟 API 兼容、模型自由输入、万相广场自动导入等增强功能。仅供个人使用。**
+> **基于 [STA1N156/RP-Hub](https://github.com/STA1N156/RP-Hub) 的增强 Fork，新增 Android APK 构建支持、火山方舟 API 兼容、模型自由输入、万相广场自动导入等增强功能。**
 
 ---
 
@@ -15,7 +15,7 @@
 
 - **原项目**：一款纯前端运行的本地角色扮演（Roleplay）对话和角色卡生成工具
 - **Fork 时间**：2026-06-17
-- **Fork 目的**：个人使用，增加 Android APK 支持、火山方舟 API 兼容性、模型自由输入、万相广场下载自动导入等功能
+- **Fork 目的**：增强功能，增加 Android APK 支持、火山方舟 API 兼容性、模型自由输入、万相广场下载自动导入等功能
 - **许可协议**：继承原项目 CC BY-NC 4.0，**禁止任何形式的商业化使用**
 
 **感谢原作者 STA1N156 的开源贡献。**
@@ -60,7 +60,7 @@
 
 ### 方式二：Android APK 使用
 
-1. 从 [Releases](../../releases) 下载最新 `RP-Hub-v1.0-debug.apk`
+1. 从 [Releases](../../releases) 下载最新 `RP-Hub-v1.7.1-debug.apk`
 2. 在 Android 手机上安装（需允许"安装未知来源应用"）
 3. 打开 RP-Hub，在设置中配置 API（火山方舟 API 可直接使用，无需 proxy）
 4. 进入万相广场下载角色卡/UI模板，会自动导入到 app
@@ -99,7 +99,7 @@ cd android
 ./gradlew assembleDebug           # Linux/Mac
 
 # APK 输出路径
-# android/app/build/outputs/apk/debug/RP-Hub-v1.0-debug.apk
+# android/app/build/outputs/apk/debug/RP-Hub-v1.7.1-debug.apk
 ```
 
 ### 重新构建（修改代码后）
