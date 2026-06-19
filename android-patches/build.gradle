@@ -1,14 +1,14 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.luzzymeow.rphub"
+    namespace = "com.luzzymeow.luzzy"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.luzzymeow.rphub"
+        applicationId "com.luzzymeow.luzzy"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 171
-        versionName "1.7.1"
+        versionCode 200
+        versionName "2.0.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -23,10 +23,10 @@ android {
         }
     }
 
-    // 自定义 APK 输出文件名：RP-Hub-v1.0-debug.apk / RP-Hub-v1.0-release.apk
+    // 自定义 APK 输出文件名：LUZZY-v1.0-debug.apk / LUZZY-v1.0-release.apk
     applicationVariants.all { variant ->
         variant.outputs.all {
-            outputFileName = "RP-Hub-v${variant.versionName}-${variant.name}.apk"
+            outputFileName = "LUZZY-v${variant.versionName}-${variant.name}.apk"
         }
     }
 }

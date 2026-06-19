@@ -1,0 +1,40 @@
+{
+  "name": "luzzy-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "LUZZY 移动端前端 - React 19 + Vite + TypeScript",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --noEmit"
+  },
+  "dependencies": {
+    "@lobehub/fluent-emoji": "^4.0.0",
+    "@lobehub/icons": "^5.0.0",
+    "@lobehub/ui": "5.15.17",
+    "antd": "^6.0.0",
+    "antd-style": "^3.7.1",
+    "dayjs": "^1.11.13",
+    "dompurify": "^3.2.4",
+    "jszip": "^3.10.1",
+    "marked": "^15.0.6",
+    "motion": "^12.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.1.1",
+    "uuid": "^11.0.5",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^22.10.5",
+    "@types/react": "^19.0.4",
+    "@types/react-dom": "^19.0.2",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.7"
+  }
+}

@@ -1998,5 +1998,184 @@ const builtinPresetDefaults = [
 
 ---
 
+## 十九、第十三轮改动（2026-06-19：前端完全重构 React 19 + lobe-ui + 静态审查修复）
+
+### 19.0 改动背景
+
+完全脱离原项目，作为独立项目 LUZZY 发布。完全摒弃 Vue 3 网页端架构，基于 React 19 + @lobehub/ui + AlibabaPuHuiTi-3 字体构建全新移动端前端。保留所有功能（除万相广场），完整保留所有内置 NSFW 提示词。完成静态代码审查并修复 40+ 个问题。
+
+**硬约束**：保留所有内置 NSFW 提示词内容完整不修改，仅针对代码进行工作。
+
+### 19.1 前端完全重构（`frontend/` 全新目录）
+
+#### 19.1.1 技术栈
+
+| 组件 | 技术 |
+|------|------|
+| 框架 | React 19 + Vite + TypeScript |
+| UI 库 | @lobehub/ui 5.15.17 + antd 6 + antd-style |
+| 动画 | motion 12 |
+| 状态管理 | zustand 5 + persist 中间件 |
+| 路由 | react-router-dom 7 |
+| 字体 | AlibabaPuHuiTi-3（55-Regular/65-Medium/85-Bold）+ AlibabaSans |
+| 打包 | Vite 8 |
+| 移动端 | Capacitor 8 |
+
+#### 19.1.2 架构分层
+
+```
+frontend/src/
+├── components/layout/     # 布局组件（AppHeader/BottomTabBar/MobileLayout）
+├── pages/                 # 页面（Chat/Settings/Characters/Tools/More）
+├── services/              # 服务层（10个模块）
+├── store/                 # Zustand Store（3个）
+├── styles/                # 全局样式 + 字体
+├── types/                 # TypeScript 类型定义
+├── App.tsx                # 路由 + ErrorBoundary + Suspense
+└── main.tsx               # 入口
+```
+
+#### 19.1.3 服务层（10个模块）
+
+| 模块 | 职责 |
+|------|------|
+| `apiClient.ts` | API 客户端，流式/非流式请求，原生平台 XHR + 本地代理 |
+| `providerService.ts` | 多供应商路由，模型名 `<providerId>_<model_name>` 解析 |
+| `storage.ts` | IndexedDB 持久化，9 个 object store |
+| `markdownService.ts` | Markdown 渲染 + CoT 解析 + 图片压缩 |
+| `chatService.ts` | 聊天上下文构建（系统提示词+世界书+角色+记忆+历史） |
+| `memoryService.ts` | 向量记忆系统，cosineSimilarity + embedding API |
+| `mcpService.ts` | MCP HTTP 协议客户端（Streamable HTTP transport） |
+| `toolService.ts` | ActiveTool 系统（7种工具类型） |
+| `worldInfoService.ts` | 世界书关键词匹配 |
+| `presetContent.ts` | 内置预设内容（NSFW 提示词完整保留） |
+
+#### 19.1.4 Store 层（3个）
+
+| Store | 职责 |
+|-------|------|
+| `useChatStore` | 聊天核心（消息/生成状态/abortController/历史持久化） |
+| `useSettingsStore` | 设置（API/供应商/模型模式/用户档案/主题，persist v2） |
+| `useCharacterStore` | 角色卡管理（IndexedDB 持久化，SillyTavern V2/V1 导入） |
+
+#### 19.1.5 页面（5个）
+
+| 页面 | 功能 |
+|------|------|
+| `ChatPage` | 聊天主界面（Markdown渲染/思考链/工具调用/消息操作） |
+| `SettingsPage` | API配置/供应商管理/模型模式/用户档案/主题 |
+| `CharactersPage` | 角色卡网格管理（搜索/收藏/导入导出/编辑） |
+| `ToolsPage` | 工具管理（启用禁用/MCP导入） |
+| `MorePage` | 功能导航（记忆/预设/世界书/正则/UI模板/TRPG/关于） |
+
+### 19.2 静态审查修复（40+ 项）
+
+#### 19.2.1 安全修复
+
+- **XSS 漏洞**（`markdownService.ts`）：移除 DOMPurify `ADD_TAGS` 中的 `script`、`ADD_ATTR` 中的 `onclick`，`FORBID_ATTR` 改为正则 `/^on/i` 匹配所有 on* 事件
+- **XML 注入**（`toolService.ts`）：工具结果拼接添加 `escapeXml` 转义函数
+
+#### 19.2.2 Bug 修复
+
+- **流式请求 body 锁定**（`apiClient.ts`）：`getReader()` 移至流式分支之后，避免非流式 `response.text()` 抛异常
+- **流式 reader 资源泄漏**（`apiClient.ts`）：添加 try/finally 确保 `reader.cancel()` 释放
+- **AbortSignal 监听器泄漏**（`apiClient.ts`）：提取 onAbort 函数，在 safeResolve/safeReject 中移除监听器
+- **IndexedDB 并发连接泄漏**（`storage.ts`）：`getDB` 使用共享 Promise 去重
+- **IndexedDB 事务未等待完成**（`storage.ts`）：`setItem`/`removeItem` 改为 `tx.oncomplete` 时 resolve
+- **IndexedDB 重试无限递归**（`storage.ts`）：添加 retryCount 参数，最大 3 次
+- **MCP SSE 匹配通知**（`mcpService.ts`）：严格按 id 匹配，移除 `|| parsed.method` 分支
+- **MCP SSE 多行 data**（`mcpService.ts`）：按 `\n\n` 分割事件块，拼接 data 行
+- **MCP reader 未释放锁**（`mcpService.ts`）：添加 try/finally 调用 `reader.releaseLock()`
+- **工具标签名不匹配**（`toolService.ts`）：`<active_tool_results>` 改为 `<active_tool_result`
+- **冗余属性访问**（`toolService.ts`）：`input.callName || input.callName` 改为 `input.callName || 'tool_memory'`
+- **system 角色转 assistant**（`chatService.ts`）：保留 system 角色消息
+- **scanText 循环内重复构建**（`chatService.ts`）：提取到循环外
+- **cosineSimilarity 维度截断**（`memoryService.ts`）：维度不匹配返回 -Infinity，过滤改为 `Number.isFinite`
+- **vectorTopK=0 回退**（`memoryService.ts`）：`||` 改为 `??`
+- **embedding URL 版本替换**（`memoryService.ts`）：正则改为 `/\/v\d+(?=\/|$)/`
+- **供应商路由失效**（`useChatStore.ts`）：传入 `BUILTIN_PROVIDERS + customApiProviders` 和 `apiProviderKeys`
+- **persist migrate 缺失**（`useSettingsStore.ts`）：添加 migrate 函数防止旧用户数据丢失
+- **merge undefined 覆盖**（`useSettingsStore.ts`）：过滤 undefined 字段后再展开
+- **saveChatHistory 重复调用**（`useChatStore.ts`）：删除成功路径调用，仅保留 finally
+- **stopGenerating 未清理 abortController**（`useChatStore.ts`）：添加 `abortController: null`
+- **stopGenerating 竞态**（`useChatStore.ts`）：finally 中检查 abortController 是否仍是当前实例
+- **deleteCharacter 未清理聊天记录**（`useCharacterStore.ts`）：删除角色时调用 `removeItem('chatHistory', uuid)`
+- **loadCharacters 未校验 UUID**（`useCharacterStore.ts`）：校验 currentCharacterUuid 有效性
+
+#### 19.2.3 性能优化
+
+- **SettingsPage 校验缓存**：`requestBodyValidation` 和 `modelValidation` 用 `useMemo` 缓存
+- **CharactersPage 过滤缓存**：`getFilteredCharacters` 用 `useMemo` 缓存
+- **ChatPage 智能滚动**：添加 `stickToBottomRef`，仅在用户处于底部时跟随滚动
+- **App 懒加载**：5 个页面改为 `React.lazy` 动态导入 + `Suspense`
+- **getFilteredCharacters displayLimit**：返回前应用 `displayLimit` 限制
+
+#### 19.2.4 错误处理优化
+
+- **乐观更新回滚**（`ToolsPage`/`MorePage`）：先保存 prev，saveTools 失败时回滚
+- **messageApi.loading 关闭**（`ToolsPage`）：保存 close 函数，成功/失败时调用
+- **loadChatHistory 错误处理**（`ChatPage`）：添加 `.catch` 显示错误提示
+- **剪贴板空值校验**（`ChatPage`）：检查 `navigator.clipboard?.writeText` 是否存在
+- **extractMemory 异常捕获**（`useChatStore`）：添加 `.catch` 防止未捕获 rejection
+- **currentCharacter 校验**（`useChatStore`）：sendMessage/regenerate 开头检查
+- **供应商 ID 格式校验**（`SettingsPage`）：仅英文字母 + URL 格式校验
+- **URL.revokeObjectURL 延迟**（`CharactersPage`）：改为 `setTimeout` 延迟 1 秒释放
+
+#### 19.2.5 类型安全
+
+- **ErrorBoundary**（`App.tsx`）：添加 class component 错误边界，渲染错误时显示降级 UI + 重试按钮
+- **PresetPanel 类型校验**（`MorePage`）：`Array.isArray(data)` 校验
+- **worldInfoService 类型安全**：`flags.replaceAll('g', '')` 替代 `/g/g` 正则
+- **tsconfig 升级**：target/lib 从 ES2020 升至 ES2021 支持 `replaceAll`
+
+### 19.3 项目独立化
+
+- APP 名称从 RP-Hub 改为 **LUZZY**
+- `capacitor.config.json`：appId 改为 `com.luzzymeow.luzzy`，appName 改为 `LUZZY`
+- `.gitignore` 添加 `doc/` 忽略参考源码目录
+- 根 `package.json` name 改为 `luzzy`
+
+### 19.4 保留功能
+
+- **Luzzy 预设的 NSFW 成人内容完整保留**（`presetContent.ts`）
+- **所有内置提示词完整保留**
+- **TRPG 模式功能保留**
+- **SKILL 工具系统功能保留**
+- **MCP 工具功能保留**
+- **记忆系统功能保留**
+- **多供应商架构保留**
+- **流式输出保留**
+- **世界书/正则/UI模板保留**
+
+### 19.5 文件改动清单
+
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `frontend/` | 新建 | 完整 React 19 前端工程 |
+| `frontend/src/services/*.ts` | 新建 | 10 个服务模块 |
+| `frontend/src/store/*.ts` | 新建 | 3 个 Zustand Store |
+| `frontend/src/pages/*.tsx` | 新建 | 5 个页面组件 |
+| `frontend/src/components/layout/*.tsx` | 新建 | 3 个布局组件 |
+| `frontend/src/types/index.ts` | 新建 | 完整类型定义 |
+| `frontend/src/styles/` | 新建 | 全局样式 + Alibaba 字体 |
+| `frontend/tsconfig.json` | 新建 | TypeScript 配置（ES2021） |
+| `frontend/vite.config.ts` | 新建 | Vite 构建配置 |
+| `frontend/package.json` | 新建 | 前端依赖定义 |
+| `capacitor.config.json` | 修改 | appId/appName 改为 LUZZY |
+| `.gitignore` | 修改 | 添加 doc/ 忽略 |
+| `package.json` | 修改 | name 改为 luzzy |
+
+### 19.6 验证清单
+
+- [x] `npx tsc --noEmit` 类型检查通过
+- [x] `npx vite build` 构建成功
+- [x] NSFW 预设内容完整保留
+- [x] 所有功能保留（除万相广场）
+- [x] 静态审查 40+ 问题已修复
+- [x] CHANGELOG.md 已添加第十九轮改动
+- [x] README.md 已重构
+
+---
+
 **最后更新**：2026-06-19
 **维护者**：LuzzyMeow

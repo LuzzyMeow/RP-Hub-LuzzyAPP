@@ -6,3 +6,9 @@ android/
 .DS_Store
 Thumbs.db
 *.log
+doc/
+.trae/
+.aisbg-research/
+commit_msg.txt
+frontend/dist/
+*.tsbuildinfo

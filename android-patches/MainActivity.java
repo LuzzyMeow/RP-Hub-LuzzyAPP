@@ -1,4 +1,4 @@
-package com.luzzymeow.rphub;
+package com.luzzymeow.luzzy;
 
 import android.os.Bundle;
 import android.util.Log;
@@ -23,7 +23,7 @@ import org.json.JSONObject;
 import fi.iki.elonen.NanoHTTPD;
 
 /**
- * RP-Hub 主 Activity。
+ * LUZZY 主 Activity。
  *
  * 关键定制：
  * 1. DownloadListener：万相广场 iframe 内下载（角色卡/UI模板）转发到 JS 层自动导入
@@ -58,7 +58,7 @@ import fi.iki.elonen.NanoHTTPD;
  */
 public class MainActivity extends BridgeActivity {
 
-    private static final String TAG = "RP-Hub";
+    private static final String TAG = "LUZZY";
     private static final int PROXY_PORT = 18527;
     private boolean downloadListenerRegistered = false;
     private ApiProxyServer proxyServer;
@@ -71,7 +71,7 @@ public class MainActivity extends BridgeActivity {
     private volatile String cachedCustomRequestBody = "";
 
     /**
-     * JS 接口，供 RP-Hub 主页面推送 API 配置到原生层。
+     * JS 接口，供 LUZZY 主页面推送 API 配置到原生层。
      * NanoHTTPD 代理使用此配置转发 TRPG iframe 内的请求。
      */
     private class ProxyConfigInterface {
@@ -123,7 +123,7 @@ public class MainActivity extends BridgeActivity {
                                         String contentDisposition, String mimetype,
                                         long contentLength) {
                 String js = String.format(
-                    "try{window.RPHubAutoImport&&window.RPHubAutoImport(%s,%s);}catch(e){console.error('[RP-Hub] AutoImport failed:',e);}",
+                    "try{window.LuzzyAutoImport&&window.LuzzyAutoImport(%s,%s);}catch(e){console.error('[LUZZY] AutoImport failed:',e);}",
                     jsString(url), jsString(mimetype)
                 );
                 webView.post(() -> webView.evaluateJavascript(js, null));
@@ -192,11 +192,11 @@ public class MainActivity extends BridgeActivity {
                 String uri = session.getUri();
                 Method method = session.getMethod();
 
-                // 检查 RP-Hub 配置是否可用
+                // 检查 LUZZY 配置是否可用
                 if (cachedApiUrl == null || cachedApiUrl.isEmpty()) {
                     Response errResp = newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE,
                         "application/json",
-                        "{\"error\":\"RP-Hub API config not set. Please configure API in RP-Hub settings first.\"}");
+                        "{\"error\":\"LUZZY API config not set. Please configure API in LUZZY settings first.\"}");
                     addCorsHeaders(errResp);
                     return errResp;
                 }
@@ -248,7 +248,7 @@ public class MainActivity extends BridgeActivity {
                     conn.setRequestProperty(header.getKey(), header.getValue());
                 }
 
-                // 使用 RP-Hub 的 apiKey 设置 Authorization
+                // 使用 LUZZY 的 apiKey 设置 Authorization
                 if (cachedApiKey != null && !cachedApiKey.isEmpty()) {
                     conn.setRequestProperty("Authorization", "Bearer " + cachedApiKey);
                 }

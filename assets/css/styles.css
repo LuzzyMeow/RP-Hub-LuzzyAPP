@@ -141,29 +141,16 @@
             animation: entry-logo-glint 1.35s cubic-bezier(0.2, 0.88, 0.22, 1) 0.34s forwards;
         }
 
-        .entry-logo-rp {
+        .entry-logo-luzzy {
             position: relative;
             font-size: clamp(1.75rem, 7vw, 2.75rem);
             font-weight: 800;
             color: #1f2937;
-            background: linear-gradient(135deg, #111827 0%, #334155 48%, #1f2937 100%);
+            background: linear-gradient(135deg, #111827 0%, #2563eb 48%, #0f766e 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
-            letter-spacing: 0.08em;
-            line-height: 1;
-        }
-
-        .entry-logo-hub {
-            position: relative;
-            font-size: clamp(1.28rem, 5vw, 2rem);
-            font-weight: 650;
-            color: #2563eb;
-            background: linear-gradient(135deg, #2563eb 0%, #60a5fa 58%, #0f766e 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.12em;
             line-height: 1;
         }
 

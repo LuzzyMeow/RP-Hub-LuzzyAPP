@@ -1209,7 +1209,7 @@ createApp({
         const ACTIVE_TOOL_MCP_DEFAULT_DESCRIPTION = '通过 MCP 协议调用远程工具服务器';
         const ACTIVE_TOOL_MCP_DEFAULT_DISPLAY_DESCRIPTION = 'MCP HTTP 工具';
         const MCP_PROTOCOL_VERSION = '2025-03-26';
-        const MCP_CLIENT_INFO = { name: 'rp-hub', version: '1.7.1' };
+        const MCP_CLIENT_INFO = { name: 'luzzy', version: '1.7.1' };
         const MCP_REQUEST_TIMEOUT_MS = 60000;
         // SKILL 工具类型
         const ACTIVE_TOOL_SKILL_TYPE = 'skill';
@@ -4921,7 +4921,7 @@ ${content}
                                     {
                                         role: 'system',
                                         content: [
-                                            '你是RP-Hub的UI变量更新器。当前请求只分析一个UI模板。',
+                                            '你是LUZZY的UI变量更新器。当前请求只分析一个UI模板。',
                                             '只根据用户消息里提供的最近对话，更新下方模板已定义的变量。',
                                             '严格返回JSON，不要解释，不要输出Markdown。',
                                             '返回格式要尽量简单：直接返回本次要更新的变量对象，例如 {"a_line_1":"新台词","a_line_3":"新台词"}。',
@@ -10095,11 +10095,19 @@ ${content}
             const candidates = [];
 
             for (const tool of tools) {
-                const labels = getActiveToolCallLabels(tool);
-                [
-                    { label: labels.add, mode: 'add' },
-                    { label: labels.cover, mode: 'cover' }
-                ].forEach(form => {
+                let labelForms = [];
+                if (isMcpHttpActiveTool(tool) && Array.isArray(tool.mcpTools)) {
+                    tool.mcpTools.forEach(sub => {
+                        const subLabels = getMcpSubToolCallLabels(tool, sub.name);
+                        labelForms.push({ label: subLabels.add, mode: 'add', mcpSubToolName: sub.name });
+                        labelForms.push({ label: subLabels.cover, mode: 'cover', mcpSubToolName: sub.name });
+                    });
+                } else {
+                    const labels = getActiveToolCallLabels(tool);
+                    labelForms.push({ label: labels.add, mode: 'add', mcpSubToolName: '' });
+                    labelForms.push({ label: labels.cover, mode: 'cover', mcpSubToolName: '' });
+                }
+                labelForms.forEach(form => {
                     const escapedName = escapeRegexText(form.label);
                     const regex = new RegExp(`<\\s*${escapedName}\\s*:\\s*([\\s\\S]*)$`, 'i');
                     const match = mainContent.match(regex);
@@ -10117,6 +10125,7 @@ ${content}
                         reason: meta.reason,
                         index: meta.index,
                         mainIndex: meta.mainIndex,
+                        mcpSubToolName: form.mcpSubToolName,
                         pending: true
                     });
                 });
@@ -10156,7 +10165,8 @@ ${content}
             isReasoningOpen: false,
             resultCount: 0,
             resultText: '',
-            error: ''
+            error: '',
+            mcpSubToolName: toolCall.mcpSubToolName || ''
         });
 
         const getActiveToolUiGroupKey = (toolCall) => {
@@ -10461,6 +10471,7 @@ ${content}
             toolUi.callName = toolCall.callLabel || toolUi.callName || 'tool_memory_add';
             toolUi.baseCallName = toolCall.tool?.callName || toolUi.baseCallName || 'tool_memory';
             toolUi.mode = toolCall.mode || toolUi.mode || 'add';
+            toolUi.mcpSubToolName = toolCall.mcpSubToolName || toolUi.mcpSubToolName || '';
             toolUi.query = getPendingToolCallQueryPreview(toolCall);
             toolUi.reason = cleanActiveToolCallReason(toolCall.reason || toolUi.reason || '');
             toolUi.raw = toolCall.raw || toolUi.raw || '';
@@ -10565,13 +10576,24 @@ ${content}
 
         const buildActiveToolCallFromUi = (toolUi) => {
             const tool = resolveActiveToolForUi(toolUi);
+            let mcpSubToolName = toolUi?.mcpSubToolName || '';
+            if (!mcpSubToolName && isMcpHttpActiveTool(tool)) {
+                const callLabel = toolUi?.callName || '';
+                const subTools = Array.isArray(tool.mcpTools) ? tool.mcpTools : [];
+                const matched = subTools.find(sub => {
+                    const labels = getMcpSubToolCallLabels(tool, sub.name);
+                    return labels.add === callLabel || labels.cover === callLabel;
+                });
+                if (matched) mcpSubToolName = matched.name;
+            }
             return {
                 tool,
                 mode: toolUi?.mode || 'add',
                 callLabel: toolUi?.callName || getActiveToolCallLabels(tool).add,
                 query: String(toolUi?.query || '').trim(),
                 raw: toolUi?.raw || '',
-                reason: cleanActiveToolCallReason(toolUi?.reason)
+                reason: cleanActiveToolCallReason(toolUi?.reason),
+                mcpSubToolName
             };
         };
 
@@ -11140,7 +11162,7 @@ ${content}
         // 直接 fetch URL（CapacitorHttp 绕过 CORS）→ 构造 File → 调用现有导入逻辑
         // 角色卡（PNG）→ importCharacter，UI 模板（.ui）→ importUiTemplates
         // 只下载一次，直接导入到 app，无需用户手动从文件系统导入
-        window.RPHubAutoImport = async (url, mimetype) => {
+        window.LuzzyAutoImport = async (url, mimetype) => {
             try {
                 showToast('正在下载并导入...', 'info');
                 const response = await fetch(url);
@@ -11165,7 +11187,7 @@ ${content}
                     importUiTemplates(fakeEvent);
                 }
             } catch (e) {
-                console.error('[RPHubAutoImport] Failed:', e);
+                console.error('[LuzzyAutoImport] Failed:', e);
                 showToast(`自动导入失败: ${e.message}`, 'error');
             }
         };
@@ -13307,7 +13329,9 @@ image###生成的提示词###
                     resultCountVersion: ACTIVE_TOOL_RESULT_COUNT_VERSION,
                     tavilyApiKey: editingActiveTool.data.tavilyApiKey,
                     worldInfoAccessMode: editingActiveTool.data.worldInfoAccessMode,
-                    worldInfoAccessModeVersion: ACTIVE_TOOL_WORLD_ACCESS_VERSION
+                    worldInfoAccessModeVersion: ACTIVE_TOOL_WORLD_ACCESS_VERSION,
+                    enableMode: editingActiveTool.data.enableMode,
+                    allowedCharacterUuids: editingActiveTool.data.allowedCharacterUuids
                 });
                 activeTools.value[index] = data;
                 normalizeActiveTools();
