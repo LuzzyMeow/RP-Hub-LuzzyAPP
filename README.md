@@ -6,6 +6,19 @@
 
 **AI 角色扮演与 TRPG 对话应用 · Android 原生应用**
 
+[![Release](https://img.shields.io/github/v/release/LuzzyMeow/Luzzy-RpTRPG?style=flat-square&logo=github&label=Release)](https://github.com/LuzzyMeow/Luzzy-RpTRPG/releases)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=flat-square&logo=creative-commons)](./LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/LuzzyMeow/Luzzy-RpTRPG/releases)
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-Latest-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Capacitor](https://img.shields.io/badge/Capacitor-8-119EFF?style=flat-square&logo=capacitor&logoColor=white)](https://capacitorjs.com/)
+[![lobe-ui](https://img.shields.io/badge/@lobehub/ui-5.15-000000?style=flat-square)](https://github.com/lobehub/lobe-ui)
+[![antd](https://img.shields.io/badge/antd-6-1677FF?style=flat-square&logo=antdesign&logoColor=white)](https://ant.design/)
+[![zustand](https://img.shields.io/badge/zustand-5-FF6B6B?style=flat-square)](https://github.com/pmndrs/zustand)
+[![Status](https://img.shields.io/badge/Status-Beta%20Test-F39C12?style=flat-square&logo=bugatti&logoColor=white)](../../issues)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-FF69B4?style=flat-square&logo=git&logoColor=white)](../../pulls)
+
 </div>
 
 ---
@@ -27,6 +40,25 @@
 </div>
 
 本项目的开发过程（代码编写、架构设计、问题诊断、文档撰写）由 **GLM-5.2** 模型驱动完成。
+
+---
+
+## 📖 项目简介
+
+**LUZZY** 是一款面向 Android 平台的 AI 角色扮演与 TRPG 对话应用，基于 React 19 + @lobehub/ui 构建全新移动端前端，通过 Capacitor 8 打包为原生应用。
+
+### 核心特性
+
+- 🎨 **全新 React 19 前端**：@lobehub/ui + antd 6 组件库，AlibabaPuHuiTi-3 字体，Material You 设计风格
+- 🤖 **Android 原生应用**：Capacitor 8 打包，内置 `CapacitorHttp` 绕过 CORS 限制
+- 🌋 **火山方舟 API 兼容**：支持 `/v3` 版本后缀，`https://ark.cn-beijing.volces.com/api/coding/v3` 可直接使用
+- 🔀 **多供应商架构**：设置密钥即启用，模型名格式 `<providerId>_<model_name>` 自动路由
+- 🌊 **流式输出**：原生平台通过 XMLHttpRequest + 本地代理实现真流式输出
+- 🎲 **TRPG 模式**：iframe 嵌入 AI Sandbox Game，走 LUZZY API 配置，内置 NanoHTTPD 本地代理解决 CORS
+- 🧠 **记忆系统**：向量检索 + 全局记忆（MEMORY.md）+ 记忆召回工具，per-tool 全局记忆开关
+- 🔌 **MCP HTTP 工具导入**：JSON 导入 MCP 远程工具服务器，AI 通过 `<tool_mcp_*>` 标签调用
+- 📚 **SKILL 工具系统**：三种方式导入 SKILL 提示词包（GitHub / ZIP / 手动新建）
+- 🧠 **API 请求体高级设置**：深度思考开关 + 自定义 JSON 合并，兼容 DeepSeek 和火山方舟
 
 ---
 
@@ -296,7 +328,10 @@ npm run build
 cd ..
 npm run sync
 
-# 4. 构建 debug APK
+# 4. 应用 Android 原生补丁（MainActivity.java / build.gradle / AndroidManifest.xml）
+#    从 android-patches/ 复制到 android/app/src/main/ 对应位置
+
+# 5. 构建 debug APK
 cd android
 .\gradlew.bat assembleDebug       # Windows
 ./gradlew assembleDebug           # Linux/Mac
@@ -310,6 +345,7 @@ cd android
 ```bash
 cd frontend && npm run build && cd ..
 npm run sync
+# 重新应用 android-patches（如需）
 cd android && .\gradlew.bat assembleDebug
 ```
 
@@ -322,7 +358,7 @@ cd android && .\gradlew.bat assembleDebug
 | 层级 | 技术 |
 |------|------|
 | **前端框架** | React 19 + TypeScript |
-| **构建工具** | Vite 8 |
+| **构建工具** | Vite |
 | **UI 组件库** | @lobehub/ui 5.15 + antd 6 + antd-style |
 | **动画** | motion 12 |
 | **状态管理** | zustand 5 + persist 中间件 |
@@ -396,4 +432,10 @@ LUZZY/
 | **[@lobehub/ui](https://github.com/lobehub/lobe-ui)** | UI 组件库 |
 | **[Alibaba PuHuiTi](https://www.alibabafonts.com/)** | AlibabaPuHuiTi-3 字体 |
 
-**技术栈**：React 19 · TypeScript · Vite 8 · @lobehub/ui · antd 6 · zustand 5 · Capacitor 8 · NanoHTTPD
+---
+
+<div align="center">
+
+**技术栈**：React 19 · TypeScript · Vite · @lobehub/ui · antd 6 · zustand 5 · Capacitor 8 · NanoHTTPD
+
+</div>

@@ -2177,5 +2177,87 @@ frontend/src/
 
 ---
 
+## 二十、第十四轮改动（2026-06-19：v2.0.0 发布 + README 完全重构 + 仓库元数据更新）
+
+### 20.0 改动背景
+
+v2.0.0 重大版本发布后的文档完善工作。完全重构 README.md 文件（新增标签 badges、项目简介章节），更新仓库描述和 topics 以反映独立项目 LUZZY 的新定位。
+
+**硬约束**：保留所有内置 NSFW 提示词内容完整不修改，仅针对文档进行工作。
+
+### 20.1 README.md 完全重构
+
+#### 20.1.1 新增标签（Badges）
+
+在 README 顶部新增 12 个 shields.io 标签：
+
+| 标签 | 说明 |
+|------|------|
+| Release | GitHub 版本号 |
+| License | CC BY-NC 4.0 协议 |
+| Platform | Android 平台 |
+| React | React 19 |
+| TypeScript | TypeScript 5.7 |
+| Vite | Vite 构建工具 |
+| Capacitor | Capacitor 8 |
+| @lobehub/ui | 5.15 版本 |
+| antd | 6 版本 |
+| zustand | 5 版本 |
+| Status | Beta Test 状态 |
+| PRs Welcome | 欢迎贡献 |
+
+#### 20.1.2 新增「项目简介」章节
+
+在 Coding 模型声明后新增「项目简介」章节，包含：
+- LUZZY 项目定位说明（面向 Android 平台的 AI 角色扮演与 TRPG 对话应用）
+- 核心特性列表（10 项）：React 19 前端、Android 原生、火山方舟 API 兼容、多供应商架构、流式输出、TRPG 模式、记忆系统、MCP 工具、SKILL 工具、API 高级设置
+
+#### 20.1.3 构建指南完善
+
+在构建命令中新增第 4 步「应用 Android 原生补丁」说明，明确从 `android-patches/` 复制到 `android/app/src/main/` 对应位置的流程。
+
+### 20.2 仓库元数据更新
+
+#### 20.2.1 仓库描述
+
+- **旧描述**：基于 STA1N156/RP-Hub 的增强 Fork | Android APK 支持 | 火山方舟 API 兼容 | 模型自由输入 | 万相广场自动导入
+- **新描述**：LUZZY · AI 角色扮演与 TRPG 对话应用 · React 19 + @lobehub/ui 移动端 · Capacitor 8 Android 原生 · 多供应商架构 · 流式输出 · SKILL/MCP 工具系统 · 向量记忆
+
+#### 20.2.2 Topics 更新
+
+- **移除旧 topics**：android、apk、capacitor、roleplay、volcengine、vue3
+- **新增 topics**（13 个）：luzzy、react、react19、typescript、lobehub-ui、antd、capacitor、android、roleplay、trpg、ai-chatbot、mcp、zustand、vite
+
+### 20.3 文件改动清单
+
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `README.md` | 重写 | 完全重构，新增 12 个 badges + 项目简介章节 + 构建指南完善 |
+| `CHANGELOG.md` | 修改 | 本节（第二十轮改动记录） |
+
+### 20.4 保留功能
+
+- **Luzzy 预设的 NSFW 成人内容完整保留**
+- **所有内置提示词完整保留**
+- **TRPG 模式功能保留**
+- **SKILL 工具系统功能保留**
+- **MCP 工具功能保留**
+- **记忆系统功能保留**
+- **多供应商架构保留**
+- **流式输出保留**
+
+### 20.5 验证清单
+
+- [ ] README.md 顶部显示 12 个 badges
+- [ ] README.md 包含「项目简介」章节
+- [ ] README.md 构建指南包含 Android 原生补丁步骤
+- [ ] 仓库描述已更新为 LUZZY 新描述
+- [ ] 仓库 topics 包含 13 个新标签
+- [ ] 旧 topics（vue3 等）已移除
+- [ ] CHANGELOG.md 已添加第二十轮改动
+- [ ] 成人内容注入预设功能完整保留
+
+---
+
 **最后更新**：2026-06-19
 **维护者**：LuzzyMeow
