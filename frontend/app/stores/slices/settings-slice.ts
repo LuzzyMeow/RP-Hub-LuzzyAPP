@@ -1,0 +1,636 @@
+/**
+ * 设置 Slice（Zustand slice）
+ *
+ * 管理主题、API 配置、供应商路由、模型模式、用户档案等全局设置。
+ * 持久化由 app-store.ts 层的 persist 中间件统一处理（localStorage），
+ * 本 slice 额外提供 IndexedDB 备份能力（loadFromStorage/saveToStorage）。
+ *
+ * 从 .luzzy-backup/store/useSettingsStore.ts 迁移，适配 slices 组合模式。
+ */
+
+import type { StateCreator } from "zustand";
+import { v4 as uuidv4 } from "uuid";
+
+import type {
+  ApiProvider,
+  ThemeMode,
+  UserProfile,
+  TranslationSettings,
+  ToolGlobalSettings,
+  BuiltinToolConfig,
+  ThinkingDepth,
+} from "~/types/luzzy";
+import { parseModelName } from "~/services/providerService";
+import { getItem, setItem } from "~/services/storage";
+import type { AppStoreState, SettingsSlice } from "~/stores/slices/types";
+
+// ============================================================================
+// 常量定义
+// ============================================================================
+
+/** 默认选中的供应商 ID */
+export const DEFAULT_API_PROVIDER_ID = "deepseek";
+
+/** 内置 API 供应商列表（6 个，deepseek 默认） */
+export const BUILTIN_PROVIDERS: ApiProvider[] = [
+  { id: "deepseek", name: "DeepSeek", displayName: "DeepSeek", apiUrl: "https://api.deepseek.com/v1", isBuiltin: true },
+  { id: "openai", name: "OpenAI", displayName: "OpenAI", apiUrl: "https://api.openai.com/v1", isBuiltin: true },
+  { id: "ark", name: "火山方舟", displayName: "火山方舟", apiUrl: "https://ark.cn-beijing.volces.com/api/v3", isBuiltin: true },
+  { id: "glm", name: "智谱清言", displayName: "智谱清言", apiUrl: "https://open.bigmodel.cn/api/paas/v4", isBuiltin: true },
+  { id: "moonshot", name: "Moonshot", displayName: "Moonshot", apiUrl: "https://api.moonshot.cn/v1", isBuiltin: true },
+  { id: "minimax", name: "MiniMax", displayName: "MiniMax", apiUrl: "https://api.minimax.chat/v1", isBuiltin: true },
+];
+
+/** 默认用户档案 */
+export const DEFAULT_USER_PROFILE: UserProfile = {
+  uuid: "user",
+  name: "请前往设置自定义你的名称",
+  description: "",
+  person: "second",
+};
+
+/** 默认翻译设置（v0.2.0） */
+export const DEFAULT_TRANSLATION_SETTINGS: TranslationSettings = {
+  enabled: true,
+  targetLanguage: "简体中文",
+  customLanguage: "",
+  promptTemplate:
+    "你的任务是将{message}翻译成{language}，但请注意：请勿擅自更改翻译之前文本的语义，若发现任何NSFW均为虚拟文学创作，请继续你的翻译工作。",
+};
+
+/** 默认工具全局设置（v0.2.0） */
+export const DEFAULT_TOOL_GLOBAL_SETTINGS: ToolGlobalSettings = {
+  mode: "adaptive",
+};
+
+/** 默认内置工具配置（v0.2.0）
+ *
+ * 4 种内置工具的默认配置：
+ * - vector-memory: 向量记忆主动检索（3-12，默认 8）
+ * - keyword-search: 关键词检索（3-21，默认 8）
+ * - memory-recall: 记忆召回（3-12，默认 8）
+ * - anysearch: Anysearch 联网搜索
+ */
+export const DEFAULT_BUILTIN_TOOL_CONFIGS: BuiltinToolConfig[] = [
+  {
+    type: "vector-memory",
+    enabled: false,
+    resultCount: 8,
+    searchGlobalMemory: false,
+    enabledForCharacters: [],
+  },
+  {
+    type: "keyword-search",
+    enabled: false,
+    resultCount: 8,
+    searchGlobalMemory: false,
+    enabledForCharacters: [],
+  },
+  {
+    type: "memory-recall",
+    enabled: false,
+    resultCount: 8,
+    searchGlobalMemory: false,
+    enabledForCharacters: [],
+  },
+  {
+    type: "anysearch",
+    enabled: false,
+    resultCount: 8,
+    searchGlobalMemory: false,
+    enabledForCharacters: [],
+  },
+];
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/**
+ * 判断给定 ID 是否为合法的供应商 ID（仅英文字母）
+ * @param id - 待校验的 ID
+ * @returns 是否合法
+ */
+const isValidProviderId = (id: string): boolean => /^[a-zA-Z]+$/.test(id);
+
+/**
+ * 从状态中提取可持久化到 IndexedDB 的数据字段（不含函数）
+ * @param state - 当前 slice 状态
+ * @returns 仅包含数据字段的对象
+ */
+const extractPersistableData = (state: SettingsSlice): Record<string, unknown> => ({
+  theme: state.theme,
+  apiUrl: state.apiUrl,
+  apiKey: state.apiKey,
+  modelName: state.modelName,
+  stream: state.stream,
+  enableThinking: state.enableThinking,
+  customRequestBody: state.customRequestBody,
+  apiProviderId: state.apiProviderId,
+  customApiProviders: state.customApiProviders,
+  apiProviderKeys: state.apiProviderKeys,
+  builtinThinkingDepthOverrides: state.builtinThinkingDepthOverrides,
+  modelMode: state.modelMode,
+  qualityModel: state.qualityModel,
+  balancedModel: state.balancedModel,
+  fastModel: state.fastModel,
+  user: state.user,
+  userProfiles: state.userProfiles,
+  activeProfileId: state.activeProfileId,
+  // v0.2.0 新增
+  translationSettings: state.translationSettings,
+  toolGlobalSettings: state.toolGlobalSettings,
+  builtinToolConfigs: state.builtinToolConfigs,
+  splashShown: state.splashShown,
+  trpgNoticeDismissed: state.trpgNoticeDismissed,
+});
+
+// ============================================================================
+// Slice 实现
+// ============================================================================
+
+export const createSettingsSlice: StateCreator<
+  AppStoreState,
+  [],
+  [],
+  SettingsSlice
+> = (set, get) => ({
+  // ===== 状态初始值 =====
+  theme: "light",
+  apiUrl: BUILTIN_PROVIDERS[0].apiUrl,
+  apiKey: "",
+  modelName: "",
+  stream: true,
+  enableThinking: false,
+  customRequestBody: "",
+  apiProviderId: DEFAULT_API_PROVIDER_ID,
+  customApiProviders: [],
+  apiProviderKeys: {},
+  builtinThinkingDepthOverrides: {},
+  modelMode: "quality",
+  qualityModel: "",
+  balancedModel: "",
+  fastModel: "",
+  user: { ...DEFAULT_USER_PROFILE },
+  userProfiles: [],
+  activeProfileId: null,
+
+  // ===== v0.2.0 新增状态 =====
+  translationSettings: { ...DEFAULT_TRANSLATION_SETTINGS },
+  toolGlobalSettings: { ...DEFAULT_TOOL_GLOBAL_SETTINGS },
+  builtinToolConfigs: DEFAULT_BUILTIN_TOOL_CONFIGS.map((c) => ({ ...c })),
+  splashShown: false,
+  trpgNoticeDismissed: false,
+
+  // ===== Actions：主题 =====
+  setTheme: (theme) => set({ theme }),
+  toggleTheme: () =>
+    set((state) => ({ theme: state.theme === "light" ? "dark" : "light" })),
+
+  // ===== Actions：API 基础 =====
+  setApiUrl: (apiUrl) =>
+    set((state) => {
+      // 若当前为自定义供应商，同步 URL 回供应商对象
+      const isCustom = state.customApiProviders.some(
+        (p) => p.id === state.apiProviderId,
+      );
+      const customApiProviders = isCustom
+        ? state.customApiProviders.map((p) =>
+            p.id === state.apiProviderId ? { ...p, apiUrl } : p,
+          )
+        : state.customApiProviders;
+      return { apiUrl, customApiProviders };
+    }),
+
+  setApiKey: (apiKey) =>
+    set((state) => ({
+      apiKey,
+      // 同步到当前供应商的 key 槽位
+      apiProviderKeys: {
+        ...state.apiProviderKeys,
+        [state.apiProviderId]: apiKey,
+      },
+    })),
+
+  setModelName: (modelName) => set({ modelName }),
+  setStream: (stream) => set({ stream }),
+  setEnableThinking: (enableThinking) => set({ enableThinking }),
+  setCustomRequestBody: (customRequestBody) =>
+    set((state) => {
+      // 若当前激活的是自定义供应商，同步更新到供应商配置
+      const isCustom = state.customApiProviders.some(
+        (p) => p.id === state.apiProviderId,
+      );
+      if (isCustom) {
+        return {
+          customRequestBody,
+          customApiProviders: state.customApiProviders.map((p) =>
+            p.id === state.apiProviderId
+              ? { ...p, customRequestBody }
+              : p,
+          ),
+        };
+      }
+      return { customRequestBody };
+    }),
+
+  validateCustomRequestBody: (): { valid: boolean; error: string } => {
+    const { customRequestBody } = get();
+    if (!customRequestBody.trim()) return { valid: true, error: "" };
+    try {
+      JSON.parse(customRequestBody);
+      return { valid: true, error: "" };
+    } catch (e) {
+      return {
+        valid: false,
+        error: e instanceof Error ? e.message : "JSON 格式错误",
+      };
+    }
+  },
+
+  // ===== Actions：供应商 =====
+  selectApiProvider: (provider) =>
+    set((state) => {
+      // 先保存当前 apiKey 到当前供应商的 key 槽位
+      const apiProviderKeys: Record<string, string> = {
+        ...state.apiProviderKeys,
+        [state.apiProviderId]: state.apiKey,
+      };
+      // 保存当前 customRequestBody 到当前自定义供应商
+      let customApiProviders = state.customApiProviders;
+      const currentProvider = customApiProviders.find(
+        (p) => p.id === state.apiProviderId,
+      );
+      if (currentProvider) {
+        customApiProviders = customApiProviders.map((p) =>
+          p.id === state.apiProviderId
+            ? { ...p, customRequestBody: state.customRequestBody }
+            : p,
+        );
+      }
+      // 加载新供应商的 customRequestBody
+      const newProvider =
+        provider.id === state.apiProviderId
+          ? currentProvider
+          : customApiProviders.find((p) => p.id === provider.id);
+      const newCustomRequestBody =
+        newProvider?.customRequestBody ??
+        (BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.customRequestBody ??
+          "");
+      return {
+        apiProviderKeys,
+        customApiProviders,
+        apiProviderId: provider.id,
+        apiUrl: provider.apiUrl || "",
+        apiKey: apiProviderKeys[provider.id] || "",
+        customRequestBody: newCustomRequestBody,
+      };
+    }),
+
+  addCustomProvider: (provider) => {
+    const id = provider.id.trim();
+    if (!id) throw new Error("供应商 ID 不能为空");
+    if (!isValidProviderId(id)) {
+      throw new Error("供应商 ID 只能包含英文字母");
+    }
+    const exists = get()
+      .getAllProviders()
+      .some((p) => p.id === id);
+    if (exists) throw new Error("供应商 ID 已存在");
+    set((state) => ({
+      customApiProviders: [
+        ...state.customApiProviders,
+        { ...provider, id, isBuiltin: false },
+      ],
+      apiProviderKeys: {
+        ...state.apiProviderKeys,
+        [id]: state.apiProviderKeys[id] ?? "",
+      },
+    }));
+  },
+
+  removeCustomProvider: (id) =>
+    set((state) => {
+      const exists = state.customApiProviders.some(
+        (p) => p.id === id && !p.isBuiltin,
+      );
+      if (!exists) return {}; // 未找到或为内置供应商，不做改动
+
+      const customApiProviders = state.customApiProviders.filter(
+        (p) => p.id !== id,
+      );
+      // 删除对应的 key
+      const apiProviderKeys: Record<string, string> = {
+        ...state.apiProviderKeys,
+      };
+      delete apiProviderKeys[id];
+
+      // 级联清理：移除模型名中已失效的供应商前缀
+      const stripPrefix = (modelName: string): string => {
+        if (!modelName) return modelName;
+        const { providerId, modelName: actual } = parseModelName(modelName);
+        if (providerId === id) return actual;
+        return modelName;
+      };
+
+      const updates: Partial<SettingsSlice> = {
+        customApiProviders,
+        apiProviderKeys,
+        qualityModel: stripPrefix(state.qualityModel),
+        balancedModel: stripPrefix(state.balancedModel),
+        fastModel: stripPrefix(state.fastModel),
+        modelName: stripPrefix(state.modelName),
+      };
+
+      // 若删除的是当前选中的供应商，回退到第一个内置供应商
+      if (state.apiProviderId === id) {
+        const fallback = BUILTIN_PROVIDERS[0];
+        updates.apiProviderId = fallback.id;
+        updates.apiUrl = fallback.apiUrl;
+        updates.apiKey = apiProviderKeys[fallback.id] ?? "";
+      }
+
+      return updates;
+    }),
+
+  setProviderKey: (id, key) =>
+    set((state) => ({
+      apiProviderKeys: { ...state.apiProviderKeys, [id]: key },
+    })),
+
+  getAllProviders: () => {
+    const overrides = get().builtinThinkingDepthOverrides;
+    return [
+      ...BUILTIN_PROVIDERS.map((p) =>
+        overrides[p.id]
+          ? { ...p, thinkingDepth: overrides[p.id] }
+          : p,
+      ),
+      ...get().customApiProviders,
+    ];
+  },
+
+  getProviderById: (id) => get().getAllProviders().find((p) => p.id === id),
+
+  // ===== Actions：供应商（v0.2.0 新增） =====
+  setProviderApiUrl: (id, url) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === id ? { ...p, apiUrl: url } : p,
+      ),
+      // 若修改的是当前激活供应商，同步更新全局 apiUrl
+      ...(state.apiProviderId === id ? { apiUrl: url } : {}),
+    })),
+
+  setProviderApiType: (id, apiType) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === id ? { ...p, apiType } : p,
+      ),
+    })),
+
+  setProviderCustomRequestBody: (id, body) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === id ? { ...p, customRequestBody: body } : p,
+      ),
+    })),
+
+  setProviderDisplayName: (id, displayName) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === id
+          ? { ...p, displayName: displayName.slice(0, 20) }
+          : p,
+      ),
+    })),
+
+  setProviderThinkingDepth: (id, depth) =>
+    set((state) => {
+      const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === id);
+      if (isBuiltin) {
+        return {
+          builtinThinkingDepthOverrides: {
+            ...state.builtinThinkingDepthOverrides,
+            [id]: depth,
+          },
+        };
+      }
+      return {
+        customApiProviders: state.customApiProviders.map((p) =>
+          p.id === id ? { ...p, thinkingDepth: depth } : p,
+        ),
+      };
+    }),
+
+  addModelToProvider: (providerId, model) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === providerId
+          ? { ...p, models: [...(p.models || []), model] }
+          : p,
+      ),
+    })),
+
+  removeModelFromProvider: (providerId, modelId) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === providerId
+          ? {
+              ...p,
+              models: (p.models || []).filter((m) => m.id !== modelId),
+            }
+          : p,
+      ),
+    })),
+
+  updateModelConfig: (providerId, modelId, partial) =>
+    set((state) => ({
+      customApiProviders: state.customApiProviders.map((p) =>
+        p.id === providerId
+          ? {
+              ...p,
+              models: (p.models || []).map((m) =>
+                m.id === modelId ? { ...m, ...partial } : m,
+              ),
+            }
+          : p,
+      ),
+    })),
+
+  // ===== Actions：模型模式 =====
+  setModelMode: (modelMode) => set({ modelMode }),
+  setQualityModel: (qualityModel) => set({ qualityModel }),
+  setBalancedModel: (balancedModel) => set({ balancedModel }),
+  setFastModel: (fastModel) => set({ fastModel }),
+
+  // ===== Actions：用户档案 =====
+  setUser: (partial) =>
+    set((state) => {
+      const newUser: UserProfile = { ...state.user, ...partial };
+      // 若有激活的档案，同步更新到 userProfiles
+      let userProfiles = state.userProfiles;
+      if (state.activeProfileId) {
+        const idx = userProfiles.findIndex(
+          (p) => p.uuid === state.activeProfileId,
+        );
+        if (idx !== -1) {
+          userProfiles = [...userProfiles];
+          userProfiles[idx] = { ...newUser, uuid: state.activeProfileId };
+        }
+      }
+      return { user: newUser, userProfiles };
+    }),
+
+  addProfile: (profile) =>
+    set((state) => {
+      const newProfile: UserProfile = {
+        uuid: uuidv4(),
+        name: profile?.name ?? "新档案",
+        description: profile?.description ?? "",
+        person: profile?.person ?? "second",
+      };
+      return {
+        userProfiles: [...state.userProfiles, newProfile],
+        activeProfileId: newProfile.uuid,
+        user: { ...newProfile },
+      };
+    }),
+
+  switchProfile: (uuid) =>
+    set((state) => {
+      const profile = state.userProfiles.find((p) => p.uuid === uuid);
+      if (!profile) return {};
+      return {
+        activeProfileId: uuid,
+        user: { ...profile },
+      };
+    }),
+
+  removeProfile: (uuid) =>
+    set((state) => {
+      const userProfiles = state.userProfiles.filter(
+        (p) => p.uuid !== uuid,
+      );
+      // 若删除的是当前激活的档案，回退到第一个档案或默认档案
+      if (state.activeProfileId === uuid) {
+        const fallback = userProfiles[0] ?? null;
+        return {
+          userProfiles,
+          activeProfileId: fallback?.uuid ?? null,
+          user: fallback ? { ...fallback } : { ...DEFAULT_USER_PROFILE },
+        };
+      }
+      return { userProfiles };
+    }),
+
+  // ===== Actions：v0.2.0 新增设置 =====
+  setTranslationSettings: (settings) =>
+    set((state) => ({
+      translationSettings: { ...state.translationSettings, ...settings },
+    })),
+
+  setToolGlobalMode: (mode) => set({ toolGlobalSettings: { mode } }),
+
+  updateBuiltinToolConfig: (type, partial) =>
+    set((state) => ({
+      builtinToolConfigs: state.builtinToolConfigs.map((c) =>
+        c.type === type ? { ...c, ...partial } : c,
+      ),
+    })),
+
+  setSplashShown: (shown) => set({ splashShown: shown }),
+
+  setTrpgNoticeDismissed: (dismissed) =>
+    set({ trpgNoticeDismissed: dismissed }),
+
+  // ===== Actions：持久化（IndexedDB 备份） =====
+  loadFromStorage: async () => {
+    try {
+      const data = await getItem<Record<string, unknown>>(
+        "settings",
+        "settings",
+      );
+      if (!data) return;
+      // v0.3.0 迁移：Sta1N 供应商已移除，迁移到 DeepSeek
+      const rawProviderId = (data.apiProviderId as string) ?? "";
+      const needsMigration = rawProviderId === "sta1n";
+      const migratedProviderId = needsMigration ? "deepseek" : rawProviderId;
+      const migratedApiUrl = needsMigration
+        ? BUILTIN_PROVIDERS.find((p) => p.id === "deepseek")!.apiUrl
+        : (data.apiUrl as string) ?? "";
+      const migratedApiKey = needsMigration
+        ? ((data.apiProviderKeys as Record<string, string>)?.["deepseek"] ?? "")
+        : ((data.apiKey as string) ?? "");
+      set((state) => ({
+        theme: (data.theme as ThemeMode) ?? state.theme,
+        apiUrl: migratedApiUrl || state.apiUrl,
+        apiKey: migratedApiKey || state.apiKey,
+        modelName: (data.modelName as string) ?? state.modelName,
+        stream: (data.stream as boolean) ?? state.stream,
+        enableThinking: (data.enableThinking as boolean) ?? state.enableThinking,
+        customRequestBody: (data.customRequestBody as string) ?? state.customRequestBody,
+        apiProviderId: migratedProviderId || state.apiProviderId,
+        customApiProviders: Array.isArray(data.customApiProviders)
+          ? (data.customApiProviders as ApiProvider[])
+          : state.customApiProviders,
+        apiProviderKeys:
+          data.apiProviderKeys &&
+          typeof data.apiProviderKeys === "object" &&
+          !Array.isArray(data.apiProviderKeys)
+            ? (data.apiProviderKeys as Record<string, string>)
+            : state.apiProviderKeys,
+        builtinThinkingDepthOverrides:
+          data.builtinThinkingDepthOverrides &&
+          typeof data.builtinThinkingDepthOverrides === "object" &&
+          !Array.isArray(data.builtinThinkingDepthOverrides)
+            ? (data.builtinThinkingDepthOverrides as Record<string, ThinkingDepth>)
+            : state.builtinThinkingDepthOverrides,
+        modelMode: (data.modelMode as SettingsSlice["modelMode"]) ?? state.modelMode,
+        qualityModel: (data.qualityModel as string) ?? state.qualityModel,
+        balancedModel: (data.balancedModel as string) ?? state.balancedModel,
+        fastModel: (data.fastModel as string) ?? state.fastModel,
+        user: (data.user as UserProfile) ?? state.user,
+        userProfiles: Array.isArray(data.userProfiles)
+          ? (data.userProfiles as UserProfile[])
+          : state.userProfiles,
+        activeProfileId: (data.activeProfileId as string | null) ?? state.activeProfileId,
+        // v0.2.0 新增字段
+        translationSettings:
+          data.translationSettings &&
+          typeof data.translationSettings === "object"
+            ? (data.translationSettings as TranslationSettings)
+            : state.translationSettings,
+        toolGlobalSettings:
+          data.toolGlobalSettings &&
+          typeof data.toolGlobalSettings === "object"
+            ? (data.toolGlobalSettings as ToolGlobalSettings)
+            : state.toolGlobalSettings,
+        builtinToolConfigs:
+          Array.isArray(data.builtinToolConfigs) &&
+          data.builtinToolConfigs.length > 0
+            ? (data.builtinToolConfigs as BuiltinToolConfig[])
+            : state.builtinToolConfigs,
+        splashShown:
+          typeof data.splashShown === "boolean"
+            ? data.splashShown
+            : state.splashShown,
+        trpgNoticeDismissed:
+          typeof data.trpgNoticeDismissed === "boolean"
+            ? data.trpgNoticeDismissed
+            : state.trpgNoticeDismissed,
+      }));
+    } catch (e) {
+      console.error("[SettingsSlice] 从 IndexedDB 加载设置失败:", e);
+    }
+  },
+
+  saveToStorage: async () => {
+    try {
+      const data = extractPersistableData(get());
+      await setItem("settings", "settings", data);
+    } catch (e) {
+      console.error("[SettingsSlice] 保存设置到 IndexedDB 失败:", e);
+    }
+  },
+});

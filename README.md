@@ -1,490 +1,184 @@
-<div align="center">
-
-<img src="https://z-cdn.chatglm.cn/z-ai/static/logo.svg" alt="Z.AI Logo" width="120" height="120">
-
 # LUZZY
 
-**AI 角色扮演与 TRPG 对话应用 · Android 原生应用**
-
-[![Release](https://img.shields.io/github/v/release/LuzzyMeow/Luzzy-RpTRPG?style=flat-square&logo=github&label=Release)](https://github.com/LuzzyMeow/Luzzy-RpTRPG/releases)
-[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey?style=flat-square&logo=creative-commons)](./LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Android-3DDC84?style=flat-square&logo=android&logoColor=white)](https://github.com/LuzzyMeow/Luzzy-RpTRPG/releases)
-[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Vite](https://img.shields.io/badge/Vite-Latest-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Capacitor](https://img.shields.io/badge/Capacitor-8-119EFF?style=flat-square&logo=capacitor&logoColor=white)](https://capacitorjs.com/)
-[![lobe-ui](https://img.shields.io/badge/@lobehub/ui-5.15-000000?style=flat-square)](https://github.com/lobehub/lobe-ui)
-[![antd](https://img.shields.io/badge/antd-6-1677FF?style=flat-square&logo=antdesign&logoColor=white)](https://ant.design/)
-[![zustand](https://img.shields.io/badge/zustand-5-FF6B6B?style=flat-square)](https://github.com/pmndrs/zustand)
-[![Status](https://img.shields.io/badge/Status-Beta%20Test-F39C12?style=flat-square&logo=bugatti&logoColor=white)](../../issues)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-FF69B4?style=flat-square&logo=git&logoColor=white)](../../pulls)
-
-</div>
-
----
-
-> ⚠️ **项目状态：测试阶段（Beta）**
->
-> 本项目仍处于**早期测试阶段**，可能存在不稳定、功能缺陷或兼容性问题。请将使用中遇到的问题反馈至 [Issues](../../issues)，感谢您的理解与支持。
-
----
-
-## 🤖 Coding 模型
-
-<div align="center">
-
-<img src="https://z-cdn.chatglm.cn/z-ai/static/logo.svg" alt="Z.AI / GLM Logo" width="64" height="64">
-
-**GLM-5.2** · 由 [智谱清言](https://chatglm.cn/) / [Z.AI](https://z.ai/) 提供的千亿参数大语言模型
-
-</div>
-
-本项目的开发过程（代码编写、架构设计、问题诊断、文档撰写）由 **GLM-5.2** 模型驱动完成。
-
----
-
-## 📖 项目简介
-
-**LUZZY** 是一款面向 Android 平台的 AI 角色扮演与 TRPG 对话应用，基于 React 19 + @lobehub/ui 构建全新移动端前端，通过 Capacitor 8 打包为原生应用。
-
-### 核心特性
-
-- 💎 **液态玻璃设计系统**：CSS 变量驱动的 glassmorphism（backdrop-filter blur + saturate + 半透明背景 + 边框高光 + 内阴影），亮色/暗色双主题，全页面统一玻璃质感
-- 🎨 **全新 React 19 前端**：@lobehub/ui + antd 6 组件库，AlibabaPuHuiTi-3 字体，Material You 设计风格
-- 📱 **5-Tab 底部导航**：聊天 / 角色 / TRPG / 工具 / 我的，TRPG 模式独立菜单入口
-- 🤖 **Android 原生应用**：Capacitor 8 打包，内置 `CapacitorHttp` 绕过 CORS 限制
-- 🌋 **火山方舟 API 兼容**：支持 `/v3` 版本后缀，`https://ark.cn-beijing.volces.com/api/coding/v3` 可直接使用
-- 🔀 **多供应商架构**：设置密钥即启用，模型名格式 `<providerId>_<model_name>` 自动路由
-- 🌊 **流式输出**：原生平台通过 XMLHttpRequest + 本地代理实现真流式输出
-- 🎲 **TRPG 独立模式**：5-Tab 一级入口，iframe 嵌入 AI Sandbox Game，走 LUZZY API 配置，内置 NanoHTTPD 本地代理解决 CORS
-- 🧠 **记忆系统**：向量检索 + 全局记忆（MEMORY.md）+ 记忆召回工具，per-tool 全局记忆开关
-- 🔌 **MCP HTTP 工具导入**：JSON 导入 MCP 远程工具服务器，AI 通过 `<tool_mcp_*>` 标签调用
-- 📚 **SKILL 工具系统**：三种方式导入 SKILL 提示词包（GitHub / ZIP / 手动新建）
-- 🧠 **API 请求体高级设置**：深度思考开关 + 自定义 JSON 合并，兼容 DeepSeek 和火山方舟
-- 🎭 **角色描述抽屉**：antd Drawer 玻璃面板展示角色简介/性格特征/场景设定/开场白/标签/创作者
-- 📊 **上下文长度指示器**：实时估算 token 数 + 楼层数显示，便于掌握上下文使用情况
-- ⏱️ **生成耗时显示**：助手消息下方显示生成耗时（秒），便于性能调优
-
----
-
-## ✨ 功能概览
-
-| # | 功能 | 说明 |
-|:---:|------|------|
-| 1 | 💎 **液态玻璃设计系统** | CSS 变量驱动 glassmorphism（blur + saturate + 半透明 + 边框高光 + 内阴影），亮色/暗色双主题 |
-| 2 | 📱 **5-Tab 底部导航** | 聊天 / 角色 / TRPG / 工具 / 我的，TRPG 模式独立菜单入口 |
-| 3 | 🤖 **Android 原生应用** | Capacitor 8 打包，内置 `CapacitorHttp` 绕过 CORS 限制 |
-| 4 | 🎨 **全新 React 19 前端** | @lobehub/ui + antd 6 组件库，AlibabaPuHuiTi-3 字体，Material You 设计风格 |
-| 5 | 🌋 **火山方舟 API 兼容** | 支持 `/v3` 版本后缀，`https://ark.cn-beijing.volces.com/api/coding/v3` 可直接使用 |
-| 6 | ⌨️ **模型名自由输入** | 模型选择弹窗新增手动输入框，可手填任意模型名 |
-| 7 | 🎲 **TRPG 独立模式** | 5-Tab 一级入口，iframe 嵌入 AI Sandbox Game，走 LUZZY API 配置，内置 NanoHTTPD 本地代理解决 CORS |
-| 8 | 🧠 **API 请求体高级设置** | 深度思考开关 + 自定义 JSON 合并，兼容 DeepSeek 和火山方舟，TRPG 模式下同样生效 |
-| 9 | 🔌 **MCP HTTP 工具导入** | JSON 导入 MCP 远程工具服务器，AI 通过 `<tool_mcp_*>` 标签调用 |
-| 10 | 📚 **SKILL 工具系统** | 三种方式导入 SKILL 提示词包（GitHub / ZIP / 手动新建），AI 通过 `<tool_skill_*>` 标签调用 |
-| 11 | 🧠 **记忆召回工具** | 内置记忆召回工具，支持 per-tool 全局记忆开关，自动召回相关记忆注入上下文 |
-| 12 | 💾 **全局记忆（MEMORY.md）** | 全局记忆二级选项，支持 MEMORY.md 持久化存储和注入 |
-| 13 | 🔍 **向量记忆分片查看** | 向量记忆检索结果分片查看，支持查看每个分片的详细内容 |
-| 14 | 📁 **SKILL 文件管理器树形化** | SKILL 文件管理器改为树形结构，支持文件夹展开/折叠 |
-| 15 | 🌐 **GitHub 镜像站加速** | SKILL GitHub 导入支持国内镜像站（gh-proxy.com、github.moeyy.xyz、ghfast.top） |
-| 16 | 🎭 **Luzzy 内置预设** | 内置 Luzzy 预设 + 第二/第三人称预设 |
-| 17 | 🔀 **多供应商架构** | 设置密钥即启用，模型名格式 `<providerId>_<model_name>`；嵌入模型可使用独立供应商 |
-| 18 | 🌊 **流式输出** | 原生平台通过 XMLHttpRequest + 本地代理实现真流式输出 |
-| 19 | 🔧 **世界书工具调用** | 思考链 `<cot>` 内的工具调用标签可正确执行，思考卡片显示工具调用 |
-| 20 | 🛡️ **ErrorBoundary** | 全局错误边界，渲染异常时显示降级 UI + 重试按钮 |
-| 21 | ⚡ **页面懒加载** | React.lazy + Suspense 按需加载页面，优化首屏性能 |
-| 22 | 🎭 **角色描述抽屉** | antd Drawer 玻璃面板展示角色简介/性格特征/场景设定/开场白/标签/创作者 |
-| 23 | 📊 **上下文长度指示器** | 实时估算 token 数 + 楼层数显示，便于掌握上下文使用情况 |
-| 24 | ⏱️ **生成耗时显示** | 助手消息下方显示生成耗时（秒），便于性能调优 |
-| 25 | 🧩 **记忆召回展示** | 玻璃卡片 + Tag 标签显示轮次和相似度百分比，可视化记忆召回过程 |
-| 26 | 🔧 **工具调用状态卡片** | 玻璃卡片 + 状态标签系统（等待/接收/排队/执行/续写/完成/失败），查询/原因/错误/结果折叠展示 |
-| 27 | 🎴 **角色背景层** | 当前角色头像作为模糊背景（blur + saturate + opacity），增强沉浸感 |
-
----
-
-## 📚 SKILL 工具系统
-
-在工具面板新增「+ 添加 SKILL」按钮，支持导入 SKILL 提示词包。
-
-### 三种导入方式
-
-| 方式 | 说明 |
-|------|------|
-| **GitHub 仓库** | 粘贴 GitHub URL，自动下载仓库内容。支持 `https://github.com/{owner}/{repo}`、`/tree/{branch}`、`/tree/{branch}/{subdir}` 子目录路径 |
-| **上传 ZIP** | 上传包含 SKILL.md 的 ZIP 压缩包，识别最外层 SKILL.md 后完整解压所有文件 |
-| **手动新建** | 内置文件管理器，手动新建文件夹、子文件夹和 `.md` 文件，默认创建 SKILL.md 模板 |
-
-### SKILL 执行机制
-
-- **提示词注入**：AI 调用 `<tool_skill_<id>_add:任务描述>` 标签 → 系统注入 SKILL.md 内容作为上下文
-- **文件阅读**：AI 调用 `<tool_skill_readfile_add:skill_name/file_path>` 读取 SKILL 目录下的配套文件
-
-### 工具二级分类
-
-| 分组 | 类型 | 说明 |
-|------|------|------|
-| **内置工具** | `vector` / `keyword` / `web` / `world` / `skill_readfile` | 全局启用，不受角色卡过滤 |
-| **MCP 工具** | `mcp_http` | 可按角色卡启用，通过 MCP 协议调用远程工具 |
-| **SKILL** | `skill` | 可按角色卡启用，注入 SKILL.md 提示词包 |
-
-### 角色卡按需启用
-
-SKILL 和 MCP 工具可设置启用范围：
-
-- **所有角色卡可用**（默认）：任何角色卡都能感知和使用此工具
-- **自定义角色卡**：仅选中的角色卡可感知和使用此工具
-
-> 内置工具始终全局启用，不受角色卡过滤影响。
-
----
-
-## 🎲 TRPG 模式（AI 沙盒游戏）
-
-底部导航栏独立 TRPG 入口（5-Tab 一级菜单），iframe 嵌入 [AI Sandbox Game](https://aisandboxgame.com/)。
-
-### 核心特性
-
-- **独立菜单入口**：5-Tab 底部导航一级入口（聊天 / 角色 / TRPG / 工具 / 我的），无需进入「更多」页面
-- **iframe 缓存**：使用 `v-show` 控制，切换到其他功能再切回 TRPG，网页状态保持不变
-- **走 LUZZY API 配置**：自动使用 LUZZY 主设置的 API 配置发起请求，无需在 TRPG 网页内单独配置真实 API
-- **模型名自由设置**：TRPG 网页内的模型商名称、API、APIKey 仅作占位符，真正生效的是模型名
-- **内置本地代理**：NanoHTTPD 代理服务器（`localhost:18527`），解决 iframe 内 CORS 限制
-- **字节透传**：直接从 `session.getInputStream()` 读取字节并 `setChunkedStreamingMode(0)` 写出，根治 UTF-8 双重编码乱码
-- **抗更新**：代理机制在 Android 原生层，不修改网页代码，aisandboxgame.com 更新不影响代理
-
-### 配置步骤
-
-1. 在 LUZZY 主设置中配置好 API 地址和 API Key
-2. 进入 TRPG 模式 → 自动弹出「TRPG 模式说明」弹窗
-3. 阅读说明（如不需重复提示，勾选「本次不再提示」）→ 点击「我已了解，开始游戏」
-4. 在 TRPG 网页的 API 设置中添加自定义供应商：
-   - API 地址填：`http://localhost:18527/v1`
-   - API Key 随便填（占位符，实际使用 LUZZY 的 Key）
-   - 模型名自由设置（如 `DeepSeek-V4-Pro`，无需在 LUZZY 预先配置）
-5. 开始 TRPG 游戏体验
-
----
-
-## 💎 液态玻璃设计系统
-
-全页面统一采用液态玻璃（Liquid Glass / Glassmorphism）设计语言，CSS 变量驱动，亮色/暗色双主题。
-
-### 设计要素
-
-| 要素 | 实现 |
-|------|------|
-| **背景模糊** | `backdrop-filter: blur(20px) saturate(180%)` |
-| **半透明背景** | `rgba(255, 255, 255, 0.55)` 亮色 / `rgba(30, 30, 40, 0.55)` 暗色 |
-| **边框高光** | `1px solid rgba(255, 255, 255, 0.18)` 顶部高光 |
-| **内阴影** | `inset 0 1px 0 rgba(255, 255, 255, 0.25)` |
-| **外阴影** | `0 8px 32px rgba(0, 0, 0, 0.08)` 柔和投影 |
-
-### 玻璃强度分级
-
-| 等级 | 用途 | 模糊半径 | 透明度 |
-|:---:|------|:---:|:---:|
-| **高强度** | 角色选择栏、输入区、角色描述抽屉、角色选择弹窗项 | 24px | 0.65 |
-| **标准** | 助手消息气泡、卡片容器 | 16px | 0.55 |
-| **轻量** | 思考链卡片、工具调用卡片、记忆召回卡片 | 12px | 0.45 |
-
-### 应用范围
-
-- **消息气泡**：助手用标准玻璃，用户用主色实色
-- **角色选择栏**：高强度玻璃 + 上下文指示器
-- **输入区**：高强度玻璃 + 玻璃按钮
-- **思考链卡片**：轻量玻璃 + antd Collapse 折叠
-- **工具调用卡片**：轻量玻璃 + 左边框状态色（running/completed/error）
-- **记忆召回卡片**：轻量玻璃 + tertiary 左边框 + Tag 标签
-- **角色描述抽屉**：高强度玻璃 + antd Drawer
-- **角色背景层**：当前角色头像作为模糊背景（blur + saturate + opacity）
-
----
-
-## 🧠 API 请求体高级设置
-
-在「API 连接与服务」板块内新增「API 请求体高级设置」折叠区，支持深度思考。
-
-| 功能 | 说明 |
-|------|------|
-| **深度思考快捷开关** | 一键注入 `thinking.type: "enabled"`，兼容 DeepSeek thinking_mode 和火山方舟深度思考 |
-| **自定义请求体 JSON** | 最高优先级合并到请求体，实时校验 JSON 有效性。可注入 `reasoning_effort`、`max_completion_tokens` 等字段 |
-
-**合并优先级**：基础字段 < 深度思考开关 < 自定义 JSON
-
-**字段保护**：`model` 和 `messages` 核心字段受保护，自定义 JSON 不可覆盖
-
-**作用域**：高级设置作用于 LUZZY 主聊天 chat/completions 请求。**TRPG 模式下同样生效**——本地代理服务器会解析请求体并注入高级设置字段。
-
-**自定义 JSON 示例**：
-```json
-{"reasoning_effort":"medium","max_completion_tokens":8192}
-```
-
----
-
-## 🔀 多供应商架构
-
-支持同时配置多个 API 供应商，设置密钥即算启用，不再强制切换单一供应商。
-
-### 模型名格式
-
-所有模型名采用 `<providerId>_<model_name>` 格式，用下划线分隔供应商 ID 和模型名：
-- `ark_deepseek-v4-pro`（ark 供应商的 deepseek-v4-pro 模型）
-- `openai_gpt-4o`（openai 供应商的 gpt-4o 模型）
-
-系统根据模型名前缀自动路由到对应供应商的 API URL 和 Key。
-
-### 自定义供应商
-
-- 新增自定义供应商时填写**供应商 ID**（仅英文字母，如 `ark`、`myapi`）
-- 供应商 ID 用于模型名前缀，不可修改（编辑模式下禁用）
-- 删除供应商时自动清理所有模型名中该供应商的前缀
-
-### 嵌入模型独立供应商
-
-记忆系统的嵌入模型可使用与聊天模型不同的供应商：
-- 在「记忆引擎设置」中选择嵌入模型供应商
-- 嵌入模型的 API URL 和 Key 从该供应商获取
-- 支持场景：嵌入模型用供应商 A，聊天模型用供应商 B
-
----
-
-## 🌊 流式输出
-
-支持在聊天和 TRPG 模式下流式输出 AI 响应。
-
-### 实现方案
-
-| 平台 | 方案 | 说明 |
-|------|------|------|
-| **Android 原生** | XMLHttpRequest + 本地代理 | 绕过 CapacitorHttp patch，通过 `localhost:18527` 代理实现真流式 |
-
-**技术细节**：CapacitorHttp 会 patch 全局 `fetch`，导致 `response.body.getReader()` 在 Android 上一次性返回完整数据。XMLHttpRequest 不被 patch，其 `onprogress` 事件可逐步接收数据，`responseText` 增量更新，因此可用于真流式输出。
-
----
-
-## 🔌 MCP HTTP 工具导入
-
-在工具面板新增「+ 添加 MCP 工具」按钮，支持通过 JSON 形式导入 MCP（Model Context Protocol）远程工具服务器。
-
-- **传输协议**：MCP Streamable HTTP transport（2025-03-26 规范，单端点 POST 返回 JSON 或 SSE）
-- **支持两种 JSON 格式**：扁平格式（HTTP transport）和 `mcpServers` 嵌套格式（Claude Desktop / Cursor 通用）
-- **AI 调用机制**：复用 `<tool_*>` 标签协议，AI 输出 `<tool_mcp_<serverShortId>_<toolName>:argsJSON>` 触发 `tools/call`
-- **持久化**：MCP 工具配置随 `activeTools` 数组存入 IndexedDB，启动时不主动拉取 `tools/list`
-
----
-
-## 🧠 记忆系统增强
-
-### 记忆召回工具
-
-内置「记忆召回」工具，AI 可通过 `<tool_memory_recall_*>` 标签主动召回相关记忆。
-
-- **per-tool 全局记忆开关**：每个记忆召回工具可独立配置是否启用全局记忆
-- **自动召回**：AI 调用工具时自动召回相关记忆注入上下文
-- **向量检索**：基于 cosineSimilarity 的 topK 向量检索
-
-### 全局记忆（MEMORY.md）
-
-- **持久化存储**：全局记忆内容持久化到 IndexedDB
-- **自动注入**：全局记忆内容自动注入到请求上下文
-- **二级选项**：支持在记忆设置中开启/关闭全局记忆
-
-### 向量记忆分片查看
-
-- **分片展示**：向量记忆检索结果以分片形式展示
-- **详细内容**：支持查看每个分片的详细内容和相似度分数
-- **调试友好**：便于调试向量记忆检索效果
-
----
-
-## 📁 SKILL 文件管理器
-
-### 树形结构
-
-SKILL 文件管理器改为树形结构，支持文件夹展开/折叠：
-
-- **层级展示**：文件夹和文件以树形层级展示
-- **展开/折叠**：点击文件夹可展开/折叠子内容
-- **文件操作**：支持新建文件夹、子文件夹和 `.md` 文件
-
-### GitHub 镜像站加速
-
-SKILL GitHub 导入支持国内镜像站，自动检测网络环境选择最优镜像：
-
-| 镜像站 | URL |
-|--------|-----|
-| gh-proxy.com | `https://gh-proxy.com/` |
-| github.moeyy.xyz | `https://github.moeyy.xyz/` |
-| ghfast.top | `https://ghfast.top/` |
-
----
-
-## 🎭 预设系统
-
-### Luzzy 内置预设
-
-内置 Luzzy 预设，注入位置为 `system`。
-
-- **完整提示词**：包含角色扮演、情境设定、行为规范等完整提示词
-- **默认启用**：作为默认预设自动启用
-
-### 第二/第三人称预设
-
-- **第二人称预设**：使用"你"指代用户，第二人称限制视角叙事
-- **第三人称预设**：使用 {{user}} 称呼用户，第三人称叙事
-
----
-
-## 🚀 快速开始
-
-### Android APK 使用
-
-1. 从 [Releases](../../releases) 下载最新 `LUZZY-*.apk`
-2. 在 Android 手机上安装（需允许「安装未知来源应用」）
-3. 打开 LUZZY，在设置中配置 API 地址和 API Key
-4. 导入角色卡，开始 Roleplay 或进入 TRPG 模式
-
----
-
-## 🔧 构建指南
+AI 角色扮演与 TRPG 对话应用，专注移动端 Android 体验。前端基于 [rikkahub](https://github.com/lucky-rikkahub/rikkahub) web-ui 重构，保留全部后端业务逻辑。
+
+## 技术栈
+
+### 前端
+
+- React 19.2.4 + TypeScript 5.9.2
+- React Router 7.13.0（SPA 模式，ssr: false）
+- Tailwind CSS v4 + tw-animate-css（oklch 色彩空间）
+- shadcn/ui（New York 风格，Radix UI 基础）
+- Zustand 5.0.11（9 slice 合并模式：Settings/Character/Chat/UI/ChatInput/Clock/Session/KnowledgeBase/Skill）
+- motion v12（Framer Motion 动画，motion-presets 预设体系）
+- i18next + react-i18next（中英双语）
+- Vite 7.1.7 + pnpm
+- vite-plugin-svgr 4.5.0（SVG 转 React 组件，game-icon-pack CC0 图标包）
+
+### 后端服务层（完整保留）
+
+- 15 个 service：apiClient / chatService / storage / providerService / memoryService / toolService / presetContent / mcpService / markdownService / worldInfoService / knowledgeBaseService / sessionService / logger / aceSkillbookService / aceReflectorService / aceSkillManagerService
+- IndexedDB 本地持久化（DB_NAME='RPHubDB'，DB_VERSION=2，13 个 object store）
+- 双通道流式请求（XHR 原生代理 + fetch 浏览器）
+- KV 缓存层（通用响应缓存 + embedding 级缓存）
+- ACE 记忆机制（Skillbook JSON 持久化 + 嵌入去重 + 评分淘汰 + 三步循环 Execute→Reflect→Update）
+- 文件日志系统（Capacitor Filesystem，Directory.Documents，3 天自动清理）
+
+### Android
+
+- Capacitor 8（Android 原生封装）
+- Android Gradle Plugin 8.9.1
+- 最低 SDK / 目标 SDK 由 variables.gradle 配置
+- NanoHTTPD 本地代理（TRPG 模式 localhost:18527）
+
+## 核心功能
+
+### 14 大功能页面
+
+- **聊天**（`/`）：多轮对话，CoT 思考过程可折叠展示，工具调用卡片，记忆召回，流式输出，重试分支，翻译，消息操作，全屏编辑器，Agent 步骤二级卡片，Token 统计行
+- **角色卡**（`/characters`）：导入/编辑/删除，SillyTavern PNG 角色卡兼容（tEXt chunk + base64 JSON，完整导入姓名+描述+初始消息+头像+世界书+正则），世界书选择集成，收藏
+- **TRPG 模式**（`/trpg`）：独立菜单入口，内置 NanoHTTPD 本地代理解决 WebView CORS，iframe v-show 状态保持，切换页面不刷新
+- **工具**（`/tools`）：内置工具配置（vector-memory/keyword-search/memory-recall/anysearch），工具全局模式（force/active/adaptive），角色绑定，anysearch 官方链接
+- **记忆**（`/memory`）：ACE Skillbook 卡片列表 UI（分类徽章+来源徽章+评分+启用切换+编辑面板），向量记忆分片，余弦相似度搜索，记忆压缩，嵌入模型独立供应商配置，旧 GlobalMemory 自动迁移
+- **预设**（`/preset`）：角色绑定，NSFW 预设内容原样保留，内置预设默认值
+- **世界书**（`/world-info`）：SillyTavern 世界书 JSON 兼容，条目 CRUD，关键字/二级关键字/常量/顺序/位置/深度/概率配置
+- **知识库**（`/knowledge-base`）：知识库 CRUD，文件导入（图片转 base64，md/txt 读取文本），关键词匹配或嵌入向量相似度检索
+- **正则脚本**（`/regex`）：RegexScriptEntry 8 字段（scope/timing/paramReplace/depthRange/trimOut 等），正则助手 5 种一键填写模板，各时机生效
+- **UI 模板**（`/ui-template`）：角色绑定，背景注入（markdown/html/css 注入类型）
+- **用户档案**（`/profile`）：多档案管理，头像上传，描述导入导出，名称和描述注入聊天
+- **设置**（`/settings`）：供应商下拉框 + 多模型配置，API 类型选择，深度思考 6 档（关闭/自动/低/中等/高/极致），主题精简，MCP 测试连接，自定义背景
+- **技能**（`/skill`）：技能系统管理，GitHub/ZIP 导入，YAML name 识别
+- **关于**（`/about`）：LOGO + 版本号 + 系统信息 + 日志文件路径
+
+### 多供应商架构
+
+- 7 个内置供应商 + 自定义供应商
+- `<providerId>_<modelName>` 前缀路由格式
+- 4 种 API 类型：openai-compatible / google-gemini / anthropic-messages / openai-responses
+- 每供应商独立 API Key 和自定义请求体 JSON
+- 嵌入供应商独立性（URL 与 Key 同源）
+- 供应商切换时自动保存/加载 customRequestBody
+
+### CoT 思考链系统
+
+- 可折叠 CoT 卡片（生成中默认展开/结束默认收起）
+- 强制匹配 8 种标签变体：cot/think/thinking/reasoning/thought/thoughts/reflection/analysis
+- 原生 reasoning_content + 内容标签双路解析
+- AnimatePresence 平滑展开/收起动画
+- 思考深度 6 档（关闭/自动/低/中等/高/极致），映射 OpenAI `reasoning_effort` 字段
+- 内置供应商思考深度覆盖映射（`builtinThinkingDepthOverrides`）
+
+### ACE 记忆机制
+
+- **Skillbook JSON 持久化**：`ace_skillbook` / `ace_skillbook_embeddings` 存储键
+- **三步循环**：Execute（注入 active 策略）→ Reflect（LLM 评估）→ Update（TAG/ADD/REMOVE）
+- **评分淘汰**：auto 源策略连续 3 次 harmful 自动停用
+- **嵌入去重**：余弦相似度阈值 0.85
+- **数据迁移**：旧 GlobalMemory 逐行转换为 AceSkill 条目
+- **manual 策略保护**：手动添加的策略不被自动移除/更新
+- **独立运行不污染**：Reflector 使用独立 system prompt，不注入 NSFW 预设内容
+
+### 缓存层
+
+- **通用响应缓存**：apiClient.ts，TTL 30 分钟，最大 500 条目
+- **Embedding 缓存**：memoryService.ts，TTL 60 分钟，最大 1000 条目，跨服务共享（knowledgeBaseService / sessionService）
+
+### 主题系统
+
+- 浅色 / 深色 / 跟随系统
+- oklch 色彩空间
+- 液态玻璃设计（glassmorphism）三态丝滑动画
+
+### 字体
+
+- **仅使用** AlibabaPuHuiTi-3（400/500/700）+ AlibabaSans（300/400/500/700/800/900）
+- 9 个 @font-face 声明
+
+### 图标
+
+- game-icon-pack CC0 协议图标包，295 个 SVG
+- 封装为 forwardRef React 组件（luzzy-icons.tsx）
+- 所有业务页面已迁移至 game-icon-pack
+
+## 构建
 
 ### 环境要求
 
-| 组件 | 版本 |
-|------|------|
-| Node.js | 18+ |
-| JDK | 21（Microsoft OpenJDK 21 测试通过） |
-| Android SDK | Command-line Tools + Platform android-36 + Build-Tools 36.0.0 |
+- Node.js 18+
+- pnpm 9+
+- Android Studio（用于 Android SDK）
+- Microsoft Visual C++ Redistributable（Windows AAPT2 依赖）
 
-### 环境变量
-
-```
-JAVA_HOME = <JDK 21 路径>
-ANDROID_HOME = <Android SDK 路径>
-```
-
-### 构建命令
+### 前端构建
 
 ```bash
-# 1. 安装前端依赖
 cd frontend
-npm install
+pnpm install
+pnpm run typecheck  # 类型检查
+pnpm run lint       # 代码检查
+pnpm run build      # 生产构建，输出 build/client/
+```
 
-# 2. 构建前端
-npm run build
+### Android APK 构建
 
-# 3. 返回根目录，同步 Web 资源到 Android 工程
+```powershell
+# 1. 前端构建（重新生成 dist 带 hash）
+cd frontend
+pnpm run build
+
+# 2. 同步到 www/ + Capacitor 同步
 cd ..
 npm run sync
 
-# 4. 应用 Android 原生补丁（MainActivity.java / build.gradle / AndroidManifest.xml）
-#    从 android-patches/ 复制到 android/app/src/main/ 对应位置
+# 3. 应用 android-patches（注意：不要直接复制整个目录，否则会覆盖根 build.gradle）
+Copy-Item -Path "android-patches\MainActivity.java" -Destination "android\app\src\main\java\com\luzzymeow\luzzy\MainActivity.java" -Force
+Copy-Item -Path "android-patches\AndroidManifest.xml" -Destination "android\app\src\main\AndroidManifest.xml" -Force
+Copy-Item -Path "android-patches\build.gradle" -Destination "android\app\build.gradle" -Force
 
-# 5. 构建 debug APK
+# 4. 编译 APK
 cd android
-.\gradlew.bat assembleDebug       # Windows
-./gradlew assembleDebug           # Linux/Mac
-
-# APK 输出路径
-# android/app/build/outputs/apk/debug/LUZZY-*.apk
+.\gradlew.bat assembleDebug
 ```
 
-### 重新构建（修改代码后）
+**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.0-debug.apk`
 
-```bash
-cd frontend && npm run build && cd ..
-npm run sync
-# 重新应用 android-patches（如需）
-cd android && .\gradlew.bat assembleDebug
+## 项目结构
+
 ```
-
-> ⚠️ **注意**：`npx cap sync` 不会自动同步 `android-patches/MainActivity.java` 到 `android/` 目录，需手动执行 `Copy-Item`。
-
----
-
-## 🏗️ 技术栈
-
-| 层级 | 技术 |
-|------|------|
-| **前端框架** | React 19 + TypeScript |
-| **构建工具** | Vite |
-| **UI 组件库** | @lobehub/ui 5.15 + antd 6 + antd-style |
-| **动画** | motion 12 |
-| **状态管理** | zustand 5 + persist 中间件 |
-| **路由** | react-router-dom 7 |
-| **字体** | AlibabaPuHuiTi-3（55-Regular/65-Medium/85-Bold）+ AlibabaSans |
-| **移动端容器** | Capacitor 8 |
-| **本地代理** | NanoHTTPD（localhost:18527） |
-| **数据持久化** | IndexedDB（9 个 object store） |
-| **Markdown** | marked + DOMPurify |
-| **其他** | JSZip · SortableJS |
-
----
-
-## 📁 目录结构
-
-```text
-LUZZY/
-├── frontend/                    # React 19 前端工程
-│   ├── src/
-│   │   ├── components/layout/   # 布局组件（AppHeader/BottomTabBar/MobileLayout）
-│   │   ├── pages/               # 页面（Chat/Characters/Trpg/Tools/Mine）
-│   │   ├── services/            # 服务层（10个模块）
-│   │   ├── store/               # Zustand Store（3个）
-│   │   ├── styles/              # 全局样式 + Alibaba 字体
+RP-Hub/
+├── frontend/                    # 前端源码
+│   ├── app/
+│   │   ├── components/
+│   │   │   ├── luzzy/           # LUZZY 业务组件
+│   │   │   ├── markdown/        # Markdown 渲染
+│   │   │   ├── message/         # 消息组件
+│   │   │   ├── ui/              # shadcn/ui 基础组件
+│   │   │   └── workbench/       # 工作台
+│   │   ├── routes/              # 14 个路由页面
+│   │   ├── services/            # 15 个服务文件（含 ACE 三件套 + logger）
+│   │   ├── stores/              # Zustand store（9 slice 合并）
 │   │   ├── types/               # TypeScript 类型定义
-│   │   ├── App.tsx              # 路由 + ErrorBoundary + Suspense
-│   │   └── main.tsx             # 入口
-│   ├── public/fonts/            # AlibabaPuHuiTi-3 字体文件
-│   ├── tsconfig.json            # TypeScript 配置（ES2021）
-│   ├── vite.config.ts           # Vite 构建配置
-│   └── package.json             # 前端依赖
-├── android-patches/             # Android 原生补丁
-│   ├── MainActivity.java        # NanoHTTPD 代理 + DownloadListener
-│   ├── AndroidManifest.xml      # 权限配置
-│   └── build.gradle             # APK 输出文件名
-├── scripts/
-│   └── copy-web-to-www.js       # Web 资源复制脚本
-├── capacitor.config.json        # Capacitor 配置
-├── package.json                 # 根构建脚本
-├── CHANGELOG.md                 # 详细改动日志
-└── README.md                    # 本文件
+│   │   ├── locales/             # i18n（zh-CN / en-US）
+│   │   ├── hooks/               # React Hooks
+│   │   ├── lib/                 # 工具库（motion-presets 等）
+│   │   ├── app.css              # 全局样式 + 字体 + 主题变量
+│   │   ├── routes.ts            # 路由配置
+│   │   └── root.tsx             # 根组件
+│   ├── public/fonts/            # Alibaba 字体文件
+│   └── package.json
+├── android/                     # Android 原生工程
+├── android-patches/             # Android 补丁文件
+├── doc/                         # 参考文档与源码
+├── scripts/                     # 构建脚本
+├── CHANGELOG.md
+└── README.md
 ```
 
----
+## 近期更新
 
-## ⚠️ 已知限制
+详见 [CHANGELOG.md](./CHANGELOG.md)。
 
-- TRPG 模式说明弹窗首次进入会弹出，可勾选「本次不再提示」（App 重启后恢复）
-- MCP 和 SKILL 工具仅对 LUZZY 主聊天生效，TRPG 模式不生效
-- 当前仅提供 debug APK，release 版需配置签名密钥
+## 许可证
 
----
-
-## 📜 协议与许可
-
-本项目采用 **[CC BY-NC 4.0](./LICENSE)** 协议：
-
-- **非商业性使用**：禁止任何形式的商业化使用
-- 详细条款见 [LICENSE](./LICENSE) 文件
-
----
-
-## 🙏 致谢
-
-| 贡献者 | 说明 |
-|------|------|
-| **[STA1N156](https://github.com/STA1N156)** | RP-Hub 项目 —— 本项目的核心框架灵感来源 |
-| **[hayowei](https://github.com/hayowei)** | AI Sandbox Game —— TRPG 模式来源 |
-| **[智谱清言 / Z.AI](https://z.ai/)** | GLM-5.2 大语言模型 —— 本项目的 Coding 模型 |
-| **[Model Context Protocol](https://modelcontextprotocol.io/)** | MCP 工具调用规范 |
-| **[@lobehub/ui](https://github.com/lobehub/lobe-ui)** | UI 组件库 |
-| **[Alibaba PuHuiTi](https://www.alibabafonts.com/)** | AlibabaPuHuiTi-3 字体 |
-
----
-
-<div align="center">
-
-**技术栈**：React 19 · TypeScript · Vite · @lobehub/ui · antd 6 · zustand 5 · Capacitor 8 · NanoHTTPD
-
-</div>
+CC BY-NC 4.0

@@ -1,0 +1,1284 @@
+/**
+ * 聊天 Slice（Zustand slice）
+ *
+ * 管理聊天消息、生成状态、API 调用、历史记录持久化等。
+ * 核心流程 generateResponse 保留全部 18 项业务约束。
+ *
+ * 从 .luzzy-backup/store/useChatStore.ts 迁移，适配 slices 组合模式。
+ * 关键改造：跨 slice 依赖从 useSettingsStore.getState() 改为 get()。
+ */
+
+import type { StateCreator } from "zustand";
+import { v4 as uuidv4 } from "uuid";
+
+import type {
+  ChatMessage,
+  Preset,
+  WorldInfoEntry,
+  GlobalMemory,
+  RegexScript,
+  RegexScriptGroup,
+  MemorySettings,
+  ActiveTool,
+  VectorMemoryShard,
+  ApiSettings,
+  AgentStep,
+} from "~/types/luzzy";
+import {
+  buildContext,
+  processRegex,
+  migrateRegexScripts,
+  extractMemory,
+  DEFAULT_USER,
+} from "~/services/chatService";
+import {
+  sendStreamRequest,
+  sendRequest,
+  parseSSEChunk,
+  buildApiRequestBody,
+  ApiError,
+} from "~/services/apiClient";
+import {
+  getApiUrlForModel,
+  getApiKeyForModel,
+  getActualModelName,
+  getOpenAICompatUrl,
+} from "~/services/providerService";
+import { parseCot } from "~/services/markdownService";
+import { getItem, setItem } from "~/services/storage";
+import {
+  findPendingActiveToolCallInText,
+  executeActiveToolCall,
+  filterToolsForCharacter,
+} from "~/services/toolService";
+import { loadVectorMemoryShards } from "~/services/memoryService";
+import { BUILTIN_PRESET_DEFAULTS } from "~/services/presetContent";
+import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
+import type { AppStoreState, ChatSlice } from "~/stores/slices/types";
+
+// ============================================================================
+// 辅助函数
+// ============================================================================
+
+/**
+ * 获取内置默认预设列表
+ *
+ * 从 presetContent.ts 导入，保持 NSFW 预设内容完整。
+ * @returns Preset 对象数组
+ */
+const getDefaultPresets = (): Preset[] => {
+  return BUILTIN_PRESET_DEFAULTS.map((p, i) => ({
+    id: `builtin-${i}`,
+    name: p.name,
+    content: p.content,
+    isBuiltin: true,
+    enabled: true,
+    createdAt: 0,
+    updatedAt: 0,
+  }));
+};
+
+/**
+ * 默认记忆设置（未配置时使用）
+ */
+const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
+  enabled: false,
+  embeddingModel: "",
+  embeddingApiProviderId: "",
+  maxMemories: 100,
+  recallDepth: 10,
+  vectorTopK: 5,
+  similarityThreshold: 0.7,
+  compressionEnabled: false,
+  compressionKeepRecent: 10,
+};
+
+/**
+ * 获取聊天补全 API 的完整 URL
+ *
+ * 处理两种情况：
+ * - apiUrl 已包含完整端点路径（如 .../v1/chat/completions）→ 直接使用
+ * - apiUrl 仅为基础地址（如 .../v1 或 https://api.example.com）→ 自动拼接端点
+ *
+ * @param apiUrl - API 地址（可能为基础地址或完整端点）
+ * @returns 完整的 chat/completions 端点 URL
+ */
+const getChatCompletionsUrl = (apiUrl: string): string => {
+  const clean = apiUrl.trim().replace(/\/+$/, "");
+  if (clean.endsWith("chat/completions")) {
+    return clean;
+  }
+  return getOpenAICompatUrl(clean, "chat/completions");
+};
+
+/**
+ * 从组合 store 状态中提取 ApiSettings 子集
+ * @param state - 组合 store 状态
+ * @returns ApiSettings 对象
+ */
+const extractApiSettings = (state: AppStoreState): ApiSettings => ({
+  apiUrl: state.apiUrl,
+  apiKey: state.apiKey,
+  modelName: state.modelName,
+  stream: state.stream,
+  enableThinking: state.enableThinking,
+  customRequestBody: state.customRequestBody,
+});
+
+// ============================================================================
+// Slice 实现
+// ============================================================================
+
+export const createChatSlice: StateCreator<
+  AppStoreState,
+  [],
+  [],
+  ChatSlice
+> = (set, get) => {
+  /**
+   * 生成 AI 回复（内部辅助函数）
+   *
+   * 由 sendMessage 和 regenerate 调用，负责：
+   * 1. 加载预设、世界书、全局记忆、正则脚本
+   * 2. 构建 API 上下文
+   * 3. 调用 API（流式或非流式）
+   * 4. 流式更新 assistant 消息内容
+   * 5. 解析 CoT 分离思考链和正文
+   * 6. 完成后异步提取记忆
+   * 7. 错误处理
+   *
+   * @param assistantMessageId - 待填充的 assistant 消息 ID
+   */
+  const generateResponse = async (
+    assistantMessageId: string,
+  ): Promise<void> => {
+    const state = get();
+    const { messages, currentCharacter, abortController, currentSessionId } =
+      state;
+
+    if (!abortController) {
+      get().updateMessage(assistantMessageId, {
+        loading: false,
+        error: "AbortController 未初始化",
+      });
+      set({ isGenerating: false });
+      return;
+    }
+
+    // 从组合 store 获取设置（跨 slice 访问）
+    const settings = extractApiSettings(get());
+
+    // 调试日志：打印 API 配置入口状态
+    console.log("[ChatSlice] generateResponse 入口:", {
+      apiUrl: settings.apiUrl,
+      modelName: settings.modelName,
+      hasKey: !!settings.apiKey,
+      apiProviderId: get().apiProviderId,
+      enableThinking: settings.enableThinking,
+    });
+
+    // 校验 API 配置
+    if (!settings.apiUrl || !settings.apiKey) {
+      console.warn("[ChatSlice] API 配置缺失:", {
+        apiUrl: settings.apiUrl,
+        hasKey: !!settings.apiKey,
+      });
+      get().updateMessage(assistantMessageId, {
+        loading: false,
+        error: "API 地址或密钥未配置，请在设置中填写",
+      });
+      set({ isGenerating: false, abortController: null });
+      return;
+    }
+
+    try {
+      // 构建所有供应商列表（内置 + 自定义），用于多供应商路由和上下文构建
+      const allProviders = [
+        ...BUILTIN_PROVIDERS,
+        ...get().customApiProviders,
+      ];
+
+      // 1. 从 IndexedDB 加载预设、世界书、全局记忆、正则脚本、记忆设置
+      // v0.3.0: 正则脚本迁移为 RegexScriptGroup[] 结构
+      const [
+        presetsData,
+        worldInfoData,
+        globalMemoryData,
+        regexGroupsData,
+        oldRegexScriptsData,
+        memorySettingsData,
+        vectorMemoryShardsData,
+      ] = await Promise.all([
+        getItem<Preset[]>("presets", "presets"),
+        getItem<WorldInfoEntry[]>("worldInfo", "worldInfo"),
+        getItem<GlobalMemory>("memory", "global_memory"),
+        getItem<RegexScriptGroup[]>("regexScripts", "regexGroups"),
+        getItem<RegexScript[]>("regexScripts", "regexScripts"),
+        getItem<MemorySettings>("settings", "memorySettings"),
+        currentCharacter
+          ? loadVectorMemoryShards(currentCharacter.uuid, currentSessionId ?? undefined)
+          : Promise.resolve<VectorMemoryShard[]>([]),
+      ]);
+
+      const presets = presetsData ?? getDefaultPresets();
+      const worldInfoEntries = worldInfoData ?? [];
+      const globalMemory = globalMemoryData ?? null;
+      // v0.3.0: 优先使用新的 regexGroups；若不存在但有旧 regexScripts，则迁移
+      let regexGroups: RegexScriptGroup[] = regexGroupsData ?? [];
+      if (regexGroups.length === 0 && oldRegexScriptsData && oldRegexScriptsData.length > 0) {
+        regexGroups = migrateRegexScripts(oldRegexScriptsData);
+        // 持久化迁移结果，清理旧数据
+        await setItem("regexScripts", "regexGroups", regexGroups);
+        await setItem("regexScripts", "regexScripts", []);
+      }
+      const memorySettings = memorySettingsData ?? DEFAULT_MEMORY_SETTINGS;
+      const vectorMemoryShards = vectorMemoryShardsData ?? [];
+
+      // v0.3.0 新增：从 store 读取内置工具配置，判断是否启用全局记忆检索
+      const builtinToolConfigs = get().builtinToolConfigs;
+      const vectorMemoryConfig = builtinToolConfigs.find(
+        (c) => c.type === "vector-memory",
+      );
+      const searchGlobalMemory = !!vectorMemoryConfig?.searchGlobalMemory;
+
+      // v0.3.0 ACE: 记录本次注入的策略 ID（供反思用）
+      let lastAppliedSkillIds: string[] = [];
+
+      // 2. 定义 API 调用辅助函数（供初始调用和工具调用循环复用）
+      const callApiAndUpdate = async (
+        msgId: string,
+        contextMsgs: ChatMessage[],
+      ): Promise<{ content: string; reasoning: string }> => {
+        // 构建 API 上下文
+        const { apiMessages: rawApiMessages, appliedSkillIds: ctxAppliedSkillIds } = await buildContext({
+          messages: contextMsgs,
+          character: currentCharacter,
+          user: DEFAULT_USER,
+          presets,
+          worldInfoEntries,
+          globalMemory,
+          settings,
+          apiProviders: allProviders,
+          apiProviderKeys: get().apiProviderKeys,
+          vectorMemoryShards,
+          memorySettings,
+          sessionId: currentSessionId ?? undefined,
+          searchGlobalMemory,
+        });
+
+        // v0.3.0 ACE: 记录本次注入的策略 ID
+        if (ctxAppliedSkillIds && ctxAppliedSkillIds.length > 0) {
+          lastAppliedSkillIds = ctxAppliedSkillIds;
+        }
+
+        // 应用正则脚本处理（系统消息跳过）
+        // v0.3.0: 使用新的 RegexScriptGroup[] 结构，scope/timing 过滤
+        const apiMessages = rawApiMessages.map((msg) => {
+          if (msg.role === "system") return msg;
+          const scope = msg.role === "user" ? "user" : "character";
+          return {
+            ...msg,
+            content: processRegex(
+              msg.content,
+              regexGroups,
+              scope,
+              "send",
+              DEFAULT_USER,
+            ),
+          };
+        });
+
+        // 多供应商路由：根据模型名前缀解析对应的供应商 URL/Key
+        const chatApiUrl = getApiUrlForModel(
+          get().modelName,
+          allProviders,
+          get().apiUrl,
+        );
+        const chatApiKey = getApiKeyForModel(
+          get().modelName,
+          get().apiProviderKeys,
+          get().apiKey,
+          allProviders,
+        );
+        const actualModel = getActualModelName(get().modelName);
+        const url = getChatCompletionsUrl(chatApiUrl);
+
+        // 调试日志：打印多供应商路由结果
+        console.log("[ChatSlice] API 路由:", {
+          originalModel: get().modelName,
+          chatApiUrl,
+          hasApiKey: !!chatApiKey,
+          actualModel,
+          url,
+          stream: get().stream,
+        });
+
+        // 构建请求体
+        // 获取当前供应商的思考深度设置
+        const currentProvider = allProviders.find((p) => p.id === get().apiProviderId);
+        const thinkingDepth = currentProvider?.thinkingDepth;
+
+        const requestBody = buildApiRequestBody(
+          {
+            model: actualModel,
+            messages: apiMessages,
+            stream: get().stream,
+          },
+          {
+            enableThinking: get().enableThinking,
+            thinkingDepth,
+            customRequestBody: get().customRequestBody,
+          },
+        );
+
+        // 累积流式内容
+        let accumulatedContent = "";
+        let accumulatedReasoning = "";
+        // Token 实时统计
+        const requestStartTime = Date.now();
+        let lastUsage: Record<string, unknown> | undefined;
+        // Agent 步骤追踪（v0.3.0 新增）
+        const agentSteps: AgentStep[] = [];
+        let thinkingStepAdded = false;
+
+        if (get().stream) {
+          // === 流式请求 ===
+          await sendStreamRequest({
+            url,
+            apiKey: chatApiKey,
+            body: requestBody,
+            signal: abortController.signal,
+            onChunk: (_dataStr, parsed) => {
+              const chunk = parseSSEChunk(parsed);
+
+              // 提取 usage（OpenAI 在最后一个 chunk 携带；Anthropic 分 message_start/message_delta 携带，需合并）
+              if (chunk.usage) {
+                lastUsage = { ...lastUsage, ...chunk.usage };
+              }
+
+              if (chunk.reasoningContent) {
+                accumulatedReasoning += chunk.reasoningContent;
+                set({ isThinking: true });
+                // 首次出现推理内容时添加思考步骤
+                if (!thinkingStepAdded) {
+                  thinkingStepAdded = true;
+                  agentSteps.push({
+                    id: uuidv4(),
+                    type: "thinking",
+                    title: "模型思考",
+                    content: accumulatedReasoning,
+                    status: "running",
+                    startedAt: Date.now(),
+                  });
+                } else {
+                  // 更新已有思考步骤的内容
+                  const thinkingStep = agentSteps.find((s) => s.type === "thinking");
+                  if (thinkingStep) {
+                    thinkingStep.content = accumulatedReasoning;
+                  }
+                }
+              }
+
+              if (chunk.content) {
+                accumulatedContent += chunk.content;
+                set({ isThinking: false, isReceiving: true });
+              }
+
+              // 解析 CoT 分离思考链和正文，实时更新消息
+              const cotResult = parseCot(accumulatedContent);
+              const finalCot = (
+                accumulatedReasoning +
+                (cotResult.cot ? "\n" + cotResult.cot : "")
+              ).trim();
+
+              // 若 CoT 内容存在且尚未添加思考步骤，则添加
+              if (cotResult.cot && !thinkingStepAdded) {
+                thinkingStepAdded = true;
+                agentSteps.push({
+                  id: uuidv4(),
+                  type: "thinking",
+                  title: "模型思考",
+                  content: cotResult.cot,
+                  status: "running",
+                  startedAt: Date.now(),
+                });
+              } else if (cotResult.cot && thinkingStepAdded) {
+                const thinkingStep = agentSteps.find((s) => s.type === "thinking");
+                if (thinkingStep) {
+                  thinkingStep.content = finalCot;
+                }
+              }
+
+              // 实时 Token 统计估算（4 字符 ≈ 1 token）
+              const elapsedMs = Date.now() - requestStartTime;
+              const estimatedTokens = Math.ceil(accumulatedContent.length / 4);
+              const tokPerSec = elapsedMs > 0 ? (estimatedTokens / (elapsedMs / 1000)) : 0;
+
+              get().updateMessage(msgId, {
+                content: cotResult.main,
+                cot: finalCot,
+                loading: false,
+                tokenUsage: {
+                  promptTokens: 0,
+                  completionTokens: estimatedTokens,
+                  responseTimeMs: elapsedMs,
+                  tokPerSec: Math.round(tokPerSec * 10) / 10,
+                },
+                agentSteps: [...agentSteps],
+              });
+            },
+          });
+        } else {
+          // === 非流式请求 ===
+          const response = await sendRequest({
+            url,
+            apiKey: chatApiKey,
+            body: requestBody,
+            signal: abortController.signal,
+          });
+          const data = (await response.json()) as Record<string, unknown>;
+          const chunk = parseSSEChunk(data);
+          accumulatedContent = chunk.content;
+          accumulatedReasoning = chunk.reasoningContent;
+          if (chunk.usage) {
+            lastUsage = { ...lastUsage, ...chunk.usage };
+          }
+
+          const cotResult = parseCot(accumulatedContent);
+          const finalCot = (
+            accumulatedReasoning +
+            (cotResult.cot ? "\n" + cotResult.cot : "")
+          ).trim();
+
+          // 非流式：若有推理内容或 CoT，添加思考步骤
+          if (finalCot.trim()) {
+            agentSteps.push({
+              id: uuidv4(),
+              type: "thinking",
+              title: "模型思考",
+              content: finalCot,
+              status: "completed",
+              startedAt: requestStartTime,
+              endedAt: Date.now(),
+            });
+          }
+
+          get().updateMessage(msgId, {
+            content: cotResult.main,
+            cot: finalCot,
+            loading: false,
+            agentSteps: agentSteps.length > 0 ? [...agentSteps] : undefined,
+          });
+        }
+
+        // 流式结束后，用精确的 usage 替换估算值
+        // 同时将思考步骤标记为已完成
+        const finalElapsedMs = Date.now() - requestStartTime;
+        const thinkingStep = agentSteps.find((s) => s.type === "thinking");
+        if (thinkingStep && thinkingStep.status === "running") {
+          thinkingStep.status = "completed";
+          thinkingStep.endedAt = Date.now();
+        }
+
+        if (lastUsage) {
+          const elapsedMs = finalElapsedMs;
+          const promptTokens = Number(lastUsage.prompt_tokens ?? 0);
+          const completionTokens = Number(lastUsage.completion_tokens ?? 0);
+          const cachedTokens = Number(
+            (lastUsage.prompt_tokens_details as Record<string, unknown>)?.cached_tokens ?? 0
+          );
+          const cacheHitRate = promptTokens > 0
+            ? Math.round((cachedTokens / promptTokens) * 1000) / 10
+            : undefined;
+          const tokPerSec = elapsedMs > 0
+            ? Math.round((completionTokens / (elapsedMs / 1000)) * 10) / 10
+            : 0;
+
+          get().updateMessage(msgId, {
+            tokenUsage: {
+              promptTokens,
+              cachedTokens: cachedTokens > 0 ? cachedTokens : undefined,
+              completionTokens,
+              totalTokens: promptTokens + completionTokens,
+              responseTimeMs: elapsedMs,
+              tokPerSec,
+              cacheHitRate,
+            },
+            agentSteps: agentSteps.length > 0 ? [...agentSteps] : undefined,
+          });
+        } else {
+          // 无 usage 数据时，至少更新最终响应时间
+          const elapsedMs = finalElapsedMs;
+          const estimatedTokens = Math.ceil(accumulatedContent.length / 4);
+          const tokPerSec = elapsedMs > 0
+            ? Math.round((estimatedTokens / (elapsedMs / 1000)) * 10) / 10
+            : 0;
+          get().updateMessage(msgId, {
+            tokenUsage: {
+              promptTokens: 0,
+              completionTokens: estimatedTokens,
+              responseTimeMs: elapsedMs,
+              tokPerSec,
+            },
+            agentSteps: agentSteps.length > 0 ? [...agentSteps] : undefined,
+          });
+        }
+
+        return { content: accumulatedContent, reasoning: accumulatedReasoning };
+      };
+
+      // 3. 初始 API 调用
+      const contextMessages = messages.filter(
+        (m) => m.id !== assistantMessageId,
+      );
+      const { content: accumulatedContent, reasoning: accumulatedReasoning } =
+        await callApiAndUpdate(assistantMessageId, contextMessages);
+
+      // 7. 检查空响应
+      if (!accumulatedContent.trim() && !accumulatedReasoning.trim()) {
+        get().updateMessage(assistantMessageId, {
+          loading: false,
+          error: "API 返回空响应",
+        });
+        return;
+      }
+
+      // 8. 记录生成耗时
+      const assistantMsg = get().messages.find(
+        (m) => m.id === assistantMessageId,
+      );
+      if (assistantMsg) {
+        get().updateMessage(assistantMessageId, {
+          generationTime: Date.now() - assistantMsg.createdAt,
+        });
+      }
+
+      // 9. 工具调用处理循环
+      let currentAssistantId = assistantMessageId;
+      const activeToolsData = await getItem<ActiveTool[]>(
+        "activeTools",
+        "activeTools",
+      );
+      const activeTools = activeToolsData ?? [];
+
+      if (activeTools.length > 0) {
+        const characterUuid = currentCharacter?.uuid ?? null;
+        const filteredTools = filterToolsForCharacter(
+          activeTools,
+          characterUuid,
+        );
+
+        // 最多迭代 5 次以防止无限循环
+        for (let iteration = 0; iteration < 5; iteration++) {
+          // 检查是否已被用户取消，避免取消后继续发起工具调用与 API 请求
+          if (abortController?.signal.aborted) break;
+
+          const currentAssistantMsg = get().messages.find(
+            (m) => m.id === currentAssistantId,
+          );
+          if (!currentAssistantMsg) break;
+
+          // 扫描 assistant 回复中的工具调用标签
+          const toolCall = findPendingActiveToolCallInText(
+            currentAssistantMsg.content,
+            filteredTools,
+          );
+          if (!toolCall) break;
+
+          try {
+            // 执行工具调用
+            // 添加 tool_call 步骤（v0.3.0 新增）
+            const toolCallStepId = uuidv4();
+            const toolCallStep: AgentStep = {
+              id: toolCallStepId,
+              type: "tool_call",
+              title: toolCall.tool.name,
+              content: toolCall.query,
+              status: "running",
+              startedAt: Date.now(),
+            };
+
+            const result = await executeActiveToolCall(toolCall, {
+              messages: get().messages,
+              character: currentCharacter,
+              vectorMemoryShards,
+              worldInfoEntries,
+              tavilyApiKey: "",
+              mcpSessionIds: new Map(),
+            });
+
+            // 标记 tool_call 步骤为已完成，添加 tool_result 步骤
+            toolCallStep.status = "completed";
+            toolCallStep.endedAt = Date.now();
+            const toolResultStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_result",
+              title: toolCall.tool.name,
+              content: result,
+              status: "completed",
+              startedAt: Date.now(),
+              endedAt: Date.now(),
+            };
+
+            // 更新消息的工具调用信息与 agentSteps
+            const currentMsgForSteps = get().messages.find(
+              (m) => m.id === currentAssistantId,
+            );
+            get().updateMessage(currentAssistantId, {
+              toolCalls: [
+                ...(currentAssistantMsg.toolCalls ?? []),
+                {
+                  id: uuidv4(),
+                  toolName: toolCall.tool.name,
+                  callLabel: toolCall.callLabel,
+                  query: toolCall.query,
+                  reason: toolCall.reason,
+                  status: "completed" as const,
+                  result,
+                  mcpSubToolName: toolCall.mcpSubToolName,
+                },
+              ],
+              agentSteps: [
+                ...(currentMsgForSteps?.agentSteps ?? []),
+                toolCallStep,
+                toolResultStep,
+              ],
+            });
+
+            // 添加工具结果作为用户消息（供下一轮生成使用）
+            const toolResultMessage: ChatMessage = {
+              id: uuidv4(),
+              role: "user",
+              content: `<active_tool_result_input>\n${result}\n</active_tool_result_input>`,
+              createdAt: Date.now(),
+            };
+            get().addMessage(toolResultMessage);
+
+            // 创建新的 assistant 消息用于续写
+            const continuationMessage: ChatMessage = {
+              id: uuidv4(),
+              role: "assistant",
+              content: "",
+              createdAt: Date.now(),
+              loading: true,
+            };
+            get().addMessage(continuationMessage);
+
+            // 调用 API 进行续写
+            const newContextMessages = get().messages.filter(
+              (m) => m.id !== continuationMessage.id,
+            );
+            const { content: newContent, reasoning: newReasoning } =
+              await callApiAndUpdate(
+                continuationMessage.id,
+                newContextMessages,
+              );
+
+            // 检查空响应
+            if (!newContent.trim() && !newReasoning.trim()) {
+              get().updateMessage(continuationMessage.id, {
+                loading: false,
+                error: "API 返回空响应",
+              });
+              break;
+            }
+
+            // 更新追踪变量，供下一轮迭代使用
+            currentAssistantId = continuationMessage.id;
+          } catch (toolError) {
+            console.error("[ChatSlice] 工具调用失败:", toolError);
+            // 重新获取最新消息，避免使用迭代开始时捕获的旧 toolCalls
+            // （本轮可能已追加 completed 记录，直接覆盖会丢失该记录）
+            const latestAssistantMsg = get().messages.find(
+              (m) => m.id === currentAssistantId,
+            );
+            // 记录工具调用错误 + 错误步骤
+            const errorStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_call",
+              title: toolCall.tool.name,
+              content: toolError instanceof Error ? toolError.message : String(toolError),
+              status: "error",
+              startedAt: Date.now(),
+              endedAt: Date.now(),
+            };
+            get().updateMessage(currentAssistantId, {
+              toolCalls: [
+                ...(latestAssistantMsg?.toolCalls ?? []),
+                {
+                  id: uuidv4(),
+                  toolName: toolCall.tool.name,
+                  callLabel: toolCall.callLabel,
+                  query: toolCall.query,
+                  reason: toolCall.reason,
+                  status: "error" as const,
+                  error:
+                    toolError instanceof Error
+                      ? toolError.message
+                      : String(toolError),
+                  mcpSubToolName: toolCall.mcpSubToolName,
+                },
+              ],
+              agentSteps: [
+                ...(latestAssistantMsg?.agentSteps ?? []),
+                errorStep,
+              ],
+            });
+            break;
+          }
+        }
+      }
+
+      // 10. 异步提取记忆（不阻塞主流程）
+      extractMemory({
+        messages: get().messages,
+        character: currentCharacter,
+        settings,
+        memorySettings,
+        apiProviders: allProviders,
+        apiProviderKeys: get().apiProviderKeys,
+        sessionId: currentSessionId ?? undefined,
+      }).catch((e) => console.error("[ChatSlice] 记忆提取失败:", e));
+
+      // 11. v0.3.0 ACE: 异步反思（不阻塞主流程）
+      // 仅当本次注入了策略时触发
+      if (lastAppliedSkillIds.length > 0) {
+        void (async () => {
+          try {
+            const { loadSkillbook, getActiveSkills } = await import(
+              "~/services/aceSkillbookService"
+            );
+            const { reflect, buildExecutionTrace } = await import(
+              "~/services/aceReflectorService"
+            );
+            const { applyReflectionAndSave } = await import(
+              "~/services/aceSkillManagerService"
+            );
+
+            const book = await loadSkillbook();
+            const appliedSkills = getActiveSkills(book).filter((s) =>
+              lastAppliedSkillIds.includes(s.id),
+            );
+            if (appliedSkills.length === 0) return;
+
+            // 构建执行轨迹（仅摘要，防污染）
+            const lastUserMsg = [...get().messages]
+              .reverse()
+              .find((m) => m.role === "user");
+            const lastAssistantMsg = get().messages.find(
+              (m) => m.id === assistantMessageId,
+            );
+            const trace = buildExecutionTrace(
+              lastUserMsg?.content ?? "",
+              (lastAssistantMsg?.agentSteps ?? []).map(
+                (s) => `${s.type}:${s.title}`,
+              ),
+              lastAssistantMsg?.content ?? "",
+              lastAppliedSkillIds,
+            );
+
+            // 调用 LLM 反思（独立通道，不注入 NSFW 预设）
+            const reflection = await reflect({
+              trace,
+              appliedSkills,
+              settings,
+              providers: allProviders,
+              providerKeys: get().apiProviderKeys,
+            });
+
+            // 应用反思结果到 Skillbook
+            if (
+              reflection.evaluations.length > 0 ||
+              reflection.newSkills.length > 0
+            ) {
+              await applyReflectionAndSave(book, reflection);
+              console.log(
+                "[ChatSlice] ACE 反思完成:",
+                `评估 ${reflection.evaluations.length} 条, 新增 ${reflection.newSkills.length} 条`,
+              );
+            }
+          } catch (e) {
+            console.error("[ChatSlice] ACE 反思失败:", e);
+          }
+        })();
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        // 用户取消生成
+        const currentMsg = get().messages.find(
+          (m) => m.id === assistantMessageId,
+        );
+        const existingContent = currentMsg?.content ?? "";
+        const existingCot = currentMsg?.cot ?? "";
+
+        if (existingContent.trim() || existingCot.trim()) {
+          // 有部分内容，保留并添加中止标记
+          get().updateMessage(assistantMessageId, {
+            loading: false,
+            content: existingContent.trim()
+              ? existingContent + "\n\n*-- 生成已中止 --*"
+              : "*-- 生成已中止 --*",
+          });
+        } else {
+          // 无内容，显示中止提示
+          get().updateMessage(assistantMessageId, {
+            loading: false,
+            content: "*-- 生成已中止 --*",
+          });
+        }
+      } else if (error instanceof ApiError) {
+        // API 业务错误
+        get().updateMessage(assistantMessageId, {
+          loading: false,
+          error: error.message,
+        });
+      } else {
+        // 其他错误
+        get().updateMessage(assistantMessageId, {
+          loading: false,
+          error: error instanceof Error ? error.message : "未知错误",
+        });
+      }
+    } finally {
+      const currentController = get().abortController;
+      set({
+        isGenerating: false,
+        isThinking: false,
+        isReceiving: false,
+        abortController:
+          currentController === abortController ? null : currentController,
+      });
+      // 无论成功或失败，都保存聊天记录
+      await get().saveChatHistory();
+    }
+  };
+
+  return {
+    // ===== 状态初始值 =====
+    messages: [],
+    currentCharacter: null,
+    isGenerating: false,
+    isThinking: false,
+    isReceiving: false,
+    inputDraft: "",
+    abortController: null,
+
+    // ===== 基础 setters =====
+    setMessages: (messages) => set({ messages }),
+
+    addMessage: (message) =>
+      set((state) => ({ messages: [...state.messages, message] })),
+
+    updateMessage: (id, partial) =>
+      set((state) => ({
+        messages: state.messages.map((m) =>
+          m.id === id ? { ...m, ...partial } : m,
+        ),
+      })),
+
+    setCurrentCharacter: (currentCharacter) => set({ currentCharacter }),
+
+    setInputDraft: (inputDraft) => set({ inputDraft }),
+
+    // ===== Actions =====
+
+    sendMessage: async (content: string) => {
+      if (!get().currentCharacter) return;
+      const trimmed = content.trim();
+      if (!trimmed || get().isGenerating) return;
+
+      // 1. 添加用户消息
+      const userMessage: ChatMessage = {
+        id: uuidv4(),
+        role: "user",
+        content: trimmed,
+        createdAt: Date.now(),
+      };
+
+      // 2. 添加空的 assistant 消息（loading: true）
+      const assistantMessage: ChatMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: "",
+        createdAt: Date.now(),
+        loading: true,
+      };
+
+      set((state) => ({
+        messages: [...state.messages, userMessage, assistantMessage],
+        isGenerating: true,
+        inputDraft: "",
+        abortController: new AbortController(),
+      }));
+
+      // 3-8. 生成回复
+      await generateResponse(assistantMessage.id);
+    },
+
+    stopGenerating: () => {
+      const { abortController } = get();
+      if (abortController) {
+        abortController.abort();
+      }
+      set({
+        isGenerating: false,
+        isThinking: false,
+        isReceiving: false,
+        abortController: null,
+      });
+    },
+
+    regenerate: async () => {
+      if (!get().currentCharacter) return;
+      if (get().isGenerating) return;
+      const { messages } = get();
+      if (messages.length === 0) return;
+
+      // 找到最后一条 assistant 消息
+      let lastAssistantIndex = -1;
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i].role === "assistant") {
+          lastAssistantIndex = i;
+          break;
+        }
+      }
+      if (lastAssistantIndex === -1) return;
+
+      // 移除最后的 assistant 消息
+      const newMessages = messages.slice(0, lastAssistantIndex);
+
+      // 添加新的空 assistant 消息
+      const assistantMessage: ChatMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: "",
+        createdAt: Date.now(),
+        loading: true,
+      };
+
+      set({
+        messages: [...newMessages, assistantMessage],
+        isGenerating: true,
+        abortController: new AbortController(),
+      });
+
+      await generateResponse(assistantMessage.id);
+    },
+
+    editMessage: (id, content) => {
+      get().updateMessage(id, { content, updatedAt: Date.now() });
+      void get().saveChatHistory();
+    },
+
+    deleteMessage: (id) => {
+      set((state) => ({
+        messages: state.messages.filter((m) => m.id !== id),
+      }));
+      void get().saveChatHistory();
+    },
+
+    clearMessages: () => {
+      set({ messages: [] });
+      void get().saveChatHistory();
+    },
+
+    loadChatHistory: async (characterUuid: string) => {
+      try {
+        const history = await getItem<ChatMessage[]>(
+          "chatHistory",
+          characterUuid,
+        );
+        set({ messages: history ?? [] });
+      } catch (e) {
+        console.error("[ChatSlice] 加载聊天记录失败:", e);
+        set({ messages: [] });
+      }
+    },
+
+    saveChatHistory: async () => {
+      const { currentCharacter, messages } = get();
+      if (!currentCharacter) return;
+      try {
+        await setItem("chatHistory", currentCharacter.uuid, messages);
+      } catch (e) {
+        console.error("[ChatSlice] 保存聊天记录失败:", e);
+      }
+    },
+
+    // ===== v0.2.0 新增 Actions =====
+
+    /**
+     * 翻译消息（调用当前模型，独立提示词通道）
+     *
+     * 使用 translationSettings 中的提示词模板，将消息内容翻译为目标语言。
+     * 采用非流式请求，完成后更新消息的 translatedContent 和 translationLanguage。
+     */
+    translateMessage: async (messageId) => {
+      const message = get().messages.find((m) => m.id === messageId);
+      if (!message) return;
+
+      const { translationSettings } = get();
+      if (!translationSettings?.enabled) return;
+
+      const settings = extractApiSettings(get());
+      if (!settings.apiUrl || !settings.apiKey) {
+        get().updateMessage(messageId, {
+          error: "API 地址或密钥未配置，无法翻译",
+        });
+        return;
+      }
+
+      // 目标语言：优先使用自定义语言
+      const language =
+        translationSettings.customLanguage?.trim() ||
+        translationSettings.targetLanguage ||
+        "简体中文";
+
+      // 构建翻译提示词（替换占位符）
+      const prompt = translationSettings.promptTemplate
+        .replace("{message}", message.content)
+        .replace("{language}", language);
+
+      try {
+        const allProviders = [
+          ...BUILTIN_PROVIDERS,
+          ...get().customApiProviders,
+        ];
+        const chatApiUrl = getApiUrlForModel(
+          get().modelName,
+          allProviders,
+          get().apiUrl,
+        );
+        const chatApiKey = getApiKeyForModel(
+          get().modelName,
+          get().apiProviderKeys,
+          get().apiKey,
+          allProviders,
+        );
+        const actualModel = getActualModelName(get().modelName);
+        const url = getChatCompletionsUrl(chatApiUrl);
+
+        const requestBody = buildApiRequestBody(
+          {
+            model: actualModel,
+            messages: [{ role: "user", content: prompt }],
+            stream: false,
+          },
+          {
+            enableThinking: false,
+            customRequestBody: get().customRequestBody,
+          },
+        );
+
+        const response = await sendRequest({
+          url,
+          apiKey: chatApiKey,
+          body: requestBody,
+        });
+        const data = (await response.json()) as Record<string, unknown>;
+        const chunk = parseSSEChunk(data);
+
+        if (chunk.content) {
+          get().updateMessage(messageId, {
+            translatedContent: chunk.content,
+            translationLanguage: language,
+          });
+        }
+      } catch (e) {
+        console.error("[ChatSlice] 翻译消息失败:", e);
+        get().updateMessage(messageId, {
+          error: `翻译失败: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    },
+
+    /**
+     * 重试消息（生成新版本存入 retryBranches）
+     *
+     * - 若为用户消息：基于该消息重新生成回复，新 assistant 回复存入分支
+     * - 若为 assistant 消息：重试上一轮用户请求，新回复存入分支
+     * 新版本通过 session-slice.addRetryBranch 持久化到 Session.retryBranches
+     */
+    retryMessage: async (messageId) => {
+      const { messages, currentSessionId } = get();
+      if (get().isGenerating) return;
+      const message = messages.find((m) => m.id === messageId);
+      if (!message) return;
+
+      // 确定重试的上下文：找到待重试的 assistant 消息位置
+      let assistantIndex = -1;
+      if (message.role === "assistant") {
+        assistantIndex = messages.findIndex((m) => m.id === messageId);
+      } else {
+        // user 消息：找其后的第一条 assistant 消息
+        const userIndex = messages.findIndex((m) => m.id === messageId);
+        for (let i = userIndex + 1; i < messages.length; i++) {
+          if (messages[i].role === "assistant") {
+            assistantIndex = i;
+            break;
+          }
+        }
+      }
+      if (assistantIndex === -1) return;
+
+      const oldAssistant = messages[assistantIndex];
+      const contextMessages = messages.slice(0, assistantIndex);
+
+      // 创建新的 assistant 消息
+      const newAssistantMessage: ChatMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: "",
+        createdAt: Date.now(),
+        loading: true,
+        branchId: oldAssistant.id,
+      };
+
+      // 临时替换当前消息列表用于生成
+      set({
+        messages: [...contextMessages, newAssistantMessage],
+        isGenerating: true,
+        abortController: new AbortController(),
+      });
+
+      await generateResponse(newAssistantMessage.id);
+
+      // 生成完成后，将新版本存入 session.retryBranches
+      if (currentSessionId) {
+        const finalMessage = get().messages.find(
+          (m) => m.id === newAssistantMessage.id,
+        );
+        if (finalMessage) {
+          get().addRetryBranch(
+            currentSessionId,
+            oldAssistant.id,
+            finalMessage,
+          );
+          // 恢复原始消息列表（保留旧版本显示），新版本通过 switchRetryVersion 切换查看
+          set({ messages: [...contextMessages, oldAssistant] });
+        }
+      }
+    },
+
+    /**
+     * 切换重试版本
+     *
+     * 根据方向切换当前激活的重试版本索引，并更新消息列表显示对应版本。
+     */
+    switchRetryVersion: (messageId, direction) => {
+      const { currentSessionId, sessions } = get();
+      if (!currentSessionId) return;
+
+      const session = sessions.find((s) => s.id === currentSessionId);
+      if (!session) return;
+
+      const branches = session.retryBranches?.[messageId] ?? [];
+      if (branches.length === 0) return;
+
+      const currentIndex = session.retryActiveIndex?.[messageId] ?? -1;
+      let newIndex: number;
+
+      if (currentIndex === -1) {
+        // 当前显示的是原始版本，切换到第一个分支
+        newIndex = direction === "next" ? 0 : branches.length - 1;
+      } else {
+        if (direction === "next") {
+          newIndex = currentIndex + 1 >= branches.length ? -1 : currentIndex + 1;
+        } else {
+          newIndex = currentIndex - 1 < -1 ? branches.length - 1 : currentIndex - 1;
+        }
+      }
+
+      // 更新 session 的激活索引
+      get().switchRetryBranch(currentSessionId, messageId, newIndex);
+
+      // 更新消息列表显示对应版本
+      const { messages } = get();
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+      if (messageIndex === -1) return;
+
+      const displayMessage =
+        newIndex === -1
+          ? messages[messageIndex] // 原始版本
+          : branches[newIndex];
+
+      get().updateMessage(messageId, {
+        content: displayMessage.content,
+        cot: displayMessage.cot,
+        toolCalls: displayMessage.toolCalls,
+        updatedAt: Date.now(),
+      });
+    },
+
+    /**
+     * 创建对话分支
+     *
+     * 从指定消息截断创建新会话，复制截至该消息的所有消息到新会话。
+     */
+    createBranch: (messageId) => {
+      const { messages, currentCharacter } = get();
+      if (!currentCharacter) return;
+
+      const messageIndex = messages.findIndex((m) => m.id === messageId);
+      if (messageIndex === -1) return;
+
+      // 截取截至该消息的所有消息
+      const branchMessages = messages.slice(0, messageIndex + 1);
+
+      // 创建新会话
+      const newSessionId = get().createSession(
+        currentCharacter.uuid,
+        currentCharacter.name,
+      );
+
+      // 将截断的消息复制到新会话
+      get().setSessionMessages(newSessionId, branchMessages);
+
+      // 切换到新会话
+      get().switchSession(newSessionId);
+
+      // 更新当前消息列表为新会话的消息
+      set({ messages: branchMessages });
+
+      void get().saveSessions();
+    },
+
+    /**
+     * 分享消息
+     *
+     * 优先使用 Web Share API，不可用时回退到剪贴板复制。
+     */
+    shareMessage: async (messageId) => {
+      const message = get().messages.find((m) => m.id === messageId);
+      if (!message) return;
+
+      const text = message.content;
+      const shareData = {
+        title: "LUZZY 消息",
+        text,
+      };
+
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.share === "function"
+      ) {
+        try {
+          await navigator.share(shareData);
+        } catch (e) {
+          // 用户取消分享不视为错误
+          if (e instanceof DOMException && e.name === "AbortError") return;
+          console.error("[ChatSlice] 分享失败:", e);
+        }
+      } else if (
+        typeof navigator !== "undefined" &&
+        navigator.clipboard
+      ) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (e) {
+          console.error("[ChatSlice] 复制到剪贴板失败:", e);
+        }
+      }
+    },
+  };
+};

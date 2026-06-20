@@ -1,10 +1,10 @@
 {
   "name": "luzzy",
-  "version": "2.0.0",
-  "description": "[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)\r [![Vue](https://img.shields.io/badge/Vue-3-4FC08D.svg?logo=vue.js)](https://vuejs.org/)\r [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)\r [![DaisyUI](https://img.shields.io/badge/DaisyUI-5A0EF8?logo=daisyui&logoColor=white)](https://daisyui.com/)",
+  "version": "0.3.0",
+  "description": "LUZZY - AI 角色扮演与 TRPG 对话应用",
   "main": "index.js",
   "scripts": {
-    "build:web": "node scripts/copy-web-to-www.js",
+    "build:web": "cd frontend && pnpm run build",
     "sync": "npm run build:web && npx cap sync",
     "build:android": "npm run sync && npx cap build android"
   },

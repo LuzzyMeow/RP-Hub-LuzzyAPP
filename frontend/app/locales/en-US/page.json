@@ -1,0 +1,13 @@
+{
+  "chat": { "title": "Chat" },
+  "characters": { "title": "Characters" },
+  "trpg": { "title": "TRPG" },
+  "tools": { "title": "Tools" },
+  "mine": { "title": "Mine" },
+  "memory": { "title": "Memory" },
+  "preset": { "title": "Preset" },
+  "world_info": { "title": "World Info" },
+  "regex": { "title": "Regex" },
+  "ui_template": { "title": "UI Template" },
+  "settings": { "title": "Settings" }
+}

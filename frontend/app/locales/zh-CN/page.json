@@ -1,0 +1,13 @@
+{
+  "chat": { "title": "聊天" },
+  "characters": { "title": "角色卡" },
+  "trpg": { "title": "TRPG" },
+  "tools": { "title": "工具" },
+  "mine": { "title": "设置" },
+  "memory": { "title": "记忆" },
+  "preset": { "title": "预设" },
+  "world_info": { "title": "世界书" },
+  "regex": { "title": "正则脚本" },
+  "ui_template": { "title": "UI模板" },
+  "settings": { "title": "设置" }
+}

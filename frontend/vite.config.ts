@@ -1,35 +1,12 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
-import path from 'node:path';
+import { reactRouter } from "@react-router/dev/vite";
+import tailwindcss from "@tailwindcss/vite";
+import { defineConfig } from "vite";
+import tsconfigPaths from "vite-tsconfig-paths";
+import svgr from "vite-plugin-svgr";
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  base: './',
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
-  build: {
-    outDir: 'dist',
-    emptyOutDir: true,
-    target: 'es2020',
-    cssCodeSplit: true,
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          react: ['react', 'react-dom', 'react-router-dom'],
-          antd: ['antd', 'antd-style'],
-          lobehub: ['@lobehub/ui', '@lobehub/icons', '@lobehub/fluent-emoji'],
-        },
-      },
-    },
-  },
-  server: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: false,
-    cors: true,
-  },
+  plugins: [tailwindcss(), reactRouter(), tsconfigPaths(), svgr()],
+  // Capacitor Android WebView 实际运行在 https://localhost/，使用绝对 base
+  // 避免 React Router 7 SPA 模式下动态路由模块被解析为 /assets/assets/ 的重复路径
+  base: "/",
 });

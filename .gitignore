@@ -12,3 +12,5 @@ doc/
 commit_msg.txt
 frontend/dist/
 *.tsbuildinfo
+.luzzy-backup/
+frontend/node_modules_old_*/
