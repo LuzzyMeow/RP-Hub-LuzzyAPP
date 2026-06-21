@@ -556,6 +556,23 @@ export const createChatSlice: StateCreator<
           thinkingStep.endedAt = Date.now();
         }
 
+        // v0.4.0-patch4: 流式结束后强制以"最终态"重新解析并写回 content/cot
+        // 修复 BUG：流式中 updateMessage 30ms 节流可能错过最后一个 chunk，
+        // 导致 message.content 停留在中间态（例如未闭合 <think> 被吞），气泡空白
+        // 此处用 useCache=true 走完成态缓存，确保最终内容正确写回 message
+        if (get().stream) {
+          const finalCotResult = parseCot(accumulatedContent, true);
+          const finalCotCombined = (
+            accumulatedReasoning +
+            (finalCotResult.cot ? "\n" + finalCotResult.cot : "")
+          ).trim();
+          get().updateMessage(msgId, {
+            content: finalCotResult.main,
+            cot: finalCotCombined,
+            loading: false,
+          });
+        }
+
         if (lastUsage) {
           const elapsedMs = finalElapsedMs;
           const promptTokens = Number(lastUsage.prompt_tokens ?? 0);

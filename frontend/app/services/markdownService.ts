@@ -114,14 +114,12 @@ export const parseCot = (content: string, useCache = true): CotParseResult => {
     return parseCotCache.get(content)!;
   }
 
-  // v0.4.0-patch3: 仅匹配已闭合的标签 + 仅在内容首部出现的未闭合标签
-  // 原版正则中 `|<\s*\1\s*>` 与 `|$` 会在两种场景下错误吞掉正文：
-  //   1) 流式中 `<think>...` 未闭合时，`|$` 让 `[\s\S]*?` 吃完整字符串，正文为空（气泡空白）
-  //   2) 思考内容本身含 `<think>` 等开标签字符串时，被误判为"伪闭合"，思考被截断
+  // v0.4.0-patch4: 仅匹配已闭合的标签，未闭合的标签仅当其后到字符串末尾没有任何 `<` 起始
+  // 的"潜在新标签"且无对应闭合时，才视为流式中的未闭合 CoT（避免把正文中的 `<tag>` 字符吞掉）
   // 修复策略：
-  //   - 先匹配所有"已闭合"标签 `<tag>...</tag>` 并从 main 中移除（贪婪安全）
-  //   - 再单独处理"未闭合的首个标签"（流式态）：把开标签后所有内容当 cot，main 保持开标签前的部分
-  //   - 闭合标签缺斜杠（`<cot>...<cot>`）的情况：仅当首尾完全相同且无 `</tag>` 时降级处理
+  //   Pass 1: 提取所有已闭合的 `<tag>...</tag>` 标签（贪婪安全）
+  //   Pass 2: 找 mainContent 最后一个 `<tag>` 出现位置，仅当其后无对应 `</tag>` 时视为未闭合 CoT
+  //   注意：不再用全局贪婪正则匹配任何位置的 `<tag>`，避免正文中"<think>"字符被误识别
   const tagNames = ['think', 'thinking', 'cot', 'reasoning', 'thought', 'thoughts', 'reflection', 'analysis'];
   const tagAlternation = tagNames.join('|');
 
@@ -144,22 +142,35 @@ export const parseCot = (content: string, useCache = true): CotParseResult => {
     return '';
   });
 
-  // Pass 2: 处理首个"未闭合的开标签"（流式过程中的常态）
-  // 例如 `正文前缀<think>思考中...`，将思考内容存入 cot，main 仅保留 `正文前缀`
-  // 注意：这里 cot 内容不视为 isFinished，且仅处理第一个未闭合标签后所有内容
-  const openOnlyPattern = new RegExp(`<(${tagAlternation})>([\\s\\S]*)$`, 'i');
-  const openMatch = openOnlyPattern.exec(mainContent);
-  if (openMatch) {
-    const inner = openMatch[2] ?? '';
-    const parts = inner.split(/(```[\s\S]*?```|`[^`]+`)/);
-    const escapedContent = parts
-      .map((part, i) => {
-        if (i % 2 === 1) return part;
-        return part.replace(/</g, '&lt;');
-      })
-      .join('');
-    cotContent += (cotContent ? '\n' : '') + escapedContent;
-    mainContent = mainContent.slice(0, openMatch.index);
+  // Pass 2: 处理"未闭合的最后一个开标签"（流式过程中的常态）
+  // 寻找 mainContent 中最后一个 `<tag>` 出现位置，且其后没有对应的 `</tag>`
+  // 例：`正文前缀<think>思考中...` → cot=`思考中...`，main=`正文前缀`
+  // 反例：`正文中提到<think>字样后还有大量正文` 在闭合 `</think>` 缺失下不应吞掉正文
+  //       —— 通过限制 Pass 2 仅在"开标签后无任何同名闭合"时触发，避免误吞
+  const openTagPattern = new RegExp(`<(${tagAlternation})>`, 'gi');
+  let lastOpenMatch: RegExpExecArray | null = null;
+  let openMatchIter: RegExpExecArray | null;
+  while ((openMatchIter = openTagPattern.exec(mainContent)) !== null) {
+    lastOpenMatch = openMatchIter;
+  }
+  if (lastOpenMatch) {
+    const matchTag = lastOpenMatch[1].toLowerCase();
+    const afterOpen = mainContent.slice(lastOpenMatch.index + lastOpenMatch[0].length);
+    // 检查开标签之后是否有对应的闭合标签
+    const closingCheck = new RegExp(`<\\/\\s*${matchTag}\\s*>`, 'i');
+    const hasCorrespondingClose = closingCheck.test(afterOpen);
+    if (!hasCorrespondingClose) {
+      // 未闭合：把开标签后所有内容当 cot，main 保留开标签前的内容
+      const parts = afterOpen.split(/(```[\s\S]*?```|`[^`]+`)/);
+      const escapedContent = parts
+        .map((part, i) => {
+          if (i % 2 === 1) return part;
+          return part.replace(/</g, '&lt;');
+        })
+        .join('');
+      cotContent += (cotContent ? '\n' : '') + escapedContent;
+      mainContent = mainContent.slice(0, lastOpenMatch.index);
+    }
   }
 
   // 提取末尾的系统指令

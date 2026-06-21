@@ -234,43 +234,11 @@ function useTypewriter(fullText: string, isGenerating: boolean, speed = 20): str
       return;
     }
 
-    if (fullText.length <= displayedRef.current.length) {
-      // v0.4.0-patch3: 新文本比已显示的短或相等时
-      //   - 完全相等或前缀关系：仍可继续显示已有内容（避免无意义重置）
-      //   - 完全不同（如分段切换导致 step.content 变化）：以新文本为准，避免显示陈旧内容
-      if (fullText !== displayedRef.current.slice(0, fullText.length)) {
-        // 内容确实变化（不只是变短），重置为新文本
-        displayedRef.current = fullText;
-        setDisplayedText(fullText);
-      }
-      // 否则保留已显示的内容（防止"截断 BUG"：流式中 parseThinkingSteps 重新切分
-      // 时同一节点的 content 短暂变短，原版会把已显示文字直接截断）
-      return;
-    }
-
-    // v0.3.6: 用 rAF 平滑追赶，不重建定时器
-    // speed 越小越快（控制每帧追加的字符数）
-    // v0.3.7: 差距过大时自适应加倍追赶，避免快速 API 滞后
-    let rafId: number;
-    const charsPerFrame = Math.max(1, Math.round(60 / speed));
-
-    const tick = () => {
-      const current = displayedRef.current;
-      if (current.length >= fullText.length) return;
-      const remaining = fullText.length - current.length;
-      // 差距过大时加倍追赶，避免严重滞后
-      const adaptiveChunkSize = remaining > 100 ? charsPerFrame * 4 : charsPerFrame;
-      const chunkSize = Math.min(adaptiveChunkSize, remaining);
-      const next = fullText.slice(0, current.length + chunkSize);
-      displayedRef.current = next;
-      setDisplayedText(next);
-      if (next.length < fullText.length) {
-        rafId = requestAnimationFrame(tick);
-      }
-    };
-    rafId = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(rafId);
+    // v0.4.0-patch4: 简化逻辑 - 流式中直接显示最新 fullText
+    // 移除打字机追赶机制（原版 rAF 每帧仅追加 3-12 字符，导致中文/长内容显示严重滞后，
+    // 用户感受为"无流式输出"）。流式更新的节奏由 chat-slice 的 updateMessage 节流控制
+    displayedRef.current = fullText;
+    setDisplayedText(fullText);
   }, [fullText, isGenerating, speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return displayedText;
