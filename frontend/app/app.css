@@ -735,11 +735,20 @@
   }
 }
 
+/* v0.3.8: 修复 ScrollArea viewport 因 display:table 被长内容撑大导致横向溢出的问题 */
+[data-radix-scroll-area-viewport] {
+  width: 100%;
+  max-width: 100%;
+}
+
 /* v0.3.1: 弹窗输入法适配 — 移动端弹窗高度自适应，避免输入法弹出时显示 bug */
+/* v0.3.8: 将 width 改为 max-width，避免窄内容弹窗被强制撑满，同时保留不超出屏幕的限制 */
 @media (max-width: 768px) {
   [data-slot="dialog-content"] {
     max-height: 100dvh !important;
     height: auto;
-    width: calc(100% - 2rem) !important;
+    max-width: calc(100% - 2rem) !important;
+    width: auto !important;
+    min-width: 0 !important;
   }
 }

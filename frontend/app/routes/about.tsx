@@ -22,7 +22,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.3.7";
+const APP_VERSION = "v0.3.8";
 
 export default function AboutPage() {
   const [systemInfo, setSystemInfo] = React.useState<Record<string, string>>({});
@@ -90,7 +90,7 @@ export default function AboutPage() {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col items-center gap-3 py-8"
+            className="flex min-w-0 flex-col items-center gap-3 py-8"
           >
             <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl shadow-lg">
               <img src="/icons/icon-192.png" alt="LUZZY" className="size-full object-cover" />
@@ -141,6 +141,7 @@ export default function AboutPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
+            className="min-w-0"
           >
             <Card className="min-w-0 overflow-hidden p-4">
               <div className="mb-3 flex items-center gap-2">
@@ -202,7 +203,7 @@ export default function AboutPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.25 }}
-            className="pb-[calc(2rem+env(safe-area-inset-bottom))] text-center"
+            className="min-w-0 pb-[calc(2rem+env(safe-area-inset-bottom))] text-center"
           >
             <p className="text-xs text-muted-foreground">
               © 2026 LUZZY. All rights reserved.

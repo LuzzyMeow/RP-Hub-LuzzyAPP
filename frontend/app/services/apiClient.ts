@@ -619,14 +619,23 @@ const sendStreamRequestViaXHR = (
 
   return new Promise<StreamRequestResult>((resolve, reject) => {
     // 构建本地代理 URL：将真实 API URL 作为 _target 参数传递
+    // v0.3.8 修复：把 /v1、/v3 等版本前缀保留在 _target 中，避免代理把 /v1 误删导致 404。
+    // 例如 https://api.deepseek.com/v1/chat/completions
+    //   → http://localhost:18527/chat/completions?_target=https://api.deepseek.com/v1
     let proxyUrl: string;
     try {
       const targetUrl = new URL(url);
-      const endpointPath = targetUrl.pathname;
-      proxyUrl = `${NATIVE_PROXY_BASE}${endpointPath}?_target=${encodeURIComponent(targetUrl.origin)}`;
+      const pathname = targetUrl.pathname;
+      const versionMatch = pathname.match(/^(\/v\d+)(\/.*)$/);
+      const endpointPath = versionMatch ? versionMatch[2] : pathname;
+      const targetBase = versionMatch
+        ? `${targetUrl.origin}${versionMatch[1]}`
+        : targetUrl.origin;
+      proxyUrl = `${NATIVE_PROXY_BASE}${endpointPath}?_target=${encodeURIComponent(targetBase)}`;
       if (targetUrl.search) {
         proxyUrl += '&' + targetUrl.search.replace(/^\?/, '');
       }
+      console.log('[XHR Stream] 代理 URL:', proxyUrl, '原始 URL:', url);
     } catch (e) {
       console.warn('[XHR Stream] URL 解析失败，回退直连:', e);
       proxyUrl = url;

@@ -141,7 +141,7 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.7-debug.apk`
+**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.8-debug.apk`
 
 ## 项目结构
 
@@ -177,11 +177,15 @@ RP-Hub/
 
 ## 近期更新
 
+### v0.3.8
+
+5 项 Bug 修复 + 1 项功能增强。核心修复：原生平台 API 请求失败（apiClient.ts 代理 URL 保留 `/v1` `/v3` 版本前缀，避免 NanoHTTPD 误删导致 404）、弹窗类组件超出屏幕（dialog.tsx Title/Description 添加 `min-w-0 break-words` + app.css 移动端弹窗 `width:auto`）、设置页/API 配置溢出、角色编辑弹窗溢出、关于页横向溢出。
+
+详见 [CHANGELOG.md](./CHANGELOG.md)。
+
 ### v0.3.7
 
 8 项 Bug 修复 + 4 项新增功能 + 5 项功能增强。核心修复：CoT Step 卡片不生效（parseThinkingSteps 双格式正则 + 节流阈值降低 + 闭合标签 8 变体）、流式输出未成功应用（isAnimating 传递 + 打字机自适应追赶 + CoT 期间气泡提示）、memory-recall 工具无效（chat-slice 预执行块）、角色卡导入乱码（decodeBase64Utf8）、新会话不跳转（使用 createSession 返回 ID）、Switch 动画拉伸、用户档案全屏崩溃、鹿溪 CoT 框架冗余；新增聊天引号高亮 + 高亮显示设置 + 会话删除按钮 + 删除确认弹窗 UI 优化；启动屏配色统一主题变量 + Anysearch 工具清理 + 嵌入供应商移除。
-
-详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ### v0.3.6
 

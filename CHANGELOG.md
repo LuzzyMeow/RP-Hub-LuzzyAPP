@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.3.8
+
+### 🐛 Bug 修复
+
+- **原生平台 API 请求失败（核心修复）**：`apiClient.ts` `sendStreamRequestViaXHR` 重构本地代理 URL 构建逻辑，将 `/v1`、`/v3` 等版本前缀保留在 `_target` 参数中，避免 NanoHTTPD 代理误删版本前缀导致 404 / 网络请求失败（API Error: 0）
+- **弹窗类组件超出屏幕**：`dialog.tsx` `DialogTitle` / `DialogDescription` 增加 `min-w-0 break-words`；`app.css` 移动端弹窗媒体查询补充 `width: auto` 与 `min-width: 0`，彻底防止内容撑破视口
+- **设置页/API 配置溢出**：`settings.tsx` 全页容器统一应用 `min-w-0` 与 `max-w-full`，模型配置列表、自定义供应商列表等弹性布局不再撑出屏幕
+- **角色编辑弹窗溢出**：`characters.tsx` 编辑弹窗 `DialogContent` 与内部网格/文本区全面添加 `min-w-0`，创作者与版本网格改为 `grid-cols-1 sm:grid-cols-2`
+- **关于页横向溢出**：`about.tsx` 所有 `motion.div` 容器添加 `min-w-0`，系统信息值启用 `break-all`；`app.css` 新增 `[data-radix-scroll-area-viewport] { width: 100%; max-width: 100%; }` 修复 ScrollArea 被长文本撑大问题
+
+### 🚀 功能增强
+
+- **版本号升级**：v0.3.7 → v0.3.8（package.json + build.gradle versionCode 16 + about.tsx）
+
 ## v0.3.7
 
 ### 🐛 Bug 修复

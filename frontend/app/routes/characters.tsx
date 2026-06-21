@@ -1253,7 +1253,7 @@ export default function CharactersPage() {
 
       {/* 新建/编辑弹窗 */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+        <DialogContent className="max-h-[85vh] min-w-0 overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建角色卡" : "编辑角色卡"}</DialogTitle>
             <DialogDescription>
@@ -1261,9 +1261,9 @@ export default function CharactersPage() {
             </DialogDescription>
           </DialogHeader>
           {editing && (
-            <div className="grid gap-4 py-2">
+            <div className="grid min-w-0 gap-4 py-2">
               {/* 名称 */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">名称</label>
                 <Input
                   value={editing.name}
@@ -1273,16 +1273,16 @@ export default function CharactersPage() {
               </div>
 
               {/* 头像上传（呼出文件管理） */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">头像</label>
-                <div className="flex items-center gap-3">
+                <div className="flex min-w-0 items-center gap-3">
                   <Avatar className="size-16 shrink-0 rounded-lg">
                     <AvatarImage src={editing.avatar} alt={editing.name} />
                     <AvatarFallback className="rounded-lg">
                       <IconUser className="size-6" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -1313,7 +1313,7 @@ export default function CharactersPage() {
               </div>
 
               {/* 背景与性格（提示词） */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">背景与性格（提示词）</label>
                 <Textarea
                   value={editing.description}
@@ -1325,7 +1325,7 @@ export default function CharactersPage() {
               </div>
 
               {/* 对话示例（气泡样式，v0.3.1 新增） */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">对话示例</label>
                   <Button
@@ -1349,9 +1349,9 @@ export default function CharactersPage() {
                     暂无对话示例。点击「新增对话组」添加示例对话
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="min-w-0 space-y-3">
                     {(editing.dialogueExamples ?? []).map((ex, idx) => (
-                      <div key={idx} className="space-y-1.5 rounded-lg border border-border/20 bg-card/30 p-3">
+                      <div key={idx} className="min-w-0 space-y-1.5 rounded-lg border border-border/20 bg-card/30 p-3">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-medium text-muted-foreground">对话组 {idx + 1}</span>
                           <Button
@@ -1380,7 +1380,7 @@ export default function CharactersPage() {
                               }}
                               placeholder="用户的输入示例..."
                               rows={2}
-                              className="w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
+                              className="w-full min-w-0 resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
                             />
                           </div>
                         </div>
@@ -1397,7 +1397,7 @@ export default function CharactersPage() {
                               }}
                               placeholder="角色的回复示例..."
                               rows={2}
-                              className="w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
+                              className="w-full min-w-0 resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
                               style={detectNonCjkContent(ex.agent) ? NON_CJK_FONT_STYLE : undefined}
                             />
                           </div>
@@ -1409,7 +1409,7 @@ export default function CharactersPage() {
               </div>
 
               {/* 世界书启用选项 */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">世界书启用</label>
                 <Select
                   value={editing.extensions?.worldInfoId as string ?? "none"}
@@ -1435,7 +1435,7 @@ export default function CharactersPage() {
               </div>
 
               {/* 初始消息（默认为空） */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">初始消息（默认为空）</label>
                 <Textarea
                   value={editing.firstMessage}
@@ -1447,7 +1447,7 @@ export default function CharactersPage() {
               </div>
 
               {/* 标签 */}
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">标签（逗号分隔）</label>
                 <Input
                   value={editing.tags.join(", ")}
@@ -1465,8 +1465,8 @@ export default function CharactersPage() {
               </div>
 
               {/* 创作者与版本 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">创作者</label>
                   <Input
                     value={editing.creator}
@@ -1474,7 +1474,7 @@ export default function CharactersPage() {
                     placeholder="创作者名称"
                   />
                 </div>
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">版本</label>
                   <Input
                     value={editing.characterVersion}
@@ -1485,7 +1485,7 @@ export default function CharactersPage() {
               </div>
 
               {/* 收藏开关 */}
-              <div className="flex items-center justify-between rounded-lg border border-border/20 bg-card/50 p-3">
+              <div className="flex min-w-0 items-center justify-between rounded-lg border border-border/20 bg-card/50 p-3">
                 <div className="flex items-center gap-2">
                   <IconStar className="size-4 text-yellow-400" />
                   <span className="text-sm font-medium">收藏</span>
@@ -1497,10 +1497,10 @@ export default function CharactersPage() {
               </div>
 
               {/* 自定义背景（v0.3.1 移至最下方，全宽预览） */}
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between">
+              <div className="grid min-w-0 gap-2">
+                <div className="flex min-w-0 items-center justify-between">
                   <label className="text-sm font-medium">自定义背景</label>
-                  <div className="flex gap-2">
+                  <div className="flex min-w-0 gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -1525,7 +1525,7 @@ export default function CharactersPage() {
                   为聊天页设置专属背景图。留空则使用默认背景
                 </p>
                 {/* 全宽预览区，保持图片比例 */}
-                <div className="relative w-full overflow-hidden rounded-lg border bg-muted" style={{ minHeight: "120px" }}>
+                <div className="relative w-full min-w-0 overflow-hidden rounded-lg border bg-muted" style={{ minHeight: "120px" }}>
                   {editing.customBackground?.image ? (
                     <img
                       src={editing.customBackground.image}
@@ -1554,8 +1554,8 @@ export default function CharactersPage() {
                   onChange={handleBackgroundUpload}
                 />
                 {editing.customBackground?.image && (
-                  <div className="grid gap-3 pt-1">
-                    <div className="grid gap-1.5">
+                  <div className="grid min-w-0 gap-3 pt-1">
+                    <div className="grid min-w-0 gap-1.5">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground">透明度</span>
                         <span className="text-xs font-mono">

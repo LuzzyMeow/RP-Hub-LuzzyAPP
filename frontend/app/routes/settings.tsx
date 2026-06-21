@@ -445,7 +445,7 @@ export default function SettingsPage() {
       <ScrollArea className="h-full w-full">
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 p-4 pb-8">
           {/* API 连接与服务（合并供应商管理） */}
-          <motion.div {...springEnter}>
+          <motion.div {...springEnter} className="min-w-0">
             <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -458,7 +458,7 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent className="grid min-w-0 gap-4">
                 {/* 供应商选择（一级入口） */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">供应商</label>
                     <Button
@@ -517,7 +517,7 @@ export default function SettingsPage() {
                     className="grid min-w-0 gap-4 rounded-lg border p-3"
                   >
                     {/* API 地址 */}
-                    <div className="grid gap-2">
+                    <div className="grid min-w-0 gap-2">
                       <label className="text-sm font-medium">
                         API 地址
                         {isCurrentBuiltin && (
@@ -536,7 +536,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* API Key */}
-                    <div className="grid gap-2">
+                    <div className="grid min-w-0 gap-2">
                       <label className="text-sm font-medium">API Key</label>
                       <Input
                         type="password"
@@ -556,7 +556,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* API 类型 */}
-                    <div className="grid gap-2">
+                    <div className="grid min-w-0 gap-2">
                       <label className="text-sm font-medium">
                         API 类型
                         {isCurrentBuiltin && (
@@ -596,7 +596,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* 自定义请求体 JSON */}
-                    <div className="grid gap-2">
+                    <div className="grid min-w-0 gap-2">
                       <div className="flex items-center justify-between">
                         <label className="text-sm font-medium">
                           自定义请求体 JSON
@@ -624,7 +624,7 @@ export default function SettingsPage() {
                     </div>
 
                     {/* 模型配置 */}
-                    <div className="grid gap-2">
+                    <div className="grid min-w-0 gap-2">
                       <div className="flex items-center justify-between">
                         <label className="text-sm font-medium">
                           模型配置
@@ -647,7 +647,7 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                       {currentModels.length > 0 && (
-                        <div className="space-y-1">
+                        <div className="min-w-0 space-y-1">
                           <AnimatePresence mode="popLayout">
                             {currentModels.map((m) => (
                               <motion.div
@@ -742,11 +742,11 @@ export default function SettingsPage() {
 
                 {/* 自定义供应商列表 */}
                 {customApiProviders.length > 0 && (
-                  <div className="grid gap-2">
+                  <div className="grid min-w-0 gap-2">
                     <label className="text-sm font-medium">
                       自定义供应商
                     </label>
-                    <div className="space-y-1">
+                    <div className="min-w-0 space-y-1">
                       {customApiProviders.map((p) => (
                         <div
                           key={p.id}
@@ -780,7 +780,7 @@ export default function SettingsPage() {
           </motion.div>
 
           {/* 外观（精简：仅保留外观模式） */}
-          <motion.div {...fadeSlide}>
+          <motion.div {...fadeSlide} className="min-w-0">
             <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -789,8 +789,8 @@ export default function SettingsPage() {
                 </CardTitle>
                 <CardDescription>浅色 / 深色 / 跟随系统</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4">
-                <div className="grid gap-2">
+              <CardContent className="grid min-w-0 gap-4">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">外观模式</label>
                   <ToggleGroup
                     type="single"
@@ -799,6 +799,7 @@ export default function SettingsPage() {
                       v && setTheme(v as "light" | "dark" | "system")
                     }
                     variant="outline"
+                    className="flex flex-wrap"
                   >
                     <ToggleGroupItem value="light">浅色</ToggleGroupItem>
                     <ToggleGroupItem value="dark">深色</ToggleGroupItem>
@@ -813,7 +814,7 @@ export default function SettingsPage() {
           </motion.div>
 
           {/* v0.3.3: 翻译功能设置 */}
-          <motion.div {...fadeSlide}>
+          <motion.div {...fadeSlide} className="min-w-0">
             <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -824,7 +825,7 @@ export default function SettingsPage() {
                   配置消息翻译的目标语言与助手提示词
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4">
+              <CardContent className="grid min-w-0 gap-4">
                 {/* 启用开关 */}
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用翻译功能</label>
@@ -843,10 +844,10 @@ export default function SettingsPage() {
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                      className="grid gap-4 overflow-hidden"
+                      className="grid min-w-0 gap-4 overflow-hidden"
                     >
                       {/* 目标语言快速选项 */}
-                      <div className="grid gap-2">
+                      <div className="grid min-w-0 gap-2">
                         <label className="text-sm font-medium">
                           目标语言
                           <span className="ml-2 text-xs text-muted-foreground">
@@ -860,10 +861,10 @@ export default function SettingsPage() {
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs"
+                            className="flex min-w-0 items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs"
                           >
-                            <IconCheck className="size-3 text-primary" />
-                            <span className="font-medium text-primary">
+                            <IconCheck className="size-3 shrink-0 text-primary" />
+                            <span className="min-w-0 truncate font-medium text-primary">
                               {translationSettings.customLanguage}
                             </span>
                             <button
@@ -931,7 +932,7 @@ export default function SettingsPage() {
                       </div>
 
                       {/* 翻译提示词模板 */}
-                      <div className="grid gap-2">
+                      <div className="grid min-w-0 gap-2">
                         <div className="flex items-center justify-between">
                           <label className="text-sm font-medium">
                             翻译助手提示词
@@ -964,7 +965,7 @@ export default function SettingsPage() {
                           </code>
                           （目标语言）。修改后请点击保存按钮生效。
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <Button
                             onClick={() =>
                               void handleSaveTranslationPrompt()
@@ -1004,7 +1005,7 @@ export default function SettingsPage() {
           </motion.div>
 
           {/* v0.3.7: 高亮显示设置 */}
-          <motion.div {...fadeSlide}>
+          <motion.div {...fadeSlide} className="min-w-0">
             <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -1015,7 +1016,7 @@ export default function SettingsPage() {
                   高亮显示消息中引号内的文字内容
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4">
+              <CardContent className="grid min-w-0 gap-4">
                 {/* 启用开关 */}
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用高亮显示</label>
@@ -1032,10 +1033,10 @@ export default function SettingsPage() {
                       animate={{ opacity: 1, height: "auto" }}
                       exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                      className="grid gap-4 overflow-hidden"
+                      className="grid min-w-0 gap-4 overflow-hidden"
                     >
                       {/* 颜色预设 */}
-                      <div className="grid gap-2">
+                      <div className="grid min-w-0 gap-2">
                         <label className="text-sm font-medium">高亮颜色</label>
                         <div className="flex flex-wrap gap-2">
                           {HIGHLIGHT_COLOR_PRESETS.map((preset) => (
@@ -1061,9 +1062,9 @@ export default function SettingsPage() {
                       </div>
 
                       {/* 自定义颜色 */}
-                      <div className="grid gap-2">
+                      <div className="grid min-w-0 gap-2">
                         <label className="text-sm font-medium">自定义颜色</label>
-                        <div className="flex items-center gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
                           <input
                             type="color"
                             value={highlightSettings.color}
@@ -1074,7 +1075,7 @@ export default function SettingsPage() {
                             value={highlightSettings.color}
                             onChange={(e) => setHighlightSettings({ color: e.target.value })}
                             placeholder="CSS 颜色值（如 #ff0000、oklch(...)）"
-                            className="flex-1"
+                            className="min-w-0 flex-1"
                           />
                         </div>
                       </div>
@@ -1138,7 +1139,7 @@ export default function SettingsPage() {
           </DialogHeader>
           {newProvider && (
             <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">
                   ID（唯一标识，仅英文字母）
                 </label>
@@ -1153,7 +1154,7 @@ export default function SettingsPage() {
                   仅支持英文字母，不支持特殊字符
                 </p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">显示名称</label>
                 <Input
                   value={newProvider.displayName ?? newProvider.name}
@@ -1167,7 +1168,7 @@ export default function SettingsPage() {
                   前端展示用名称，支持自由取名（最大 20 字符）
                 </p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <label className="text-sm font-medium">API 地址</label>
                 <Input
                   value={newProvider.apiUrl}
@@ -1212,7 +1213,7 @@ export default function SettingsPage() {
             <ScrollArea className="max-h-[60vh] pr-2">
               <div className="grid gap-4 py-2">
                 {/* v0.3.5: 模型 ID（实际请求时的 model name） */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">模型 ID</label>
                   <Input
                     value={editingModel.model.modelId ?? editingModel.model.name}
@@ -1234,7 +1235,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* v0.3.5: 显示名称（仅前端显示） */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">显示名称（可选）</label>
                   <Input
                     value={editingModel.model.displayName ?? ""}
@@ -1255,7 +1256,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 上下文长度 */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">
                     上下文长度（可选）
                   </label>
@@ -1279,7 +1280,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 输出长度 */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">
                     输出长度（可选）
                   </label>
@@ -1300,7 +1301,7 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 历史消息数限制 */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">
                       历史消息数限制
@@ -1348,9 +1349,9 @@ export default function SettingsPage() {
                 </div>
 
                 {/* 能力开关 */}
-                <div className="grid gap-2">
+                <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">模型能力</label>
-                  <div className="grid gap-2">
+                  <div className="grid min-w-0 gap-2">
                     <div className="flex items-center justify-between rounded-md border px-3 py-2">
                       <div className="flex items-center gap-2">
                         <IconImage className="size-4 text-primary" />
