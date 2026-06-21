@@ -8,7 +8,7 @@
 > 
 > *Every conversation feels like opening a fresh role-playing novel.*
 
-[![Version](https://img.shields.io/badge/version-v0.3.9-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.4.0-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
@@ -143,11 +143,11 @@ RP-Hub/
 
 ## 📰 最新动态 · What's New
 
-### v0.3.8
+### v0.4.0
 
-修复原生平台 API 请求失败、弹窗与设置页/角色编辑/关于页溢出等移动端显示问题。
+修复思考卡片严重 BUG（正文空白 + 两层结构缺失）、思考深度无法应用、模型显示名称不生效、全屏输入同步滚动与换行符检测、弹窗按钮重叠、关于页超出屏幕等问题，并优化流式输出性能。
 
-> Fixes native API request failures and mobile overflow issues across dialogs, settings, character editor, and about page.
+> Fixes critical thinking card bugs (empty content + missing two-layer structure), thinking depth not applying, model display name not working, fullscreen editor sync scroll and newline detection, dialog button overlap, and about page overflow. Also optimizes streaming output performance.
 
 [查看完整更新日志 · See full changelog →](./CHANGELOG.md)
 

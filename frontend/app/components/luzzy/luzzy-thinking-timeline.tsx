@@ -129,9 +129,21 @@ function extractStepTitle(para: string, fallbackIndex: number): string {
  * 1. 优先按 **Step N 标记切分（兼容单换行和双换行分隔）
  * 2. 回退到双换行分段
  * 3. 实现短段落合并（<10 字符合并到上一个，兑现历史注释承诺）
+ *
+ * v0.4.0: 添加完成态结果缓存，避免重复解析相同内容
  */
+// v0.4.0: parseThinkingSteps 结果缓存（仅缓存完成态，流式态内容持续变化不缓存）
+const parseThinkingStepsCache = new Map<string, ThinkingStep[]>();
+const MAX_PARSE_CACHE_SIZE = 20;
+
 function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] {
   if (!cot.trim()) return [];
+
+  // v0.4.0: 完成态使用缓存
+  if (!isGenerating) {
+    const cached = parseThinkingStepsCache.get(cot);
+    if (cached) return cached;
+  }
 
   // 优先按 **Step N 标记切分（v0.3.6 核心修复）
   // v0.3.7: 同时匹配 **Step N 和 【Step N 两种格式，确保所有 step 卡片正确切分
@@ -181,6 +193,15 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
       content: para,
       status,
     });
+  }
+
+  // v0.4.0: 仅缓存完成态结果，限制缓存大小
+  if (!isGenerating) {
+    if (parseThinkingStepsCache.size >= MAX_PARSE_CACHE_SIZE) {
+      const firstKey = parseThinkingStepsCache.keys().next().value;
+      if (firstKey) parseThinkingStepsCache.delete(firstKey);
+    }
+    parseThinkingStepsCache.set(cot, steps);
   }
 
   return steps;

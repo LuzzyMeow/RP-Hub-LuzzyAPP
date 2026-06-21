@@ -51,6 +51,19 @@ interface LuzzyFullscreenEditorProps {
   disabled?: boolean;
 }
 
+/** v0.4.0: 规范化换行符，确保预览区换行数与输入一致
+ *
+ * remarkBreaks 已将单个 \n 转为 <br>，但 3+ 连续 \n 会被 Markdown 压缩为单个段落分隔。
+ * 此函数将 3+ 连续 \n 转为 \n\n（段落分隔）+ 显式 <br> 标签，确保每个换行符都可见。
+ * Markdown 组件使用 rehypeRaw，支持渲染原始 HTML 标签。
+ */
+function normalizeNewlines(text: string): string {
+  return text.replace(/\n{3,}/g, (match) => {
+    const extraBreaks = match.length - 2;
+    return '\n\n' + '<br>\n'.repeat(extraBreaks);
+  });
+}
+
 /** 工具栏工具定义 */
 interface ToolbarTool {
   id: string;
@@ -212,35 +225,44 @@ export function LuzzyFullscreenEditor({
   const isSyncing = React.useRef(false);
   const [enablePreview, setEnablePreview] = React.useState(false);
 
-  /** v0.3.2: 同步滚动（双向）— 编辑区滚动时同步预览区 */
+  /** v0.3.2: 同步滚动（双向）— 编辑区滚动时同步预览区
+   *  v0.4.0: 修复比例计算，添加边界检查，使用 flex-1 替代 h-1/2 确保容器正确尺寸
+   */
   const handleEditorScroll = () => {
     if (isSyncing.current) return;
-    isSyncing.current = true;
     const textarea = textareaRef.current;
     const preview = previewRef.current;
-    if (!textarea || !preview) {
-      isSyncing.current = false;
-      return;
-    }
-    const ratio = textarea.scrollTop / (textarea.scrollHeight - textarea.clientHeight || 1);
-    preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+    if (!textarea || !preview) return;
+
+    const editorMaxScroll = textarea.scrollHeight - textarea.clientHeight;
+    const previewMaxScroll = preview.scrollHeight - preview.clientHeight;
+    // v0.4.0: 边界检查 — 任一区域不可滚动时跳过
+    if (editorMaxScroll <= 0 || previewMaxScroll <= 0) return;
+
+    isSyncing.current = true;
+    const ratio = textarea.scrollTop / editorMaxScroll;
+    preview.scrollTop = ratio * previewMaxScroll;
     requestAnimationFrame(() => {
       isSyncing.current = false;
     });
   };
 
-  /** v0.3.2: 同步滚动（双向）— 预览区滚动时同步编辑区 */
+  /** v0.3.2: 同步滚动（双向）— 预览区滚动时同步编辑区
+   *  v0.4.0: 修复比例计算，添加边界检查
+   */
   const handlePreviewScroll = () => {
     if (isSyncing.current) return;
-    isSyncing.current = true;
     const textarea = textareaRef.current;
     const preview = previewRef.current;
-    if (!textarea || !preview) {
-      isSyncing.current = false;
-      return;
-    }
-    const ratio = preview.scrollTop / (preview.scrollHeight - preview.clientHeight || 1);
-    textarea.scrollTop = ratio * (textarea.scrollHeight - textarea.clientHeight);
+    if (!textarea || !preview) return;
+
+    const editorMaxScroll = textarea.scrollHeight - textarea.clientHeight;
+    const previewMaxScroll = preview.scrollHeight - preview.clientHeight;
+    if (editorMaxScroll <= 0 || previewMaxScroll <= 0) return;
+
+    isSyncing.current = true;
+    const ratio = preview.scrollTop / previewMaxScroll;
+    textarea.scrollTop = ratio * editorMaxScroll;
     requestAnimationFrame(() => {
       isSyncing.current = false;
     });
@@ -340,7 +362,8 @@ export function LuzzyFullscreenEditor({
           {/* 中间：编辑区 + 预览区（上下分栏） */}
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* 编辑区（上） */}
-            <div className={cn("flex flex-col", enablePreview ? "h-1/2 border-b border-border/20" : "h-full")}>
+            {/* v0.4.0: 使用 flex-1 替代 h-1/2 确保在 flex 容器中正确分配高度 */}
+            <div className={cn("flex flex-col", enablePreview ? "flex-1 border-b border-border/20" : "h-full")}>
               <Textarea
                 ref={textareaRef}
                 value={value}
@@ -349,11 +372,12 @@ export function LuzzyFullscreenEditor({
                 placeholder="输入消息内容..."
                 disabled={disabled}
                 className="flex-1 resize-none rounded-none border-0 bg-transparent p-4 font-mono text-sm focus-visible:ring-0"
-                style={{ fontFamily: "AlibabaPuHuiTi-3, monospace" }}
+                style={{ fontFamily: "AlibabaPuHuiTi-3, monospace", whiteSpace: "pre-wrap" }}
               />
             </div>
 
             {/* 预览区（下，仅启用渲染时显示） */}
+            {/* v0.4.0: 使用 flex-1 替代 h-1/2 确保与编辑区等高分配 */}
             {enablePreview && (
               <motion.div
                 ref={previewRef}
@@ -362,11 +386,11 @@ export function LuzzyFullscreenEditor({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}
                 transition={{ duration: 0.2 }}
-                className="h-1/2 overflow-y-auto"
+                className="flex-1 overflow-y-auto overflow-x-hidden"
               >
                 <div className="p-4">
                   {value.trim() ? (
-                    <Markdown content={value} />
+                    <Markdown content={normalizeNewlines(value)} />
                   ) : (
                     <p className="text-sm text-muted-foreground">预览区域为空</p>
                   )}

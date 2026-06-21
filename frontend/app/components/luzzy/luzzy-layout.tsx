@@ -75,7 +75,7 @@ export function LuzzyLayout({
   const toggleSideMenu = useUIStore((state) => state.toggleSideMenu);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
+    <div className="flex h-screen w-full max-w-[100vw] overflow-hidden bg-background">
       {/* 侧边栏（LuzzySidebar 内部根据 useIsMobile 决定渲染方式） */}
       {showSidebar && <LuzzySidebar />}
 

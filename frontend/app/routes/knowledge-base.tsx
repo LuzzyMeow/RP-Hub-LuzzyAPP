@@ -566,7 +566,7 @@ export default function KnowledgeBasePage() {
               </DialogDescription>
             </DialogHeader>
             {previewFile && (
-              <ScrollArea className="max-h-[70vh]">
+              <ScrollArea className="flex-1 min-h-0">
                 {previewFile.type === "image" ? (
                   <div className="flex justify-center p-2">
                     <img
@@ -603,7 +603,7 @@ export default function KnowledgeBasePage() {
               </DialogDescription>
             </DialogHeader>
             {newFileDialog && (
-              <ScrollArea className="max-h-[60vh] pr-2">
+              <ScrollArea className="flex-1 min-h-0 pr-2">
                 <div className="grid gap-4 py-2">
                   <div className="grid gap-2">
                     <label className="text-sm font-medium">文件名称</label>
@@ -1000,7 +1000,7 @@ function CharBindingContent({
 
   return (
     <>
-      <ScrollArea className="max-h-[50vh] pr-2">
+      <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="grid gap-2 py-2">
           {characters.length === 0 ? (
             <div className="py-4 text-center text-xs text-muted-foreground">

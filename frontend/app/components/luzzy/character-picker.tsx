@@ -257,7 +257,7 @@ export function CharacterPicker({
           <DialogHeader>
             <DialogTitle>{detailCharacter?.name}</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh] pr-2">
+          <ScrollArea className="flex-1 min-h-0 pr-2">
             {detailCharacter?.description && (
               <Markdown content={detailCharacter.description} />
             )}

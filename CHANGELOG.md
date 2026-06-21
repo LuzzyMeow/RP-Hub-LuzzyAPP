@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.0
+
+### 🐛 Bug 修复
+
+- **思考卡片严重 BUG 修复（重点任务）**：`chat-slice.ts` `onChunk` 中 `parseCot` 启用流式模式（`useCache=false`），避免缓存永不命中导致正文空白；移除冗余 `cotResult.cot` 思考步骤添加逻辑，思考内容统一由 CotCard + LuzzyThinkingTimeline 渲染；`luzzy-chat-message.tsx` 完全过滤 thinking 类型步骤，确保两层卡片结构（外层 CotCard 可折叠 + 内层 Timeline 节点）正确显示
+- **思考深度无法应用**：`luzzy-chat-input.tsx` `allProviders` memo 添加 `builtinThinkingDepthOverrides` 依赖，修复内置供应商思考深度修改后 memo 未重算导致回退为"中"
+- **模型显示名称不生效**：`displayModelName` 改用 `ModelConfig.displayName`，查找 provider.models 中对应模型，优先返回用户自定义显示名称
+- **全屏输入同步滚动**：`luzzy-fullscreen-editor.tsx` 修复比例计算边界检查，使用 `flex-1` 替代 `h-1/2` 确保容器正确尺寸，添加 `overflow-x-hidden` 防止横向溢出
+- **全屏输入换行符检测**：添加 `normalizeNewlines` 函数，将 3+ 连续换行符转为段落分隔 + 显式 `<br>` 标签，确保预览区换行数与输入一致；textarea 添加 `white-space: pre-wrap` 样式
+- **弹窗按钮重叠**：`memory.tsx` `DialogFooter` 移除 `flex-row` 强制覆盖，恢复移动端默认 `flex-col-reverse` 布局
+- **关于页超出屏幕右侧（重点任务）**：`about.tsx` 替换 radix `ScrollArea` 为原生 `div`（修复 Viewport `display:table` 导致的宽度溢出），移除系统信息值 `text-right`（长文本左对齐避免撑出容器）
+
+### 🚀 功能增强
+
+- **流式输出优化（重点任务）**：`parseCot` 流式模式禁用缓存；`updateMessage` 使用 `findIndex + slice` 替代 `map` 减少对象创建；`parseThinkingSteps` 添加完成态结果缓存（限制 20 条），避免重复解析相同内容
+- **版本号升级**：v0.3.9 → v0.4.0（package.json + build.gradle versionCode 18 + about.tsx）
+
 ## v0.3.9
 
 ### 🐛 Bug 修复

@@ -437,6 +437,7 @@ export const createChatSlice: StateCreator<
               // v0.3.6: parseCot 调用节流
               // 仅在内容长度变化超过阈值、检测到标签闭合、或首次解析时才执行
               // v0.3.7: 阈值从 50 降至 10，提升流式思考卡片实时性
+              // v0.4.0: 流式场景禁用 parseCot 缓存（content 持续变化缓存永不命中）
               const lengthDelta = accumulatedContent.length - lastParseLength;
               const closingTags = [
                 '</cot>', '</think>', '</thinking>', '</reasoning>',
@@ -449,7 +450,7 @@ export const createChatSlice: StateCreator<
                 hasClosingTag;
 
               if (shouldParse) {
-                lastCotResult = parseCot(accumulatedContent);
+                lastCotResult = parseCot(accumulatedContent, false);
                 lastParseLength = accumulatedContent.length;
               }
               const cotResult = lastCotResult!;
@@ -458,23 +459,10 @@ export const createChatSlice: StateCreator<
                 (cotResult.cot ? "\n" + cotResult.cot : "")
               ).trim();
 
-              // 若 CoT 内容存在且尚未添加思考步骤，则添加
-              if (cotResult.cot && !thinkingStepAdded) {
-                thinkingStepAdded = true;
-                agentSteps.push({
-                  id: uuidv4(),
-                  type: "thinking",
-                  title: "模型思考",
-                  content: cotResult.cot,
-                  status: "running",
-                  startedAt: Date.now(),
-                });
-              } else if (cotResult.cot && thinkingStepAdded) {
-                const thinkingStep = agentSteps.find((s) => s.type === "thinking");
-                if (thinkingStep) {
-                  thinkingStep.content = finalCot;
-                }
-              }
+              // v0.4.0: 移除冗余的 cotResult.cot 思考步骤添加逻辑
+              // 思考步骤统一由 chunk.reasoningContent 处理（上方 lines 409-430）
+              // cotResult.cot 仅用于 CotCard 显示（message.cot），不再重复添加到 agentSteps
+              // luzzy-chat-message.tsx 已过滤掉 thinking 类型步骤，渲染由 CotCard + LuzzyThinkingTimeline 负责
 
               // v0.3.6: updateMessage 节流（最少 60ms 间隔），避免高频更新导致 UI 卡顿
               // v0.3.7: 间隔从 60ms 降至 30ms，提升流式输出流畅度（约 33fps）
@@ -1066,11 +1054,14 @@ export const createChatSlice: StateCreator<
       set((state) => ({ messages: [...state.messages, message] })),
 
     updateMessage: (id, partial) =>
-      set((state) => ({
-        messages: state.messages.map((m) =>
-          m.id === id ? { ...m, ...partial } : m,
-        ),
-      })),
+      // v0.4.0: 优化流式更新性能 — 使用 findIndex + slice 替代 map，减少不必要的对象创建
+      set((state) => {
+        const index = state.messages.findIndex((m) => m.id === id);
+        if (index === -1) return {};
+        const messages = state.messages.slice();
+        messages[index] = { ...messages[index], ...partial };
+        return { messages };
+      }),
 
     setCurrentCharacter: (currentCharacter) => set({ currentCharacter }),
 

@@ -1211,7 +1211,7 @@ export default function SettingsPage() {
             </DialogDescription>
           </DialogHeader>
           {editingModel && (
-            <ScrollArea className="max-h-[60vh] pr-2">
+            <ScrollArea className="flex-1 min-h-0 pr-2">
               <div className="grid gap-4 py-2">
                 {/* v0.3.5: 模型 ID（实际请求时的 model name） */}
                 <div className="grid min-w-0 gap-2">

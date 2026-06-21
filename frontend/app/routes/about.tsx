@@ -12,7 +12,6 @@ import { IconInfo, IconLink, IconCopyEdit } from "~/components/luzzy/luzzy-icons
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
-import { ScrollArea } from "~/components/ui/scroll-area";
 import { toast } from "sonner";
 import { copyTextToClipboard } from "~/lib/clipboard";
 import { getLogFilePath, getBufferedLogs, logger } from "~/services/logger";
@@ -22,7 +21,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.3.9";
+const APP_VERSION = "v0.4.0";
 
 export default function AboutPage() {
   const [systemInfo, setSystemInfo] = React.useState<Record<string, string>>({});
@@ -84,8 +83,9 @@ export default function AboutPage() {
 
   return (
     <LuzzyLayout title="关于">
-      <ScrollArea className="h-full w-full">
-        <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 p-4">
+      {/* v0.4.0: 替换 radix ScrollArea 为原生 div，修复 Viewport display:table 导致的宽度溢出 */}
+      <div className="h-full w-full overflow-y-auto overflow-x-hidden">
+        <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden p-4">
           {/* LOGO 和版本信息 */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -122,12 +122,15 @@ export default function AboutPage() {
                 {Object.entries(systemInfo).map(([key, value]) => (
                   <div
                     key={key}
-                    className="grid grid-cols-[minmax(4.5rem,5.5rem)_minmax(0,1fr)] gap-3 border-b border-border/30 py-1.5 last:border-0"
+                    className="flex min-w-0 items-start gap-3 border-b border-border/30 py-1.5 last:border-0"
                   >
-                    <span className="shrink-0 text-xs text-muted-foreground">
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">
                       {key}
                     </span>
-                    <span className="min-w-0 break-all text-right text-xs font-medium">
+                    <span
+                      className="min-w-0 flex-1 break-all text-xs font-medium"
+                      style={{ overflowWrap: "anywhere" }}
+                    >
                       {value}
                     </span>
                   </div>
@@ -149,7 +152,7 @@ export default function AboutPage() {
                 <h2 className="text-sm font-semibold">日志路径</h2>
               </div>
               <div className="flex min-w-0 items-center gap-2">
-                <code className="block min-w-0 w-full max-w-full flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
+                <code className="block min-w-0 flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
                   {logPath || "/Documents/LUZZY/logs/YYYYMMDD.log (Web 环境不可用)"}
                 </code>
                 <Button
@@ -210,7 +213,7 @@ export default function AboutPage() {
             </p>
           </motion.div>
         </div>
-      </ScrollArea>
+      </div>
     </LuzzyLayout>
   );
 }

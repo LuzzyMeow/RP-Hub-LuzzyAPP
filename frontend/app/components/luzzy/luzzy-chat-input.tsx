@@ -97,6 +97,8 @@ export function LuzzyChatInput({
   const customApiProviders = useAppStore((s) => s.customApiProviders);
   const getAllProviders = useAppStore((s) => s.getAllProviders);
   const customRequestBody = useAppStore((s) => s.customRequestBody);
+  // v0.4.0: 订阅 builtinThinkingDepthOverrides 确保思考深度修改后 memo 重算
+  const builtinThinkingDepthOverrides = useAppStore((s) => s.builtinThinkingDepthOverrides);
 
   // Store actions
   const setModelName = useAppStore((s) => s.setModelName);
@@ -139,7 +141,11 @@ export function LuzzyChatInput({
   };
 
   /** 所有供应商列表 */
-  const allProviders = React.useMemo(() => getAllProviders(), [getAllProviders, customApiProviders]);
+  // v0.4.0: 添加 builtinThinkingDepthOverrides 到依赖数组，修复思考深度修改后不刷新
+  const allProviders = React.useMemo(
+    () => getAllProviders(),
+    [getAllProviders, customApiProviders, builtinThinkingDepthOverrides]
+  );
 
   /** v0.3.4: 从当前模型的 supportsReasoning 派生 enableThinking */
   const enableThinking = React.useMemo(() => {
@@ -156,12 +162,17 @@ export function LuzzyChatInput({
     return !!model?.supportsReasoning;
   }, [allProviders, apiProviderId, modelName]);
 
-  /** 当前模型显示名（去掉供应商前缀） */
+  /** 当前模型显示名（v0.4.0: 优先使用 ModelConfig.displayName） */
   const displayModelName = React.useMemo(() => {
     if (!modelName) return "未选择模型";
     const parts = modelName.split("_");
-    return parts.length > 1 ? parts.slice(1).join("_") : modelName;
-  }, [modelName]);
+    const actualName = parts.length > 1 ? parts.slice(1).join("_") : modelName;
+    const providerId = parts.length > 1 ? parts[0] : apiProviderId;
+    const provider = allProviders.find((p) => p.id === providerId);
+    const model = provider?.models?.find((m) => m.name === actualName);
+    // v0.4.0: 优先返回用户自定义的 displayName，回退到模型 name
+    return model?.displayName || model?.name || actualName;
+  }, [modelName, allProviders, apiProviderId]);
 
   /** 当前思考深度 */
   const currentThinkingDepth: ThinkingDepth = enableThinking

@@ -477,7 +477,7 @@ export default function ProfilePage() {
           </DialogHeader>
 
           {editing && (
-            <ScrollArea className="max-h-[60vh] pr-2">
+            <ScrollArea className="flex-1 min-h-0 pr-2">
               <div className="grid gap-4 py-2">
                 {/* 头像上传 */}
                 <div className="grid gap-2">

@@ -949,7 +949,7 @@ export default function WorldInfoPage() {
             </DialogDescription>
           </DialogHeader>
           {editingEntry && (
-            <ScrollArea className="max-h-[60vh] pr-2">
+            <ScrollArea className="flex-1 min-h-0 pr-2">
               <div className="grid gap-4 py-2">
                 {/* 条目名称 */}
                 <div className="grid gap-2">

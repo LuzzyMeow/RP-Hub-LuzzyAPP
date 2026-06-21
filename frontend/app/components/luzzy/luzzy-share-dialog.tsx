@@ -436,7 +436,7 @@ export function LuzzyShareDialog({
                   </Button>
                 </div>
               </DialogHeader>
-              <ScrollArea className="max-h-[50vh]">
+              <ScrollArea className="flex-1 min-h-0">
                 <div className="flex flex-col gap-2 py-2">
                   {messages.map((m) => {
                     const checked = selectedIds.has(m.id);

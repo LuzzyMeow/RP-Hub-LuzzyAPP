@@ -1253,7 +1253,7 @@ export default function CharactersPage() {
 
       {/* 新建/编辑弹窗 */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[85vh] min-w-0 overflow-y-auto overflow-x-hidden max-w-2xl">
+        <DialogContent className="max-h-[85vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建角色卡" : "编辑角色卡"}</DialogTitle>
             <DialogDescription>
@@ -1261,6 +1261,7 @@ export default function CharactersPage() {
             </DialogDescription>
           </DialogHeader>
           {editing && (
+            <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="grid min-w-0 gap-4 py-2">
               {/* 名称 */}
               <div className="grid min-w-0 gap-2">
@@ -1599,6 +1600,7 @@ export default function CharactersPage() {
                 )}
               </div>
             </div>
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>

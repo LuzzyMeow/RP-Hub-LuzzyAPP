@@ -743,13 +743,12 @@
 
 /* v0.3.1: 弹窗输入法适配 — 移动端弹窗高度自适应，避免输入法弹出时显示 bug */
 /* v0.3.9: 弹窗宽度由基础组件统一控制，此处仅保留高度/overflow/box-sizing 保护 */
+/* v0.3.9-patch: 移除 height:auto 与 overflow-y:auto，统一交给内部 flex + ScrollArea 处理，避免 Footer 与内容重叠 */
 @media (max-width: 768px) {
   [data-slot="dialog-content"] {
-    max-height: 100dvh !important;
-    height: auto;
+    max-height: 90dvh !important;
     max-width: calc(100% - 2rem) !important;
     box-sizing: border-box;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+    overflow: hidden !important;
   }
 }

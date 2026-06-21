@@ -398,7 +398,7 @@ export default function UiTemplatePage() {
             </DialogDescription>
           </DialogHeader>
           {editing && (
-            <ScrollArea className="max-h-[60vh] pr-2">
+            <ScrollArea className="flex-1 min-h-0 pr-2">
               <div className="grid gap-4 py-2">
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">名称</label>
@@ -506,7 +506,7 @@ export default function UiTemplatePage() {
             <DialogDescription>模板内容预览</DialogDescription>
           </DialogHeader>
           {viewing && (
-            <ScrollArea className="max-h-[60vh]">
+            <ScrollArea className="flex-1 min-h-0">
               <pre className="whitespace-pre-wrap break-words p-2 font-mono text-xs leading-relaxed">
                 {viewing.content || "（空模板）"}
               </pre>
@@ -593,7 +593,7 @@ function CharBindingContent({
 
   return (
     <>
-      <ScrollArea className="max-h-[50vh] pr-2">
+      <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="grid gap-2 py-2">
           {characters.length === 0 ? (
             <div className="py-4 text-center text-xs text-muted-foreground">

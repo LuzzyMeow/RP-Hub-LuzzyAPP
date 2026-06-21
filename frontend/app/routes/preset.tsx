@@ -521,7 +521,7 @@ export default function PresetPage() {
             <DialogDescription>自定义系统提示预设</DialogDescription>
           </DialogHeader>
           {editing && (
-            <ScrollArea className="max-h-[60vh] pr-2">
+            <ScrollArea className="flex-1 min-h-0 pr-2">
               <div className="grid gap-4 py-2">
                 {!editing.isBuiltin && (
                   <div className="grid gap-2">
@@ -580,7 +580,7 @@ export default function PresetPage() {
           </DialogHeader>
           {viewing && (
             <>
-              <div className="flex items-center gap-1 border-b border-border/50 pb-2">
+              <div className="flex shrink-0 items-center gap-1 border-b border-border/50 pb-2">
                 <motion.button
                   onClick={() => setViewMode("rendered")}
                   className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
@@ -626,7 +626,7 @@ export default function PresetPage() {
                   )}
                 </motion.button>
               </div>
-              <ScrollArea className="max-h-[60vh]">
+              <ScrollArea className="flex-1 min-h-0">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={viewMode}
@@ -714,7 +714,7 @@ function CharBindingContent({
 
   return (
     <>
-      <ScrollArea className="max-h-[50vh] pr-2">
+      <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="grid gap-2 py-2">
           {characters.length === 0 ? (
             <div className="py-4 text-center text-xs text-muted-foreground">

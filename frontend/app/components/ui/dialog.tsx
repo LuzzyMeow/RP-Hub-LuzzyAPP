@@ -57,14 +57,18 @@ function DialogContent({
   // v0.3.9: 仅限制最大高度，不再覆盖 transform，避免破坏居中定位；只作用于当前打开弹窗
   React.useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
+    let rafId: number;
     const onResize = () => {
-      const viewport = window.visualViewport!;
-      const dialogs = document.querySelectorAll("[data-slot='dialog-content'][data-state='open']");
-      dialogs.forEach((dialog) => {
-        if (dialog instanceof HTMLElement) {
-          // 调整最大高度为可视区域的 90%，其余居中由 CSS 负责
-          dialog.style.maxHeight = `${Math.min(viewport.height * 0.9, window.innerHeight * 0.9)}px`;
-        }
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        const viewport = window.visualViewport!;
+        const dialogs = document.querySelectorAll("[data-slot='dialog-content'][data-state='open']");
+        dialogs.forEach((dialog) => {
+          if (dialog instanceof HTMLElement) {
+            // 调整最大高度为可视区域的 90%，其余居中由 CSS 负责
+            dialog.style.maxHeight = `${Math.min(viewport.height * 0.9, window.innerHeight * 0.9)}px`;
+          }
+        });
       });
     };
     window.visualViewport.addEventListener("resize", onResize);
@@ -72,6 +76,7 @@ function DialogContent({
     // 初始触发一次
     onResize();
     return () => {
+      cancelAnimationFrame(rafId);
       window.visualViewport?.removeEventListener("resize", onResize);
       window.visualViewport?.removeEventListener("scroll", onResize);
     };
@@ -83,7 +88,7 @@ function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 box-border flex min-w-0 w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-y-auto overflow-x-hidden rounded-lg border p-6 shadow-lg duration-200 outline-none",
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 box-border flex min-w-0 w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] flex-col gap-4 overflow-hidden rounded-lg border p-6 shadow-lg duration-200 outline-none",
           className
         )}
         {...props}
@@ -107,7 +112,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex min-w-0 flex-col gap-2 text-center sm:text-left", className)}
+      className={cn("flex min-w-0 shrink-0 flex-col gap-2 text-center sm:text-left", className)}
       {...props}
     />
   )
@@ -125,7 +130,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "flex min-w-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        "flex min-w-0 shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto",
         className
       )}
       {...props}

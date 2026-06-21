@@ -1389,7 +1389,8 @@ function SkillEditDialog({
             </>
           )}
         </div>
-        <DialogFooter className="flex-row justify-between sm:justify-between">
+        {/* v0.4.0: 移除 flex-row 强制覆盖，恢复移动端默认 flex-col-reverse 布局，修复按钮重叠 */}
+        <DialogFooter className="justify-between sm:justify-between">
           <div className="flex gap-1">
             {!isAddingNew && skill && onSoftDelete && (
               <Button

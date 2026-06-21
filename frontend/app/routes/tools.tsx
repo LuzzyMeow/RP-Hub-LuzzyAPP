@@ -1643,7 +1643,7 @@ function BuiltinToolsTab() {
             </DialogDescription>
           </DialogHeader>
           {editingConfig && characters.length > 0 ? (
-            <ScrollArea className="max-h-[50vh]">
+            <ScrollArea className="flex-1 min-h-0">
               <div className="space-y-1 py-2">
                 {characters.map((c) => {
                   const checked =

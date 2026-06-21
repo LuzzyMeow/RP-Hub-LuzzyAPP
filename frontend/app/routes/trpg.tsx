@@ -115,7 +115,7 @@ export default function TrpgPage() {
               了解 TRPG 模式如何使用 API 服务
             </DialogDescription>
           </DialogHeader>
-          <ScrollArea className="max-h-[55vh]">
+          <ScrollArea className="flex-1 min-h-0">
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}

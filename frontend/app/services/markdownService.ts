@@ -88,7 +88,7 @@ export interface CotParseResult {
   isFinished: boolean;
 }
 
-/** parseCot 结果缓存 */
+/** parseCot 结果缓存（仅用于非流式场景，流式场景 content 持续变化缓存永不命中） */
 const parseCotCache = new Map<string, CotParseResult>();
 
 /**
@@ -102,12 +102,15 @@ const parseCotCache = new Map<string, CotParseResult>();
  * 强制匹配多种标签变体：cot、think、thinking、reasoning、thought、thoughts、
  * reflection、analysis，确保所有模型的思考链都能被提取。
  *
+ * v0.4.0: 添加 useCache 参数，流式场景设为 false 避免缓存永不命中且持续写入内存
+ *
  * @param content - 原始内容
+ * @param useCache - 是否使用缓存（流式场景设为 false），默认 true
  * @returns 解析结果 { cot, main, sys, isFinished }
  */
-export const parseCot = (content: string): CotParseResult => {
+export const parseCot = (content: string, useCache = true): CotParseResult => {
   if (!content) return { cot: '', main: '', sys: '', isFinished: false };
-  if (parseCotCache.has(content)) {
+  if (useCache && parseCotCache.has(content)) {
     return parseCotCache.get(content)!;
   }
 
