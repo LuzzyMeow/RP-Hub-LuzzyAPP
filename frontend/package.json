@@ -2,7 +2,7 @@
   "name": "luzzy-frontend",
   "private": true,
   "type": "module",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "scripts": {
     "build": "react-router build && tsx copy.ts",
     "dev": "react-router dev",

@@ -1234,7 +1234,7 @@ export const createChatSlice: StateCreator<
      * 从指定消息截断创建新会话，复制截至该消息的所有消息到新会话。
      */
     createBranch: (messageId) => {
-      const { messages, currentCharacter } = get();
+      const { messages, currentCharacter, currentSessionId, sessions } = get();
       if (!currentCharacter) return;
 
       const messageIndex = messages.findIndex((m) => m.id === messageId);
@@ -1243,14 +1243,28 @@ export const createChatSlice: StateCreator<
       // 截取截至该消息的所有消息
       const branchMessages = messages.slice(0, messageIndex + 1);
 
+      // 查找原会话标题
+      const originalSession = currentSessionId
+        ? sessions.find((s) => s.id === currentSessionId)
+        : null;
+      const branchTitle = originalSession
+        ? `分支：${originalSession.title}`
+        : `分支：${currentCharacter.name}`;
+
       // 创建新会话
       const newSessionId = get().createSession(
         currentCharacter.uuid,
         currentCharacter.name,
       );
 
-      // 将截断的消息复制到新会话
+      // 设置新会话标题和消息
       get().setSessionMessages(newSessionId, branchMessages);
+      // 更新会话标题
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.id === newSessionId ? { ...s, title: branchTitle } : s,
+        ),
+      }));
 
       // 切换到新会话
       get().switchSession(newSessionId);

@@ -19,6 +19,7 @@ import { LuzzySplash } from "./components/luzzy/luzzy-splash";
 import { GlobalTrpgIframe } from "./components/luzzy/luzzy-global-trpg-iframe";
 import { ConfirmProvider } from "./components/luzzy/luzzy-confirm";
 import { initLogger, logger } from "./services/logger";
+import { useAppStore } from "./stores";
 
 const queryClient = new QueryClient();
 
@@ -57,6 +58,18 @@ function AppContent() {
       logger.info("app", "LUZZY 应用启动");
     });
   }, []);
+
+  // v0.3.2: 推送 API 配置到 Android 原生代理（NanoHTTPD）
+  // 解决 TRPG 模式下 503 "LUZZY API config not set" 错误
+  const apiUrl = useAppStore((s) => s.apiUrl);
+  const apiKey = useAppStore((s) => s.apiKey);
+  useEffect(() => {
+    const androidProxy = (window as unknown as { AndroidProxy?: { setApiConfig: (url: string, key: string) => void } }).AndroidProxy;
+    if (androidProxy && typeof androidProxy.setApiConfig === "function") {
+      androidProxy.setApiConfig(apiUrl ?? "", apiKey ?? "");
+      logger.info("app", `已推送 API 配置到原生代理（url=${apiUrl ? "已设置" : "空"}）`);
+    }
+  }, [apiUrl, apiKey]);
 
   // v0.3.2: 路由变化时记录日志
   useEffect(() => {

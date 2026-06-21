@@ -53,15 +53,20 @@ const PERSIST_KEYS = [
   "user",
   "userProfiles",
   "activeProfileId",
+  "defaultProfileActive",
   "sideMenuOpen",
   // v0.2.0 新增
   "translationSettings",
   "toolGlobalSettings",
   "builtinToolConfigs",
+  "builtinThinkingDepthOverrides",
+  "builtinUrlOverrides",
   "splashShown",
   "trpgNoticeDismissed",
   "sessions",
   "currentSessionId",
+  // v0.3.2: 持久化当前角色 UUID，跨启动恢复聊天状态
+  "currentCharacterUuid",
   "knowledgeBases",
   "skills",
 ] as const;

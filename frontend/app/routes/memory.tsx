@@ -26,6 +26,8 @@ import {
   IconCheck,
   IconClose,
   IconPause,
+  IconInfo,
+  IconRefresh,
 } from "~/components/luzzy/luzzy-icons";
 
 import type {
@@ -198,60 +200,62 @@ export default function MemoryPage() {
 
   return (
     <LuzzyLayout title="记忆">
-      <div className="flex h-full flex-col">
-        {/* 记忆设置卡片（固定顶部） */}
-        <div className="border-b border-border/50 px-4 py-3">
-          <MemorySettingsCard
-            settings={settings}
-            providers={providers}
-            onUpdate={updateField}
-            onSave={handleSaveSettings}
-          />
-        </div>
+      <ScrollArea className="h-full">
+        <div className="flex flex-col">
+          {/* 记忆设置卡片（可展开，展开后页面整体可滚动） */}
+          <div className="border-b border-border/50 px-4 py-3">
+            <MemorySettingsCard
+              settings={settings}
+              providers={providers}
+              onUpdate={updateField}
+              onSave={handleSaveSettings}
+            />
+          </div>
 
-        {/* Tab 导航 */}
-        <div className="flex items-center gap-1 border-b border-border/50 px-4 pb-2">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <motion.button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-                {...pressableSubtle}
-              >
-                <Icon className="size-4" />
-                {tab.label}
-                {isActive && (
-                  <motion.div
-                    layoutId="memory-tab-indicator"
-                    className="absolute inset-0 -z-10 rounded-lg bg-primary/10"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  />
+          {/* Tab 导航 */}
+          <div className="flex items-center gap-1 border-b border-border/50 px-4 pb-2">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+              return (
+                <motion.button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  {...pressableSubtle}
+                >
+                  <Icon className="size-4" />
+                  {tab.label}
+                  {isActive && (
+                    <motion.div
+                      layoutId="memory-tab-indicator"
+                      className="absolute inset-0 -z-10 rounded-lg bg-primary/10"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    />
+                  )}
+                </motion.button>
+              );
+            })}
+          </div>
+
+          {/* Tab 内容（v0.3.3：移除 overflow-hidden，改为随页面整体滚动） */}
+          <div className="min-h-[50vh]">
+            <AnimatePresence mode="wait">
+              <motion.div key={activeTab} {...fadeSlide}>
+                {activeTab === "session" && <SessionMemoryTab settings={settings} />}
+                {activeTab === "long-term" && (
+                  <LongTermMemoryTab settings={settings} />
                 )}
-              </motion.button>
-            );
-          })}
+                {activeTab === "global" && <GlobalMemoryTab />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
-
-        {/* Tab 内容 */}
-        <div className="flex-1 overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div key={activeTab} {...fadeSlide} className="h-full">
-              {activeTab === "session" && <SessionMemoryTab settings={settings} />}
-              {activeTab === "long-term" && (
-                <LongTermMemoryTab settings={settings} />
-              )}
-              {activeTab === "global" && <GlobalMemoryTab />}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
+      </ScrollArea>
     </LuzzyLayout>
   );
 }
@@ -267,7 +271,7 @@ interface MemorySettingsCardProps {
     key: K,
     value: MemorySettings[K],
   ) => void;
-  onSave: () => void;
+  onSave: () => void | Promise<void>;
 }
 
 function MemorySettingsCard({
@@ -277,6 +281,24 @@ function MemorySettingsCard({
   onSave,
 }: MemorySettingsCardProps) {
   const [expanded, setExpanded] = React.useState(false);
+  // v0.3.3: 保存按钮加载状态动画
+  const [saving, setSaving] = React.useState(false);
+  const hasEmbeddingModel = Boolean(settings.embeddingModel?.trim());
+
+  /** 保存设置（带加载动画 + 嵌入模型空值提示） */
+  const handleSave = React.useCallback(async () => {
+    if (saving) return;
+    // v0.3.3: 未配置嵌入模型时文字提示
+    if (!hasEmbeddingModel) {
+      toast.warning("未配置嵌入模型，向量记忆将降级为关键词匹配。如需语义检索，请填写嵌入模型名称。");
+    }
+    setSaving(true);
+    try {
+      await onSave();
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, hasEmbeddingModel, onSave]);
 
   return (
     <Card>
@@ -332,6 +354,17 @@ function MemorySettingsCard({
                   }
                   placeholder="例如：text-embedding-3-small"
                 />
+                {/* v0.3.3: 未配置嵌入模型时的提示 */}
+                {!hasEmbeddingModel && (
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400"
+                  >
+                    <IconInfo className="size-3 shrink-0" />
+                    未配置嵌入模型，向量记忆将降级为关键词匹配
+                  </motion.p>
+                )}
               </div>
 
               {/* 嵌入供应商 */}
@@ -411,9 +444,18 @@ function MemorySettingsCard({
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={onSave} {...pressable}>
-                  <IconSave className="mr-2 size-4" />
-                  保存设置
+                <Button onClick={handleSave} disabled={saving} {...pressable}>
+                  {saving ? (
+                    <>
+                      <IconRefresh className="mr-2 size-4 animate-spin" />
+                      保存中...
+                    </>
+                  ) : (
+                    <>
+                      <IconSave className="mr-2 size-4" />
+                      保存设置
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -487,14 +529,13 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
   }, [selectedUuid, selectedSessionId]);
 
   return (
-    <ScrollArea className="h-full">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>向量记忆分片</span>
-              <Badge variant="secondary" className="text-xs">
-                {shards.length} 条
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>向量记忆分片</span>
+            <Badge variant="secondary" className="text-xs">
+              {shards.length} 条
               </Badge>
             </CardTitle>
           </CardHeader>
@@ -595,8 +636,7 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
             )}
           </CardContent>
         </Card>
-      </div>
-    </ScrollArea>
+    </div>
   );
 }
 
@@ -702,8 +742,7 @@ function LongTermMemoryTab({ settings }: LongTermMemoryTabProps) {
   ]);
 
   return (
-    <ScrollArea className="h-full">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -876,8 +915,7 @@ function LongTermMemoryTab({ settings }: LongTermMemoryTabProps) {
             )}
           </CardContent>
         </Card>
-      </div>
-    </ScrollArea>
+    </div>
   );
 }
 
@@ -1022,8 +1060,7 @@ function GlobalMemoryTab() {
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
+    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
         {/* 顶部统计栏 */}
         <Card>
           <CardHeader>
@@ -1120,8 +1157,7 @@ function GlobalMemoryTab() {
           onSoftDelete={editingSkill ? () => void handleSoftDelete(editingSkill) : undefined}
           onHardDelete={editingSkill ? () => void handleHardDelete(editingSkill) : undefined}
         />
-      </div>
-    </ScrollArea>
+    </div>
   );
 }
 

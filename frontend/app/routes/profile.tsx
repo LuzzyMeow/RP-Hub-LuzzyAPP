@@ -34,6 +34,7 @@ import { useAppStore } from "~/stores";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { LuzzyFullscreenEditor } from "~/components/luzzy/luzzy-fullscreen-editor";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
+import { SwipeCard } from "~/components/luzzy/swipe-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
@@ -406,71 +407,55 @@ export default function ProfilePage() {
                       key={profile.uuid}
                       layout
                       {...fadeSlide}
-                      className={`group ${isDisabled ? "opacity-50" : ""}`}
+                      className={isDisabled ? "opacity-50" : ""}
                     >
-                      <Card
-                        className={`flex items-center gap-3 p-3 transition-colors ${
-                          isActive ? "border-primary/50 bg-primary/5" : ""
-                        }`}
+                      <SwipeCard
+                        onSwipeLeft={() => handleDelete(profile.uuid, profile.name)}
+                        onSwipeRight={() => {
+                          switchProfile(profile.uuid);
+                          setTimeout(handleEditCurrent, 0);
+                        }}
+                        leftIcon={<IconTrash className="size-5" />}
+                        rightIcon={<IconEdit className="size-5" />}
+                        disabled={isDisabled}
                       >
-                        <Avatar className="size-10 shrink-0 rounded-lg">
-                          <AvatarImage
-                            src={profile.avatar}
-                            alt={profile.name}
-                          />
-                          <AvatarFallback className="rounded-lg">
-                            <IconUser className="size-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <button
-                          type="button"
-                          onClick={() => handleSwitch(profile.uuid)}
-                          disabled={isDisabled}
-                          className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
+                        <Card
+                          className={`flex items-center gap-3 rounded-xl p-3 transition-colors ${
+                            isActive ? "border-primary/50 bg-primary/5" : ""
+                          }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className="truncate text-sm font-medium">
-                              {profile.name || "未命名"}
-                            </span>
-                            {isActive && (
-                              <IconCheck className="size-3 shrink-0 text-primary" />
-                            )}
-                          </div>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {profile.description || "暂无描述"}
-                          </p>
-                        </button>
-                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            onClick={() => {
-                              switchProfile(profile.uuid);
-                              setTimeout(handleEditCurrent, 0);
-                            }}
-                            title="编辑"
-                            {...pressableSubtle}
+                          <Avatar className="size-10 shrink-0 rounded-lg">
+                            <AvatarImage
+                              src={profile.avatar}
+                              alt={profile.name}
+                            />
+                            <AvatarFallback className="rounded-lg">
+                              <IconUser className="size-4" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <button
+                            type="button"
+                            onClick={() => handleSwitch(profile.uuid)}
+                            disabled={isDisabled}
+                            className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
                           >
-                            <IconEdit className="size-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8 text-destructive hover:text-destructive"
-                            onClick={() =>
-                              handleDelete(profile.uuid, profile.name)
-                            }
-                            title="删除"
-                            {...pressableSubtle}
-                          >
-                            <IconTrash className="size-3.5" />
-                          </Button>
-                        </div>
-                        {!isActive && (
-                          <IconChevronRight className="size-4 shrink-0 text-muted-foreground group-hover:hidden" />
-                        )}
-                      </Card>
+                            <div className="flex items-center gap-2">
+                              <span className="truncate text-sm font-medium">
+                                {profile.name || "未命名"}
+                              </span>
+                              {isActive && (
+                                <IconCheck className="size-3 shrink-0 text-primary" />
+                              )}
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {profile.description || "暂无描述"}
+                            </p>
+                          </button>
+                          {!isActive && (
+                            <IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                          )}
+                        </Card>
+                      </SwipeCard>
                     </motion.div>
                   );
                 })}

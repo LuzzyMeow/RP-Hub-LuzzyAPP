@@ -141,7 +141,7 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.2-debug.apk`
+**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.3-debug.apk`
 
 ## 项目结构
 
@@ -176,6 +176,12 @@ RP-Hub/
 ```
 
 ## 近期更新
+
+### v0.3.3
+
+9 项 Bug 修复 + 8 项新增功能 + 3 项功能增强。主要改动包括：设置页/关于页溢出修复（min-h-0）、503 API 配置错误修复（AndroidProxy 推送）、聊天页复制/置底按钮/翻译动画修复、会话跨启动持久化、滑动卡片组件（用户档案 + 角色卡左滑删除/右滑编辑）、翻译功能设置页（12 种主流语言快速选项 + 提示词编辑 + 占位符校验）、默认工具配置优化（force 模式 + 三个记忆工具默认启用）、记忆页滚动 + 保存动画优化。
+
+详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ### v0.3.2
 
