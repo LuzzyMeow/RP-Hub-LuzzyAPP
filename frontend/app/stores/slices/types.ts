@@ -74,7 +74,6 @@ export interface SettingsSlice {
   apiKey: string;
   modelName: string;
   stream: boolean;
-  enableThinking: boolean;
   customRequestBody: string;
 
   // ===== 供应商 =====
@@ -85,6 +84,8 @@ export interface SettingsSlice {
   builtinThinkingDepthOverrides: Record<string, ThinkingDepth>;
   /** v0.3.2: 内置供应商的 URL 覆盖（内置供应商不可变，用 override map 存储用户自定义 URL） */
   builtinUrlOverrides: Record<string, string>;
+  /** v0.3.4: 内置供应商的模型列表覆盖（用户可自由编辑内置供应商的模型配置） */
+  builtinModelOverrides: Record<string, ModelConfig[]>;
 
   // ===== 模型模式（v0.2.0 保留但设置页不展示，向后兼容） =====
   modelMode: ModelMode;
@@ -120,7 +121,6 @@ export interface SettingsSlice {
   setApiKey: (key: string) => void;
   setModelName: (name: string) => void;
   setStream: (stream: boolean) => void;
-  setEnableThinking: (enable: boolean) => void;
   setCustomRequestBody: (body: string) => void;
   validateCustomRequestBody: () => CustomRequestBodyValidation;
 

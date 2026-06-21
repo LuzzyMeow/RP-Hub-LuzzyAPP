@@ -79,11 +79,12 @@ export function SwipeCard({
         dragElastic={0.15}
         style={{ x }}
         onDragEnd={(_, info) => {
+          // v0.3.4: 修复左滑删除取消后无法回退 bug
+          // 改为先回弹再触发回调，与右滑行为一致
+          // 由上层显示确认弹窗，取消时卡片已在原位
           if (info.offset.x < -80) {
-            animate(x, -500, {
-              duration: 0.2,
-              onComplete: () => onSwipeLeft?.(),
-            });
+            animate(x, 0, { duration: 0.3 });
+            onSwipeLeft?.();
           } else if (info.offset.x > 80) {
             animate(x, 0, { duration: 0.3 });
             onSwipeRight?.();

@@ -178,6 +178,8 @@ export interface ModelConfig {
   supportsAudio?: boolean;
   /** 是否支持推理 */
   supportsReasoning?: boolean;
+  /** 是否支持嵌入（v0.3.4 新增，勾选后可在记忆页下拉选择） */
+  supportsEmbedding?: boolean;
   /** 历史消息数限制（0=不限制，默认 0。v0.3.0 新增） */
   historyMessageLimit?: number;
 }

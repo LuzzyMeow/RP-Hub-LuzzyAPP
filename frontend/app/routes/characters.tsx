@@ -12,6 +12,7 @@
 import * as React from "react";
 import type { Route } from "./+types/characters";
 import { motion, AnimatePresence } from "motion/react";
+import { useNavigate } from "react-router";
 import {
   IconPlus,
   IconSearch,
@@ -25,6 +26,7 @@ import {
   IconClose,
   IconCharacter,
   IconShare,
+  IconInfo,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
@@ -73,6 +75,9 @@ import { getItem, setItem } from "~/services/storage";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
+// v0.3.4: PNG 角色卡导出 - Capacitor Filesystem 保存到相册
+import { Filesystem, Directory } from "@capacitor/filesystem";
+import { Capacitor } from "@capacitor/core";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "角色卡 - LUZZY" }];
@@ -104,8 +109,28 @@ function createEmptyCharacter(): Character {
     createdAt: now,
     updatedAt: now,
     favorite: false,
+    // v0.3.4: 默认不启用世界书
+    extensions: { worldInfoId: null },
   };
 }
+
+/**
+ * v0.3.4: 检测文本是否包含非中英文 CJK 字符（日文/韩文等）
+ * 当返回 true 时，应降级为系统默认字体以保证其他语言字体可见
+ */
+function detectNonCjkContent(text: string): boolean {
+  if (!text) return false;
+  // 日文平假名 \u3040-\u309F、片假名 \u30A0-\u30FF
+  // 韩文 Hangul \uAC00-\uD7AF、Hangul Jamo \u1100-\u11FF、兼容字母 \u3130-\u318F
+  const nonCjkRegex = /[\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/;
+  return nonCjkRegex.test(text);
+}
+
+/** v0.3.4: 非中英文内容降级字体样式 */
+const NON_CJK_FONT_STYLE: React.CSSProperties = {
+  fontFamily:
+    'system-ui, -apple-system, "Segoe UI", "Noto Sans CJK JP", "Noto Sans CJK KR", sans-serif',
+};
 
 /** 从 PNG 文件解析 SillyTavern 角色卡（支持 tEXt/iTXt/zTXt chunk） */
 async function parsePngCharacterCard(file: File): Promise<unknown> {
@@ -347,6 +372,191 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+/**
+ * v0.3.4: 头像裁剪为正方形（顶部居中区域）
+ *
+ * 读取原图后，计算 size = Math.min(width, height)，
+ * 从坐标 (x=(width-size)/2, y=0) 裁切一个 1:1 的区域，
+ * 确保取到人物的面部或上半身。
+ */
+function cropAvatarToSquare(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const { width, height } = img;
+        const size = Math.min(width, height);
+        const x = Math.floor((width - size) / 2); // 水平居中
+        const y = 0; // 顶部对齐
+
+        const canvas = document.createElement("canvas");
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Canvas 上下文不可用"));
+          return;
+        }
+        ctx.drawImage(img, x, y, size, size, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = () => reject(new Error("图片加载失败"));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error("文件读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** v0.3.4: CRC32 计算（用于 PNG chunk） */
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++) {
+    crc = crc ^ data[i];
+    for (let j = 0; j < 8; j++) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+/** v0.3.4: 在 PNG IHDR chunk 之后插入 tEXt chunk */
+function writePngTextChunk(pngBytes: Uint8Array, keyword: string, text: string): Uint8Array {
+  const keywordBytes = new TextEncoder().encode(keyword);
+  const textBytes = new TextEncoder().encode(text);
+  const chunkData = new Uint8Array(keywordBytes.length + 1 + textBytes.length);
+  chunkData.set(keywordBytes, 0);
+  chunkData[keywordBytes.length] = 0; // null separator
+  chunkData.set(textBytes, keywordBytes.length + 1);
+
+  const chunkType = new TextEncoder().encode("tEXt");
+  const chunkLength = new Uint8Array(4);
+  chunkLength[0] = (chunkData.length >>> 24) & 0xff;
+  chunkLength[1] = (chunkData.length >>> 16) & 0xff;
+  chunkLength[2] = (chunkData.length >>> 8) & 0xff;
+  chunkLength[3] = chunkData.length & 0xff;
+
+  // CRC32 覆盖 chunkType + chunkData
+  const crcInput = new Uint8Array(chunkType.length + chunkData.length);
+  crcInput.set(chunkType, 0);
+  crcInput.set(chunkData, chunkType.length);
+  const crc = crc32(crcInput);
+  const crcBytes = new Uint8Array(4);
+  crcBytes[0] = (crc >>> 24) & 0xff;
+  crcBytes[1] = (crc >>> 16) & 0xff;
+  crcBytes[2] = (crc >>> 8) & 0xff;
+  crcBytes[3] = crc & 0xff;
+
+  // IHDR chunk 结束位置：8（签名）+ 4（长度）+ 4（类型）+ 13（数据）+ 4（CRC）= 33
+  const ihdrEnd = 33;
+  const before = pngBytes.subarray(0, ihdrEnd);
+  const after = pngBytes.subarray(ihdrEnd);
+  const newPng = new Uint8Array(
+    before.length + 4 + 4 + chunkData.length + 4 + after.length,
+  );
+  let offset = 0;
+  newPng.set(before, offset);
+  offset += before.length;
+  newPng.set(chunkLength, offset);
+  offset += 4;
+  newPng.set(chunkType, offset);
+  offset += 4;
+  newPng.set(chunkData, offset);
+  offset += chunkData.length;
+  newPng.set(crcBytes, offset);
+  offset += 4;
+  newPng.set(after, offset);
+  return newPng;
+}
+
+/**
+ * v0.3.4: 将角色卡数据写入 PNG 图片（SillyTavern v2 格式）
+ *
+ * 使用角色头像作为 PNG 图片源，在 IHDR 之后插入 tEXt chunk，
+ * keyword 为 "chara"，text 为 base64(JSON.stringify(cardData))。
+ * 同步写入绑定的世界书到 character.data.character_book。
+ */
+async function writePngCharacterCard(
+  avatarDataUrl: string,
+  character: Character,
+  boundWorldInfoEntries: WorldInfoEntry[],
+): Promise<Blob> {
+  // 1. 将头像 data URL 解码为 Uint8Array
+  const base64Data = avatarDataUrl.split(",")[1] ?? "";
+  const pngBytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+
+  // 2. 构建 SillyTavern v2 格式角色卡 JSON
+  const cardData = {
+    spec: "chara_card_v2",
+    spec_version: "2.0",
+    data: {
+      name: character.name,
+      description: character.description,
+      personality: character.personality,
+      scenario: character.scenario,
+      first_mes: character.firstMessage,
+      mes_example: character.mesExample,
+      alternate_greetings: character.alternateGreetings ?? [],
+      tags: character.tags,
+      creator: character.creator,
+      character_version: character.characterVersion,
+      // 同步写入绑定的世界书
+      character_book:
+        boundWorldInfoEntries.length > 0
+          ? {
+              name: `${character.name}的世界书`,
+              description: "",
+              scan_depth: null,
+              token_budget: null,
+              recursive_scanning: false,
+              extensions: {},
+              entries: boundWorldInfoEntries.map((entry, idx) => ({
+                keys: entry.keys,
+                secondary_keys: entry.secondaryKeys ?? [],
+                comment: entry.name,
+                content: entry.content,
+                constant: entry.constant,
+                selective: entry.selective,
+                insertion_order: entry.insertionOrder ?? idx,
+                enabled: entry.enabled,
+                position: entry.position,
+                type: "constant",
+                probability: entry.probability,
+                depth: entry.depth,
+                extensions: {},
+                use_regex: entry.useRegex,
+              })),
+            }
+          : undefined,
+    },
+  };
+
+  // 3. base64 编码 JSON
+  const jsonStr = JSON.stringify(cardData);
+  const b64Json = btoa(unescape(encodeURIComponent(jsonStr)));
+
+  // 4. 插入 tEXt chunk
+  const newPngBytes = writePngTextChunk(pngBytes, "chara", b64Json);
+
+  // 5. 返回 Blob
+  return new Blob([newPngBytes as BlobPart], { type: "image/png" });
+}
+
+/** v0.3.4: Blob 转 base64（去除 data URL 前缀，供 Capacitor Filesystem 使用） */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      const base64 = result.split(",")[1] ?? "";
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error("Blob 读取失败"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function CharactersPage() {
   const characters = useAppStore((s) => s.characters);
   const searchQuery = useAppStore((s) => s.searchQuery);
@@ -358,9 +568,17 @@ export default function CharactersPage() {
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const importCharacter = useAppStore((s) => s.importCharacter);
   const importCharacterFromCard = useAppStore((s) => s.importCharacterFromCard);
-  const exportCharacter = useAppStore((s) => s.exportCharacter);
   const searchCharacters = useAppStore((s) => s.searchCharacters);
   const confirm = useConfirm();
+  const navigate = useNavigate();
+
+  // v0.3.4: 单击角色卡跳转聊天所需 store actions
+  const setCurrentCharacterUuid = useAppStore((s) => s.setCurrentCharacterUuid);
+  const setCurrentCharacter = useAppStore((s) => s.setCurrentCharacter);
+  const sessions = useAppStore((s) => s.sessions);
+  const createSession = useAppStore((s) => s.createSession);
+  const switchSession = useAppStore((s) => s.switchSession);
+  const setMessages = useAppStore((s) => s.setMessages);
 
   const [editing, setEditing] = React.useState<Character | null>(null);
   const [isNew, setIsNew] = React.useState(false);
@@ -376,13 +594,36 @@ export default function CharactersPage() {
   // 世界书列表（用于编辑时选择）
   const [worldInfoEntries, setWorldInfoEntries] = React.useState<WorldInfoEntry[]>([]);
 
+  // v0.3.4: 左滑右滑操作提示（仅首次显示）
+  const [showSwipeHint, setShowSwipeHint] = React.useState(false);
+
+  // v0.3.4: 头像预览大图
+  const [previewAvatar, setPreviewAvatar] = React.useState<string | null>(null);
+
   React.useEffect(() => {
     void loadCharacters();
     // 加载世界书列表
     void getItem<WorldInfoEntry[]>("worldInfo", "worldInfo").then((data) => {
       setWorldInfoEntries(data ?? []);
     });
+    // v0.3.4: 读取左滑右滑提示是否已关闭
+    try {
+      const dismissed = localStorage.getItem("luzzy_swipe_hint_dismissed");
+      if (!dismissed) setShowSwipeHint(true);
+    } catch {
+      setShowSwipeHint(true);
+    }
   }, [loadCharacters]);
+
+  /** v0.3.4: 关闭左滑右滑提示并持久化 */
+  const dismissSwipeHint = React.useCallback(() => {
+    setShowSwipeHint(false);
+    try {
+      localStorage.setItem("luzzy_swipe_hint_dismissed", "1");
+    } catch {
+      // localStorage 不可用时忽略
+    }
+  }, []);
 
   /** 所有可用标签（从所有角色卡中收集） */
   const allTags = React.useMemo(() => {
@@ -470,24 +711,92 @@ export default function CharactersPage() {
     [deleteCharacter, confirm],
   );
 
-  /** 导出 JSON */
+  /** v0.3.4: 导出 PNG 角色卡（SillyTavern v2 格式 + 世界书同步写入 + 保存到相册） */
   const handleExport = React.useCallback(
-    (c: Character) => {
+    async (c: Character) => {
       try {
-        const json = exportCharacter(c.uuid);
-        const blob = new Blob([json], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${c.name || "character"}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-        toast.success("已导出");
+        // 1. 获取角色头像（若为空使用 1x1 透明 PNG 占位图）
+        const avatarDataUrl =
+          c.avatar ||
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
+
+        // 2. 通过 extensions.worldInfoId 过滤关联的世界书条目
+        const worldInfoId = c.extensions?.worldInfoId as
+          | string
+          | null
+          | undefined;
+        const boundWorldInfoEntries = worldInfoId
+          ? worldInfoEntries.filter((e) => e.bookId === worldInfoId)
+          : [];
+
+        // 3. 调用 writePngCharacterCard 生成 PNG Blob
+        const pngBlob = await writePngCharacterCard(
+          avatarDataUrl,
+          c,
+          boundWorldInfoEntries,
+        );
+
+        // 4. 根据运行环境选择保存方式
+        if (Capacitor.isNativePlatform()) {
+          // Android: 使用 Capacitor Filesystem 写入相册目录
+          const base64Data = await blobToBase64(pngBlob);
+          const fileName = `${c.name || "character"}.png`;
+          await Filesystem.writeFile({
+            path: `Pictures/LUZZY/${fileName}`,
+            data: base64Data,
+            directory: Directory.External,
+            recursive: true,
+          });
+          toast.success(`已保存到相册 Pictures/LUZZY/${fileName}`);
+        } else {
+          // Web: 回退到 <a download> 下载
+          const url = URL.createObjectURL(pngBlob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${c.name || "character"}.png`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast.success("已下载角色卡 PNG");
+        }
       } catch (e) {
         toast.error("导出失败：" + (e as Error).message);
       }
     },
-    [exportCharacter],
+    [worldInfoEntries],
+  );
+
+  /** v0.3.4: 单击角色卡跳转聊天页 */
+  const handleCardClick = React.useCallback(
+    (c: Character) => {
+      setCurrentCharacterUuid(c.uuid);
+      setCurrentCharacter(c);
+      // 查找该角色的最近会话
+      const charSessions = sessions
+        .filter((s) => s.characterId === c.uuid)
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+      if (charSessions.length > 0) {
+        // 切换到最近会话
+        switchSession(charSessions[0].id);
+        setMessages(charSessions[0].messages);
+      } else {
+        // 无会话则自动新建
+        createSession(c.uuid, c.name);
+        setMessages([]);
+      }
+      navigate("/");
+    },
+    [setCurrentCharacterUuid, setCurrentCharacter, sessions, switchSession, setMessages, createSession, navigate],
+  );
+
+  /** v0.3.4: 点击头像预览大图 */
+  const handleAvatarClick = React.useCallback(
+    (e: React.MouseEvent, c: Character) => {
+      e.stopPropagation();
+      if (c.avatar) {
+        setPreviewAvatar(c.avatar);
+      }
+    },
+    [],
   );
 
   /** 导入文件（PNG 或 JSON） */
@@ -570,7 +879,7 @@ export default function CharactersPage() {
     [importCharacter, importCharacterFromCard],
   );
 
-  /** 头像上传 */
+  /** 头像上传（v0.3.4: 裁剪为顶部居中正方形） */
   const handleAvatarUpload = React.useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -581,7 +890,8 @@ export default function CharactersPage() {
           toast.warning("头像文件不能超过 2MB");
           return;
         }
-        const dataUrl = await fileToDataUrl(file);
+        // v0.3.4: 裁剪为顶部居中正方形，避免变形
+        const dataUrl = await cropAvatarToSquare(file);
         setEditing((prev) => (prev ? { ...prev, avatar: dataUrl } : prev));
         toast.success("头像已上传");
       } catch (err) {
@@ -797,6 +1107,29 @@ export default function CharactersPage() {
           </div>
         ) : (
           <ScrollArea className="w-full flex-1">
+            {/* v0.3.4: 左滑右滑操作提示（仅首次显示） */}
+            <AnimatePresence>
+              {showSwipeHint && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  className="mb-3 flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+                >
+                  <IconInfo className="size-3.5 shrink-0 text-primary" />
+                  <span>左滑删除角色卡，右滑编辑角色卡</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto h-6 px-2 text-xs"
+                    onClick={dismissSwipeHint}
+                    {...pressableSubtle}
+                  >
+                    知道了
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2 lg:grid-cols-3">
               <AnimatePresence mode="popLayout">
                 {filtered.map((c, i) => (
@@ -814,9 +1147,15 @@ export default function CharactersPage() {
                       leftIcon={<IconTrash className="size-5" />}
                       rightIcon={<IconEdit className="size-5" />}
                     >
-                      <Card className="gap-3 rounded-xl p-3 transition-all">
+                      <Card
+                        className="cursor-pointer gap-3 rounded-xl p-3 transition-all"
+                        onClick={() => handleCardClick(c)}
+                      >
                         <div className="flex items-start gap-3">
-                          <Avatar className="size-12 shrink-0 rounded-lg">
+                          <Avatar
+                            className="size-12 shrink-0 rounded-lg"
+                            onClick={(e) => handleAvatarClick(e, c)}
+                          >
                             <AvatarImage src={c.avatar} alt={c.name} />
                             <AvatarFallback className="rounded-lg">
                               {c.name.charAt(0) || "?"}
@@ -853,7 +1192,10 @@ export default function CharactersPage() {
                             variant="ghost"
                             size="icon"
                             className="size-8"
-                            onClick={() => void toggleFavorite(c.uuid)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void toggleFavorite(c.uuid);
+                            }}
                             {...pressableSubtle}
                           >
                             <IconStar
@@ -868,7 +1210,10 @@ export default function CharactersPage() {
                             variant="ghost"
                             size="icon"
                             className="size-8"
-                            onClick={() => handleExport(c)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExport(c);
+                            }}
                             title="分享/导出"
                             {...pressableSubtle}
                           >
@@ -954,6 +1299,7 @@ export default function CharactersPage() {
                   onChange={(e) => updateField("description", e.target.value)}
                   placeholder="角色的背景设定、性格特征、行为规范等"
                   rows={6}
+                  style={detectNonCjkContent(editing.description) ? NON_CJK_FONT_STYLE : undefined}
                 />
               </div>
 
@@ -975,7 +1321,7 @@ export default function CharactersPage() {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  左侧为角色（agent）回复，右侧为用户（user）输入。对话示例会注入到提示词中供模型参考
+                  上方为用户（user）输入，下方为角色（agent）回复。对话示例会注入到提示词中供模型参考
                 </p>
                 {(editing.dialogueExamples ?? []).length === 0 ? (
                   <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
@@ -1000,24 +1346,7 @@ export default function CharactersPage() {
                             <IconClose className="size-4" />
                           </Button>
                         </div>
-                        {/* Agent 气泡（左） */}
-                        <div className="flex justify-start">
-                          <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-primary/10 px-3 py-2">
-                            <div className="mb-1 text-xs font-medium text-primary">角色</div>
-                            <textarea
-                              value={ex.agent}
-                              onChange={(e) => {
-                                const examples = [...(editing.dialogueExamples ?? [])];
-                                examples[idx] = { ...examples[idx], agent: e.target.value };
-                                updateField("dialogueExamples", examples);
-                              }}
-                              placeholder="角色的回复示例..."
-                              rows={2}
-                              className="w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
-                            />
-                          </div>
-                        </div>
-                        {/* User 气泡（右） */}
+                        {/* v0.3.4: User 气泡在上（符合对话时序：先用户提问） */}
                         <div className="flex justify-end">
                           <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-muted px-3 py-2">
                             <div className="mb-1 text-right text-xs font-medium text-muted-foreground">用户</div>
@@ -1031,6 +1360,24 @@ export default function CharactersPage() {
                               placeholder="用户的输入示例..."
                               rows={2}
                               className="w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
+                            />
+                          </div>
+                        </div>
+                        {/* v0.3.4: Agent 气泡在下（角色回复） */}
+                        <div className="flex justify-start">
+                          <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-primary/10 px-3 py-2">
+                            <div className="mb-1 text-xs font-medium text-primary">角色</div>
+                            <textarea
+                              value={ex.agent}
+                              onChange={(e) => {
+                                const examples = [...(editing.dialogueExamples ?? [])];
+                                examples[idx] = { ...examples[idx], agent: e.target.value };
+                                updateField("dialogueExamples", examples);
+                              }}
+                              placeholder="角色的回复示例..."
+                              rows={2}
+                              className="w-full resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
+                              style={detectNonCjkContent(ex.agent) ? NON_CJK_FONT_STYLE : undefined}
                             />
                           </div>
                         </div>
@@ -1074,6 +1421,7 @@ export default function CharactersPage() {
                   onChange={(e) => updateField("firstMessage", e.target.value)}
                   placeholder="角色的第一条消息（留空则不发送）"
                   rows={3}
+                  style={detectNonCjkContent(editing.firstMessage) ? NON_CJK_FONT_STYLE : undefined}
                 />
               </div>
 
@@ -1233,6 +1581,22 @@ export default function CharactersPage() {
               保存
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* v0.3.4: 全屏头像预览弹窗 */}
+      <Dialog open={!!previewAvatar} onOpenChange={(o) => !o && setPreviewAvatar(null)}>
+        <DialogContent
+          className="max-w-fit border-0 bg-black/90 p-0"
+          onClick={() => setPreviewAvatar(null)}
+        >
+          {previewAvatar && (
+            <img
+              src={previewAvatar}
+              alt="头像预览"
+              className="max-h-[85vh] max-w-full object-contain"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </LuzzyLayout>

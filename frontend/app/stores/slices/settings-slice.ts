@@ -19,6 +19,7 @@ import type {
   ToolGlobalSettings,
   BuiltinToolConfig,
   ThinkingDepth,
+  ModelConfig,
 } from "~/types/luzzy";
 import { parseModelName } from "~/services/providerService";
 import { getItem, setItem } from "~/services/storage";
@@ -31,14 +32,31 @@ import type { AppStoreState, SettingsSlice } from "~/stores/slices/types";
 /** 默认选中的供应商 ID */
 export const DEFAULT_API_PROVIDER_ID = "deepseek";
 
-/** 内置 API 供应商列表（6 个，deepseek 默认） */
+/** 内置 API 供应商列表（v0.3.4：仅保留 DeepSeek，内置两个模型） */
 export const BUILTIN_PROVIDERS: ApiProvider[] = [
-  { id: "deepseek", name: "DeepSeek", displayName: "DeepSeek", apiUrl: "https://api.deepseek.com/v1", isBuiltin: true },
-  { id: "openai", name: "OpenAI", displayName: "OpenAI", apiUrl: "https://api.openai.com/v1", isBuiltin: true },
-  { id: "ark", name: "火山方舟", displayName: "火山方舟", apiUrl: "https://ark.cn-beijing.volces.com/api/v3", isBuiltin: true },
-  { id: "glm", name: "智谱清言", displayName: "智谱清言", apiUrl: "https://open.bigmodel.cn/api/paas/v4", isBuiltin: true },
-  { id: "moonshot", name: "Moonshot", displayName: "Moonshot", apiUrl: "https://api.moonshot.cn/v1", isBuiltin: true },
-  { id: "minimax", name: "MiniMax", displayName: "MiniMax", apiUrl: "https://api.minimax.chat/v1", isBuiltin: true },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    displayName: "DeepSeek",
+    apiUrl: "https://api.deepseek.com",
+    isBuiltin: true,
+    models: [
+      {
+        id: "deepseek-v4-pro",
+        name: "deepseek-v4-pro",
+        contextLength: 1000000,
+        outputLength: 384000,
+        supportsReasoning: true,
+      },
+      {
+        id: "deepseek-v4-flash",
+        name: "deepseek-v4-flash",
+        contextLength: 1000000,
+        outputLength: 384000,
+        supportsReasoning: true,
+      },
+    ],
+  },
 ];
 
 /** 默认用户档案 */
@@ -125,13 +143,13 @@ const extractPersistableData = (state: SettingsSlice): Record<string, unknown> =
   apiKey: state.apiKey,
   modelName: state.modelName,
   stream: state.stream,
-  enableThinking: state.enableThinking,
   customRequestBody: state.customRequestBody,
   apiProviderId: state.apiProviderId,
   customApiProviders: state.customApiProviders,
   apiProviderKeys: state.apiProviderKeys,
   builtinThinkingDepthOverrides: state.builtinThinkingDepthOverrides,
   builtinUrlOverrides: state.builtinUrlOverrides,
+  builtinModelOverrides: state.builtinModelOverrides,
   modelMode: state.modelMode,
   qualityModel: state.qualityModel,
   balancedModel: state.balancedModel,
@@ -163,13 +181,13 @@ export const createSettingsSlice: StateCreator<
   apiKey: "",
   modelName: "",
   stream: true,
-  enableThinking: false,
   customRequestBody: "",
   apiProviderId: DEFAULT_API_PROVIDER_ID,
   customApiProviders: [],
   apiProviderKeys: {},
   builtinThinkingDepthOverrides: {},
   builtinUrlOverrides: {},
+  builtinModelOverrides: {},
   modelMode: "quality",
   qualityModel: "",
   balancedModel: "",
@@ -226,7 +244,6 @@ export const createSettingsSlice: StateCreator<
 
   setModelName: (modelName) => set({ modelName }),
   setStream: (stream) => set({ stream }),
-  setEnableThinking: (enableThinking) => set({ enableThinking }),
   setCustomRequestBody: (customRequestBody) =>
     set((state) => {
       // 若当前激活的是自定义供应商，同步更新到供应商配置
@@ -380,11 +397,14 @@ export const createSettingsSlice: StateCreator<
   getAllProviders: () => {
     const overrides = get().builtinThinkingDepthOverrides;
     const urlOverrides = get().builtinUrlOverrides;
+    const modelOverrides = get().builtinModelOverrides;
     return [
       ...BUILTIN_PROVIDERS.map((p) => ({
         ...p,
         apiUrl: urlOverrides[p.id] ?? p.apiUrl,
         thinkingDepth: overrides[p.id] ?? p.thinkingDepth,
+        // v0.3.4: 合并用户对内置供应商模型列表的覆盖
+        models: modelOverrides[p.id] ?? p.models,
       })),
       ...get().customApiProviders,
     ];
@@ -444,39 +464,81 @@ export const createSettingsSlice: StateCreator<
     }),
 
   addModelToProvider: (providerId, model) =>
-    set((state) => ({
-      customApiProviders: state.customApiProviders.map((p) =>
-        p.id === providerId
-          ? { ...p, models: [...(p.models || []), model] }
-          : p,
-      ),
-    })),
+    set((state) => {
+      // v0.3.4: 内置供应商通过 builtinModelOverrides 管理
+      const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === providerId);
+      if (isBuiltin) {
+        const builtinProvider = BUILTIN_PROVIDERS.find((p) => p.id === providerId)!;
+        const currentModels = state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
+        return {
+          builtinModelOverrides: {
+            ...state.builtinModelOverrides,
+            [providerId]: [...currentModels, model],
+          },
+        };
+      }
+      return {
+        customApiProviders: state.customApiProviders.map((p) =>
+          p.id === providerId
+            ? { ...p, models: [...(p.models || []), model] }
+            : p,
+        ),
+      };
+    }),
 
   removeModelFromProvider: (providerId, modelId) =>
-    set((state) => ({
-      customApiProviders: state.customApiProviders.map((p) =>
-        p.id === providerId
-          ? {
-              ...p,
-              models: (p.models || []).filter((m) => m.id !== modelId),
-            }
-          : p,
-      ),
-    })),
+    set((state) => {
+      const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === providerId);
+      if (isBuiltin) {
+        const builtinProvider = BUILTIN_PROVIDERS.find((p) => p.id === providerId)!;
+        const currentModels = state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
+        return {
+          builtinModelOverrides: {
+            ...state.builtinModelOverrides,
+            [providerId]: currentModels.filter((m) => m.id !== modelId),
+          },
+        };
+      }
+      return {
+        customApiProviders: state.customApiProviders.map((p) =>
+          p.id === providerId
+            ? {
+                ...p,
+                models: (p.models || []).filter((m) => m.id !== modelId),
+              }
+            : p,
+        ),
+      };
+    }),
 
   updateModelConfig: (providerId, modelId, partial) =>
-    set((state) => ({
-      customApiProviders: state.customApiProviders.map((p) =>
-        p.id === providerId
-          ? {
-              ...p,
-              models: (p.models || []).map((m) =>
-                m.id === modelId ? { ...m, ...partial } : m,
-              ),
-            }
-          : p,
-      ),
-    })),
+    set((state) => {
+      const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === providerId);
+      if (isBuiltin) {
+        const builtinProvider = BUILTIN_PROVIDERS.find((p) => p.id === providerId)!;
+        const currentModels = state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
+        return {
+          builtinModelOverrides: {
+            ...state.builtinModelOverrides,
+            [providerId]: currentModels.map((m) =>
+              m.id === modelId ? { ...m, ...partial } : m,
+            ),
+          },
+        };
+      }
+      return {
+        customApiProviders: state.customApiProviders.map((p) =>
+          p.id === providerId
+            ? {
+                ...p,
+                models: (p.models || []).map((m) =>
+                  m.id === modelId ? { ...m, ...partial } : m,
+                ),
+              }
+            : p,
+        ),
+      };
+    }),
 
   // ===== Actions：模型模式 =====
   setModelMode: (modelMode) => set({ modelMode }),
@@ -633,7 +695,6 @@ export const createSettingsSlice: StateCreator<
         apiKey: migratedApiKey || state.apiKey,
         modelName: (data.modelName as string) ?? state.modelName,
         stream: (data.stream as boolean) ?? state.stream,
-        enableThinking: (data.enableThinking as boolean) ?? state.enableThinking,
         customRequestBody: (data.customRequestBody as string) ?? state.customRequestBody,
         apiProviderId: migratedProviderId || state.apiProviderId,
         customApiProviders: Array.isArray(data.customApiProviders)
@@ -657,6 +718,12 @@ export const createSettingsSlice: StateCreator<
           !Array.isArray(data.builtinUrlOverrides)
             ? (data.builtinUrlOverrides as Record<string, string>)
             : state.builtinUrlOverrides,
+        builtinModelOverrides:
+          data.builtinModelOverrides &&
+          typeof data.builtinModelOverrides === "object" &&
+          !Array.isArray(data.builtinModelOverrides)
+            ? (data.builtinModelOverrides as Record<string, ModelConfig[]>)
+            : state.builtinModelOverrides,
         modelMode: (data.modelMode as SettingsSlice["modelMode"]) ?? state.modelMode,
         qualityModel: (data.qualityModel as string) ?? state.qualityModel,
         balancedModel: (data.balancedModel as string) ?? state.balancedModel,

@@ -43,6 +43,7 @@ import {
   getApiKeyForModel,
   getActualModelName,
   getOpenAICompatUrl,
+  parseModelName,
 } from "~/services/providerService";
 import { parseCot } from "~/services/markdownService";
 import { getItem, setItem } from "~/services/storage";
@@ -114,17 +115,34 @@ const getChatCompletionsUrl = (apiUrl: string): string => {
 
 /**
  * 从组合 store 状态中提取 ApiSettings 子集
+ * v0.3.4: enableThinking 改为从当前模型的 supportsReasoning 派生
  * @param state - 组合 store 状态
  * @returns ApiSettings 对象
  */
-const extractApiSettings = (state: AppStoreState): ApiSettings => ({
-  apiUrl: state.apiUrl,
-  apiKey: state.apiKey,
-  modelName: state.modelName,
-  stream: state.stream,
-  enableThinking: state.enableThinking,
-  customRequestBody: state.customRequestBody,
-});
+const extractApiSettings = (state: AppStoreState): ApiSettings => {
+  // v0.3.4: 从当前选中模型的 supportsReasoning 派生 enableThinking
+  const allProviders = state.getAllProviders();
+  const currentProvider = allProviders.find((p) => p.id === state.apiProviderId);
+  const { modelName } = state;
+  // 解析模型名（去除供应商前缀）
+  const { providerId, modelName: actualModelName } = parseModelName(modelName);
+  const targetProvider = providerId
+    ? allProviders.find((p) => p.id === providerId)
+    : currentProvider;
+  const currentModel = targetProvider?.models?.find(
+    (m) => m.name === actualModelName,
+  );
+  const enableThinking = !!currentModel?.supportsReasoning;
+
+  return {
+    apiUrl: state.apiUrl,
+    apiKey: state.apiKey,
+    modelName: state.modelName,
+    stream: state.stream,
+    enableThinking,
+    customRequestBody: state.customRequestBody,
+  };
+};
 
 // ============================================================================
 // Slice 实现
@@ -244,7 +262,14 @@ export const createChatSlice: StateCreator<
       const vectorMemoryConfig = builtinToolConfigs.find(
         (c) => c.type === "vector-memory",
       );
-      const searchGlobalMemory = !!vectorMemoryConfig?.searchGlobalMemory;
+      // v0.3.4: force 模式下，已启用的 vector-memory 强制执行全局记忆检索
+      // 即使模型没有输出工具调用标签，也确保检索结果通过 buildContext 注入上下文
+      const toolGlobalSettings = get().toolGlobalSettings;
+      const vectorMemoryEnabled = !!vectorMemoryConfig?.enabled;
+      const searchGlobalMemory =
+        toolGlobalSettings.mode === "force"
+          ? vectorMemoryEnabled && !!vectorMemoryConfig?.searchGlobalMemory
+          : !!vectorMemoryConfig?.searchGlobalMemory;
 
       // v0.3.0 ACE: 记录本次注入的策略 ID（供反思用）
       let lastAppliedSkillIds: string[] = [];
@@ -342,7 +367,7 @@ export const createChatSlice: StateCreator<
             stream: get().stream,
           },
           {
-            enableThinking: get().enableThinking,
+            enableThinking: settings.enableThinking,
             thinkingDepth,
             customRequestBody: get().customRequestBody,
           },

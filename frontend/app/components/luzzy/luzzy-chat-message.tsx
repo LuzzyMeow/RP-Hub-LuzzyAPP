@@ -54,6 +54,7 @@ import { TypingIndicator } from "~/components/ui/typing-indicator";
 import Markdown from "~/components/markdown/markdown";
 import { LuzzyTokenUsageBar } from "~/components/luzzy/luzzy-token-usage-bar";
 import { LuzzyAgentSteps } from "~/components/luzzy/luzzy-agent-steps";
+import { LuzzyThinkingTimeline } from "~/components/luzzy/luzzy-thinking-timeline";
 import { pressableSubtle } from "~/lib/motion-presets";
 
 interface LuzzyChatMessageProps {
@@ -197,7 +198,7 @@ function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
   );
 }
 
-/** 思考链（CoT）可折叠卡片 */
+/** 思考链（CoT）可折叠卡片（v0.3.4: Timeline 节点 UI 重构） */
 function CotCard({
   cot,
   isGenerating,
@@ -230,14 +231,14 @@ function CotCard({
     <div className="w-full rounded-md border border-muted bg-muted/30 text-sm">
       <button
         type="button"
-        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
+        className="flex w-full min-w-0 items-center gap-2 px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted/50"
         onClick={handleToggle}
         aria-expanded={expanded}
       >
-        <IconLight className="size-3.5" />
-        <span>{isGenerating ? "思考中..." : "思考过程"}</span>
+        <IconLight className="size-3.5 shrink-0" />
+        <span className="shrink-0">{isGenerating ? "思考中..." : "思考过程"}</span>
         {!expanded && !isGenerating && (
-          <span className="ml-1 truncate text-[11px] opacity-60">{preview}</span>
+          <span className="ml-1 min-w-0 flex-1 truncate text-[11px] opacity-60">{preview}</span>
         )}
         <span className="ml-auto shrink-0">
           {expanded ? (
@@ -264,8 +265,8 @@ function CotCard({
             }}
             className="overflow-hidden"
           >
-            <div className="border-t border-muted px-3 py-2 text-sm text-muted-foreground">
-              <Markdown content={cot} />
+            <div className="border-t border-muted">
+              <LuzzyThinkingTimeline cot={cot} isGenerating={isGenerating} />
             </div>
           </motion.div>
         )}

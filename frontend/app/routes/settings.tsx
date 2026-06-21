@@ -31,6 +31,7 @@ import {
   IconBook,
   IconRestore,
   IconRefresh,
+  IconGrid,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
@@ -118,7 +119,6 @@ export default function SettingsPage() {
   const apiUrl = useAppStore((s) => s.apiUrl);
   const apiKey = useAppStore((s) => s.apiKey);
   const stream = useAppStore((s) => s.stream);
-  const enableThinking = useAppStore((s) => s.enableThinking);
   const customRequestBody = useAppStore((s) => s.customRequestBody);
   const apiProviderId = useAppStore((s) => s.apiProviderId);
   const customApiProviders = useAppStore((s) => s.customApiProviders);
@@ -127,7 +127,6 @@ export default function SettingsPage() {
   // Store actions
   const setApiUrl = useAppStore((s) => s.setApiUrl);
   const setStream = useAppStore((s) => s.setStream);
-  const setEnableThinking = useAppStore((s) => s.setEnableThinking);
   const setCustomRequestBody = useAppStore((s) => s.setCustomRequestBody);
   const validateCustomRequestBody = useAppStore(
     (s) => s.validateCustomRequestBody,
@@ -251,6 +250,7 @@ export default function SettingsPage() {
         supportsVideo: false,
         supportsAudio: false,
         supportsReasoning: false,
+        supportsEmbedding: false,
       },
       isNew: true,
     });
@@ -549,15 +549,6 @@ export default function SettingsPage() {
                       <Switch checked={stream} onCheckedChange={setStream} />
                     </div>
 
-                    {/* 深度思考 */}
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium">深度思考</label>
-                      <Switch
-                        checked={enableThinking}
-                        onCheckedChange={setEnableThinking}
-                      />
-                    </div>
-
                     {/* 自定义请求体 JSON */}
                     <div className="grid gap-2">
                       <div className="flex items-center justify-between">
@@ -600,22 +591,15 @@ export default function SettingsPage() {
                             </Badge>
                           )}
                         </label>
-                        {!isCurrentBuiltin && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleNewModel}
-                          >
-                            <IconPlus className="mr-1 size-4" />
-                            添加模型
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleNewModel}
+                        >
+                          <IconPlus className="mr-1 size-4" />
+                          添加模型
+                        </Button>
                       </div>
-                      {isCurrentBuiltin && (
-                        <p className="text-xs text-muted-foreground">
-                          内置供应商不支持配置模型列表，请在聊天页面直接输入模型名称
-                        </p>
-                      )}
                       {currentModels.length > 0 && (
                         <div className="space-y-1">
                           <AnimatePresence mode="popLayout">
@@ -656,6 +640,12 @@ export default function SettingsPage() {
                                           aria-label="推理"
                                         />
                                       )}
+                                      {m.supportsEmbedding && (
+                                        <IconGrid
+                                          className="size-3 text-primary"
+                                          aria-label="嵌入"
+                                        />
+                                      )}
                                     </div>
                                   </div>
                                   <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
@@ -671,32 +661,30 @@ export default function SettingsPage() {
                                     )}
                                   </div>
                                 </div>
-                                {!isCurrentBuiltin && (
-                                  <div className="flex shrink-0 items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-8"
-                                      onClick={() => handleEditModel(m)}
-                                      title="编辑"
-                                      {...pressableSubtle}
-                                    >
-                                      <IconToolKit className="size-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="size-8 text-destructive"
-                                      onClick={() =>
-                                        handleDeleteModel(m.id, m.name)
-                                      }
-                                      title="删除"
-                                      {...pressableSubtle}
-                                    >
-                                      <IconTrash className="size-4" />
-                                    </Button>
-                                  </div>
-                                )}
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    onClick={() => handleEditModel(m)}
+                                    title="编辑"
+                                    {...pressableSubtle}
+                                  >
+                                    <IconToolKit className="size-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 text-destructive"
+                                    onClick={() =>
+                                      handleDeleteModel(m.id, m.name)
+                                    }
+                                    title="删除"
+                                    {...pressableSubtle}
+                                  >
+                                    <IconTrash className="size-4" />
+                                  </Button>
+                                </div>
                               </motion.div>
                             ))}
                           </AnimatePresence>
@@ -1231,6 +1219,24 @@ export default function SettingsPage() {
                             model: {
                               ...editingModel.model,
                               supportsReasoning: v,
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <IconGrid className="size-4 text-primary" />
+                        <span className="text-sm">嵌入</span>
+                      </div>
+                      <Switch
+                        checked={!!editingModel.model.supportsEmbedding}
+                        onCheckedChange={(v) =>
+                          setEditingModel({
+                            ...editingModel,
+                            model: {
+                              ...editingModel.model,
+                              supportsEmbedding: v,
                             },
                           })
                         }

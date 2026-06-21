@@ -93,7 +93,6 @@ export function LuzzyChatInput({
 
   // Store 数据
   const modelName = useAppStore((s) => s.modelName);
-  const enableThinking = useAppStore((s) => s.enableThinking);
   const apiProviderId = useAppStore((s) => s.apiProviderId);
   const customApiProviders = useAppStore((s) => s.customApiProviders);
   const getAllProviders = useAppStore((s) => s.getAllProviders);
@@ -101,7 +100,6 @@ export function LuzzyChatInput({
 
   // Store actions
   const setModelName = useAppStore((s) => s.setModelName);
-  const setEnableThinking = useAppStore((s) => s.setEnableThinking);
   const setProviderThinkingDepth = useAppStore((s) => s.setProviderThinkingDepth);
 
   /** 自动调整高度 */
@@ -142,6 +140,21 @@ export function LuzzyChatInput({
 
   /** 所有供应商列表 */
   const allProviders = React.useMemo(() => getAllProviders(), [getAllProviders, customApiProviders]);
+
+  /** v0.3.4: 从当前模型的 supportsReasoning 派生 enableThinking */
+  const enableThinking = React.useMemo(() => {
+    const currentProvider = allProviders.find((p) => p.id === apiProviderId);
+    if (!modelName) return false;
+    // 解析模型名（去掉供应商前缀）
+    const parts = modelName.split("_");
+    const actualName = parts.length > 1 ? parts.slice(1).join("_") : modelName;
+    const providerId = parts.length > 1 ? parts[0] : apiProviderId;
+    const targetProvider = providerId
+      ? allProviders.find((p) => p.id === providerId)
+      : currentProvider;
+    const model = targetProvider?.models?.find((m) => m.name === actualName);
+    return !!model?.supportsReasoning;
+  }, [allProviders, apiProviderId, modelName]);
 
   /** 当前模型显示名（去掉供应商前缀） */
   const displayModelName = React.useMemo(() => {
@@ -373,12 +386,8 @@ export function LuzzyChatInput({
                   {...springEnter}
                   {...pressableSubtle}
                   onClick={() => {
-                    if (option.value === "minimal") {
-                      setEnableThinking(false);
-                    } else {
-                      setEnableThinking(true);
-                      setProviderThinkingDepth(apiProviderId, option.value);
-                    }
+                    // v0.3.4: enableThinking 从模型配置派生，这里仅设置思考深度
+                    setProviderThinkingDepth(apiProviderId, option.value);
                     setShowThinkingDepth(false);
                   }}
                   className={cn(

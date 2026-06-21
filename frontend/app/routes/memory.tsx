@@ -37,6 +37,7 @@ import type {
   ApiSettings,
   AceSkill,
   AceSkillbook,
+  ApiProvider,
 } from "~/types/luzzy";
 import { getItem, setItem } from "~/services/storage";
 import { logger } from "~/services/logger";
@@ -57,6 +58,7 @@ import {
   sortSkills,
 } from "~/services/aceSkillbookService";
 import { useAppStore } from "~/stores";
+import { parseModelName } from "~/services/providerService";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -266,7 +268,7 @@ export default function MemoryPage() {
 
 interface MemorySettingsCardProps {
   settings: MemorySettings;
-  providers: { id: string; name: string }[];
+  providers: ApiProvider[];
   onUpdate: <K extends keyof MemorySettings>(
     key: K,
     value: MemorySettings[K],
@@ -344,16 +346,64 @@ function MemorySettingsCard({
                 />
               </div>
 
-              {/* 嵌入模型 */}
+              {/* 嵌入模型（v0.3.4: 改为下拉框+手动输入） */}
               <div className="grid gap-2">
                 <label className="text-sm font-medium">嵌入模型</label>
-                <Input
-                  value={settings.embeddingModel}
-                  onChange={(e) =>
-                    onUpdate("embeddingModel", e.target.value)
-                  }
-                  placeholder="例如：text-embedding-3-small"
-                />
+                {(() => {
+                  // v0.3.4: 从所有供应商中筛选 supportsEmbedding=true 的模型
+                  const embeddingModels = providers.flatMap((p) =>
+                    (p.models ?? [])
+                      .filter((m) => m.supportsEmbedding)
+                      .map((m) => ({ providerId: p.id, providerName: p.displayName ?? p.name, modelName: m.name })),
+                  );
+                  const MANUAL_VALUE = "__manual__";
+                  const isManual =
+                    settings.embeddingModel &&
+                    !embeddingModels.some((m) => m.modelName === settings.embeddingModel);
+                  const selectValue = isManual ? MANUAL_VALUE : (settings.embeddingModel || "");
+
+                  return (
+                    <>
+                      <Select
+                        value={selectValue}
+                        onValueChange={(v) => {
+                          if (v === MANUAL_VALUE) {
+                            // 切换到手动输入模式，保留当前值或清空
+                            onUpdate("embeddingModel", isManual ? settings.embeddingModel : "");
+                          } else {
+                            onUpdate("embeddingModel", v);
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择嵌入模型或手动输入" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {embeddingModels.length === 0 && (
+                            <SelectItem value="__none__" disabled>
+                              暂无支持嵌入的模型，请手动输入
+                            </SelectItem>
+                          )}
+                          {embeddingModels.map((m) => (
+                            <SelectItem key={`${m.providerId}_${m.modelName}`} value={m.modelName}>
+                              {m.modelName}（{m.providerName}）
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={MANUAL_VALUE}>手动输入...</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {isManual && (
+                        <Input
+                          value={settings.embeddingModel}
+                          onChange={(e) =>
+                            onUpdate("embeddingModel", e.target.value)
+                          }
+                          placeholder="例如：text-embedding-3-small"
+                        />
+                      )}
+                    </>
+                  );
+                })()}
                 {/* v0.3.3: 未配置嵌入模型时的提示 */}
                 {!hasEmbeddingModel && (
                   <motion.p
@@ -705,12 +755,21 @@ function LongTermMemoryTab({ settings }: LongTermMemoryTabProps) {
     setSearching(true);
     try {
       const state = useAppStore.getState();
+      // v0.3.4: enableThinking 从当前模型的 supportsReasoning 派生
+      const allProviders = state.getAllProviders();
+      const currentProvider = allProviders.find((p) => p.id === state.apiProviderId);
+      const { providerId, modelName: actualModelName } = parseModelName(state.modelName);
+      const targetProvider = providerId
+        ? allProviders.find((p) => p.id === providerId)
+        : currentProvider;
+      const currentModel = targetProvider?.models?.find((m) => m.name === actualModelName);
+      const enableThinking = !!currentModel?.supportsReasoning;
       const apiSettings: ApiSettings = {
         apiUrl: state.apiUrl,
         apiKey: state.apiKey,
         modelName: state.modelName,
         stream: state.stream,
-        enableThinking: state.enableThinking,
+        enableThinking,
         customRequestBody: state.customRequestBody,
       };
       const results = await searchAllMemory(

@@ -1515,7 +1515,8 @@ function BuiltinToolsTab() {
                       className="space-y-3 border-t border-border/50 pt-3"
                     >
                       {/* v0.3.3: 向量记忆工具未配置嵌入模型时的提示 */}
-                      {toolType === "vector-memory" && !hasEmbeddingModel && (
+                      {/* v0.3.4: memory-recall 工具同步添加提示 */}
+                      {(toolType === "vector-memory" || toolType === "memory-recall") && !hasEmbeddingModel && (
                         <motion.div
                           initial={{ opacity: 0, y: -4 }}
                           animate={{ opacity: 1, y: 0 }}

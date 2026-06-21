@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.3.4
+
+### 🐛 Bug 修复
+
+- **角色卡字体降级**：`characters.tsx` 新增 `detectNonCjkContent` 函数，当角色卡内容包含日文（ひらがな/カタカナ）、韩文（Hangul）等非中英文 CJK 字符时，自动降级为系统默认字体（Noto Sans CJK JP/KR + Segoe UI + system-ui）
+- **角色卡左滑右滑提示**：首次进入角色卡页显示"左滑删除角色卡，右滑编辑角色卡"提示条，可关闭且通过 localStorage `luzzy_swipe_hint_dismissed` 记忆
+- **角色卡 PNG 导出**：`characters.tsx` 重构 `handleExport`，实现 SillyTavern v2 格式 PNG 角色卡导出（CRC32 + tEXt chunk + base64 JSON），同步写入绑定的世界书到 `character_book`，Android 端使用 Capacitor Filesystem 保存到相册 `Pictures/LUZZY/` 目录，Web 端回退到 `<a download>` 下载
+- **角色卡单击跳转**：单击角色卡非按钮区域直接跳转聊天页，自动切换到该角色的最近会话（按 updatedAt 降序）；若无会话则自动新建并跳转
+- **角色卡头像预览**：点击角色卡头像区域打开全屏预览弹窗，再次点击任意位置关闭
+- **关于页溢出**：`luzzy-layout.tsx` main 标签添加 `min-w-0`，修复系统信息卡片整体溢出根因（flex 子项 min-width 默认 auto 导致内容撑破容器）
+- **记忆召回工具提示**：`tools.tsx` memory-recall 工具同步添加"未配置嵌入模型"提示，与 vector-memory 一致
+- **工具 force 模式生效**：`chat-slice.ts` 读取 `toolGlobalSettings.mode`，force 模式下确保已启用（`enabled`）的 vector-memory 工具的 `searchGlobalMemory` 选项生效，检索结果通过 `buildContext` 注入上下文
+
+### ✨ 新增功能
+
+- **角色卡头像预览**：点击角色卡头像打开全屏预览弹窗，再次点击任意位置关闭
+
+### 🚀 功能增强
+
+- **版本号升级**：v0.3.3 → v0.3.4（package.json + build.gradle versionCode 12 + about.tsx）
+
 ## v0.3.3
 
 ### 🐛 Bug 修复
