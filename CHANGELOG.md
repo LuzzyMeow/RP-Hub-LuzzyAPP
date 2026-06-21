@@ -5,6 +5,7 @@
 ### 🐛 Bug 修复
 
 - **设置页/关于页溢出**：`luzzy-layout.tsx` 主内容区添加 `min-h-0`，修复嵌套 flex 容器内容超出屏幕范围
+- **设置页/关于页二次溢出修复**：`textarea.tsx` 默认改为 `field-sizing-fixed` + `min-w-0`；`settings.tsx` 所有 `Card` 添加 `min-w-0`，自定义供应商列表改为 `grid-cols-[minmax(0,1fr)_auto]`；`about.tsx` 所有 `Card` 添加 `min-w-0 overflow-hidden`，系统信息表格改为固定列宽 `grid-cols-[4.5rem_minmax(0,1fr)]`，日志路径 `code` 改为 `block`，`ScrollArea` viewport 添加 `min-w-0`
 - **503 API 配置错误**：`root.tsx` 新增 useEffect 在 apiUrl/apiKey 变化时推送配置到 `window.AndroidProxy.setApiConfig`，解决 TRPG 模式下 NanoHTTPD 代理 503 错误
 - **聊天页复制功能**：`luzzy-chat-message.tsx` 使用 `copyTextToClipboard` 工具（execCommand fallback）替代 `navigator.clipboard.writeText`，修复 Android WebView 复制失败
 - **会话持久化**：`app-store.ts` PERSIST_KEYS 新增 `currentCharacterUuid`、`currentSessionId`，`chat.tsx` 启动时恢复上次角色与会话消息，模型选择保持不变
