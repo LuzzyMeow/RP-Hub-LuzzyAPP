@@ -796,7 +796,7 @@ export default function CharactersPage() {
             </Empty>
           </div>
         ) : (
-          <ScrollArea className="flex-1">
+          <ScrollArea className="w-full flex-1">
             <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2 lg:grid-cols-3">
               <AnimatePresence mode="popLayout">
                 {filtered.map((c, i) => (

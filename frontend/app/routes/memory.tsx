@@ -200,8 +200,8 @@ export default function MemoryPage() {
 
   return (
     <LuzzyLayout title="记忆">
-      <ScrollArea className="h-full">
-        <div className="flex flex-col">
+      <ScrollArea className="h-full w-full">
+        <div className="flex min-w-0 flex-col">
           {/* 记忆设置卡片（可展开，展开后页面整体可滚动） */}
           <div className="border-b border-border/50 px-4 py-3">
             <MemorySettingsCard
@@ -529,7 +529,7 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
   }, [selectedUuid, selectedSessionId]);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
+    <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
@@ -742,7 +742,7 @@ function LongTermMemoryTab({ settings }: LongTermMemoryTabProps) {
   ]);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
+    <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
@@ -1060,7 +1060,7 @@ function GlobalMemoryTab() {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4 p-4 pb-8">
+    <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
         {/* 顶部统计栏 */}
         <Card>
           <CardHeader>

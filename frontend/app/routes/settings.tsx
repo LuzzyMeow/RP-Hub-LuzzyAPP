@@ -396,8 +396,8 @@ export default function SettingsPage() {
 
   return (
     <LuzzyLayout title="设置">
-      <ScrollArea className="h-full">
-        <div className="mx-auto max-w-3xl space-y-4 p-4 pb-8">
+      <ScrollArea className="h-full w-full">
+        <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 p-4 pb-8">
           {/* API 连接与服务（合并供应商管理） */}
           <motion.div {...springEnter}>
             <Card>
@@ -410,7 +410,7 @@ export default function SettingsPage() {
                   配置 AI 接口的连接参数与供应商
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4">
+              <CardContent className="grid min-w-0 gap-4">
                 {/* 供应商选择（一级入口） */}
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
@@ -468,7 +468,7 @@ export default function SettingsPage() {
                 {currentProvider && (
                   <motion.div
                     {...fadeSlide}
-                    className="grid gap-4 rounded-lg border p-3"
+                    className="grid min-w-0 gap-4 rounded-lg border p-3"
                   >
                     {/* API 地址 */}
                     <div className="grid gap-2">
@@ -484,7 +484,7 @@ export default function SettingsPage() {
                         value={apiUrl}
                         onChange={(e) => handleApiUrlChange(e.target.value)}
                         placeholder="https://api.example.com/v1"
-                        className="font-mono text-xs"
+                        className="max-w-full font-mono text-xs"
                         maxLength={500}
                       />
                     </div>
@@ -502,6 +502,7 @@ export default function SettingsPage() {
                           logger.info("user", `保存 API Key（供应商: ${apiProviderId}）`);
                         }}
                         placeholder="sk-..."
+                        className="max-w-full"
                       />
                       <p className="text-xs text-muted-foreground">
                         每个供应商可独立配置 API Key
@@ -577,7 +578,7 @@ export default function SettingsPage() {
                         onChange={(e) => setCustomRequestBody(e.target.value)}
                         placeholder='{"thinking": {"type": "enabled"}, "reasoning_effort": "high"}'
                         rows={4}
-                        className="font-mono text-xs"
+                        className="max-w-full font-mono text-xs break-all"
                       />
                       <p className="text-xs text-muted-foreground">
                         每供应商独立设置。仅可设置 thinking /
@@ -623,11 +624,11 @@ export default function SettingsPage() {
                                 key={m.id}
                                 layout
                                 {...fadeSlide}
-                                className="group flex items-center gap-2 rounded-md border px-3 py-2"
+                                className="group flex min-w-0 items-center gap-2 rounded-md border px-3 py-2"
                               >
                                 <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="truncate text-sm font-medium">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="min-w-0 truncate text-sm font-medium">
                                       {m.name}
                                     </span>
                                     <div className="flex shrink-0 gap-1">
@@ -657,14 +658,14 @@ export default function SettingsPage() {
                                       )}
                                     </div>
                                   </div>
-                                  <div className="mt-0.5 flex gap-2 text-xs text-muted-foreground">
+                                  <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                                     {m.contextLength && (
-                                      <span>
+                                      <span className="min-w-0 truncate">
                                         上下文: {formatLength(m.contextLength)}
                                       </span>
                                     )}
                                     {m.outputLength && (
-                                      <span>
+                                      <span className="min-w-0 truncate">
                                         输出: {formatLength(m.outputLength)}
                                       </span>
                                     )}
@@ -715,15 +716,17 @@ export default function SettingsPage() {
                       {customApiProviders.map((p) => (
                         <div
                           key={p.id}
-                          className="group flex items-center justify-between rounded-md border px-3 py-2"
+                          className="group flex min-w-0 items-center justify-between rounded-md border px-3 py-2"
                         >
-                          <div className="min-w-0">
-                            <span className="text-sm font-medium">
-                              {p.displayName ?? p.name}
-                            </span>
-                            <span className="ml-2 truncate text-xs text-muted-foreground">
-                              {p.apiUrl}
-                            </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <span className="min-w-0 truncate text-sm font-medium">
+                                {p.displayName ?? p.name}
+                              </span>
+                              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                                {p.apiUrl}
+                              </span>
+                            </div>
                           </div>
                           <Button
                             variant="ghost"

@@ -508,14 +508,14 @@ function SkillTab() {
           </Empty>
         </div>
       ) : (
-        <ScrollArea className="h-full">
-          <div className="mb-3 flex justify-end">
+        <ScrollArea className="h-full w-full">
+          <div className="mb-3 flex min-w-0 justify-end">
             <Button size="sm" onClick={handleNew} {...pressable}>
               <IconPlus className="mr-1.5 size-4" />
               新建
             </Button>
           </div>
-          <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
             <AnimatePresence mode="popLayout">
               {skills.map((s, i) => (
                 <motion.div
@@ -1084,8 +1084,8 @@ function McpTab() {
           </Empty>
         </div>
       ) : (
-        <ScrollArea className="h-full">
-          <div className="mb-3 flex justify-end gap-2">
+        <ScrollArea className="h-full w-full">
+          <div className="mb-3 flex min-w-0 justify-end gap-2">
             <Button
               size="sm"
               variant="outline"
@@ -1095,7 +1095,7 @@ function McpTab() {
               JSON 导入
             </Button>
           </div>
-          <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
+          <div className="grid min-w-0 grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
             <AnimatePresence mode="popLayout">
               {tools.map((t, i) => (
                 <motion.div
@@ -1388,8 +1388,8 @@ function BuiltinToolsTab() {
 
   return (
     <div className="h-full p-4">
-      <ScrollArea className="h-full">
-        <div className="space-y-4 pb-4">
+      <ScrollArea className="h-full w-full">
+        <div className="min-w-0 space-y-4 pb-4">
           {/* 全局模式设置 */}
           <motion.div {...springEnter}>
             <Card className="gap-3 p-4">

@@ -382,7 +382,7 @@ export default function ProfilePage() {
           </p>
         )}
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="w-full flex-1">
           {userProfiles.length === 0 ? (
             <Empty>
               <EmptyHeader>

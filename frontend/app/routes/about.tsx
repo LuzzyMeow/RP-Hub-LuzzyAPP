@@ -84,8 +84,8 @@ export default function AboutPage() {
 
   return (
     <LuzzyLayout title="关于">
-      <ScrollArea className="h-full">
-        <div className="mx-auto max-w-2xl space-y-6 p-4">
+      <ScrollArea className="h-full w-full">
+        <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 p-4">
           {/* LOGO 和版本信息 */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -121,12 +121,12 @@ export default function AboutPage() {
                 {Object.entries(systemInfo).map(([key, value]) => (
                   <div
                     key={key}
-                    className="flex items-start justify-between gap-4 border-b border-border/30 py-1.5 last:border-0"
+                    className="grid grid-cols-[auto_minmax(0,1fr)] gap-4 border-b border-border/30 py-1.5 last:border-0"
                   >
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {key}
                     </span>
-                    <span className="break-all text-right text-xs font-medium">
+                    <span className="min-w-0 break-all text-right text-xs font-medium">
                       {value}
                     </span>
                   </div>
@@ -146,8 +146,8 @@ export default function AboutPage() {
                 <IconLink className="size-4 text-primary" />
                 <h2 className="text-sm font-semibold">日志路径</h2>
               </div>
-              <div className="flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
+              <div className="flex min-w-0 items-center gap-2">
+                <code className="min-w-0 max-w-full flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
                   {logPath || "/Documents/LUZZY/logs/YYYYMMDD.log (Web 环境不可用)"}
                 </code>
                 <Button
