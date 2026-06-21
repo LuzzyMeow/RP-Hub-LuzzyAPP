@@ -111,8 +111,9 @@ export default function AboutPage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
+            className="min-w-0"
           >
-            <Card className="p-4">
+            <Card className="min-w-0 overflow-hidden p-4">
               <div className="mb-3 flex items-center gap-2">
                 <IconInfo className="size-4 text-primary" />
                 <h2 className="text-sm font-semibold">系统信息</h2>
@@ -121,7 +122,7 @@ export default function AboutPage() {
                 {Object.entries(systemInfo).map(([key, value]) => (
                   <div
                     key={key}
-                    className="grid grid-cols-[auto_minmax(0,1fr)] gap-4 border-b border-border/30 py-1.5 last:border-0"
+                    className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 border-b border-border/30 py-1.5 last:border-0"
                   >
                     <span className="shrink-0 text-xs text-muted-foreground">
                       {key}
@@ -141,13 +142,13 @@ export default function AboutPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
           >
-            <Card className="p-4">
+            <Card className="min-w-0 overflow-hidden p-4">
               <div className="mb-3 flex items-center gap-2">
                 <IconLink className="size-4 text-primary" />
                 <h2 className="text-sm font-semibold">日志路径</h2>
               </div>
               <div className="flex min-w-0 items-center gap-2">
-                <code className="min-w-0 max-w-full flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
+                <code className="block min-w-0 w-full max-w-full flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
                   {logPath || "/Documents/LUZZY/logs/YYYYMMDD.log (Web 环境不可用)"}
                 </code>
                 <Button
@@ -172,8 +173,9 @@ export default function AboutPage() {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
+              className="min-w-0"
             >
-              <Card className="p-4">
+              <Card className="min-w-0 overflow-hidden p-4">
                 <div className="mb-3 flex items-center gap-2">
                   <IconInfo className="size-4 text-primary" />
                   <h2 className="text-sm font-semibold">最近日志（{recentLogs.length} 条）</h2>

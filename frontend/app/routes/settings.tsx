@@ -400,7 +400,7 @@ export default function SettingsPage() {
         <div className="mx-auto w-full min-w-0 max-w-3xl space-y-4 p-4 pb-8">
           {/* API 连接与服务（合并供应商管理） */}
           <motion.div {...springEnter}>
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <IconKey className="size-4" />
@@ -716,17 +716,15 @@ export default function SettingsPage() {
                       {customApiProviders.map((p) => (
                         <div
                           key={p.id}
-                          className="group flex min-w-0 items-center justify-between rounded-md border px-3 py-2"
+                          className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-3 py-2"
                         >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <span className="min-w-0 truncate text-sm font-medium">
-                                {p.displayName ?? p.name}
-                              </span>
-                              <span className="min-w-0 truncate text-xs text-muted-foreground">
-                                {p.apiUrl}
-                              </span>
-                            </div>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 truncate text-sm font-medium">
+                              {p.displayName ?? p.name}
+                            </span>
+                            <span className="min-w-0 truncate text-xs text-muted-foreground">
+                              {p.apiUrl}
+                            </span>
                           </div>
                           <Button
                             variant="ghost"
@@ -749,7 +747,7 @@ export default function SettingsPage() {
 
           {/* 外观（精简：仅保留外观模式） */}
           <motion.div {...fadeSlide}>
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <IconToolKit className="size-4" />
@@ -782,7 +780,7 @@ export default function SettingsPage() {
 
           {/* v0.3.3: 翻译功能设置 */}
           <motion.div {...fadeSlide}>
-            <Card>
+            <Card className="min-w-0">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <IconBook className="size-4" />
