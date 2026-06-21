@@ -260,7 +260,7 @@ export function AllSessionsList({
 
       {/* 重命名弹窗 */}
       <Dialog open={!!renamingSession} onOpenChange={(open) => !open && setRenamingSession(null)}>
-        <DialogContent className="min-w-0 overflow-hidden max-w-xs">
+        <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-xs">
           <DialogHeader>
             <DialogTitle>重命名会话</DialogTitle>
             <DialogDescription>为会话设置一个新的标题</DialogDescription>

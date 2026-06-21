@@ -585,7 +585,7 @@ function SkillTab() {
 
       {/* 编辑/新建弹窗 */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[85vh] min-w-0 overflow-y-auto overflow-x-hidden max-w-2xl">
+        <DialogContent className="max-h-[85vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建技能" : "编辑技能"}</DialogTitle>
             <DialogDescription>
@@ -593,6 +593,7 @@ function SkillTab() {
             </DialogDescription>
           </DialogHeader>
           {editing && (
+            <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="grid gap-4 py-2">
               {isNew && (
                 <div className="grid gap-2">
@@ -783,6 +784,7 @@ function SkillTab() {
                 </>
               )}
             </div>
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>
@@ -1172,12 +1174,13 @@ function McpTab() {
 
       {/* 编辑弹窗 */}
       <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent className="max-h-[85vh] min-w-0 overflow-y-auto overflow-x-hidden max-w-2xl">
+        <DialogContent className="max-h-[85vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建 MCP 工具" : "编辑 MCP 工具"}</DialogTitle>
             <DialogDescription>配置 HTTP MCP 服务器</DialogDescription>
           </DialogHeader>
           {editing && (
+            <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="grid gap-4 py-2">
               <div className="grid gap-2">
                 <label className="text-sm font-medium">名称</label>
@@ -1323,6 +1326,7 @@ function McpTab() {
                 </div>
               )}
             </div>
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)}>

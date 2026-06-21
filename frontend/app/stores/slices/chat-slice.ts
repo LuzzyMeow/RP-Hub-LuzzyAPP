@@ -459,10 +459,25 @@ export const createChatSlice: StateCreator<
                 (cotResult.cot ? "\n" + cotResult.cot : "")
               ).trim();
 
-              // v0.4.0: 移除冗余的 cotResult.cot 思考步骤添加逻辑
-              // 思考步骤统一由 chunk.reasoningContent 处理（上方 lines 409-430）
-              // cotResult.cot 仅用于 CotCard 显示（message.cot），不再重复添加到 agentSteps
-              // luzzy-chat-message.tsx 已过滤掉 thinking 类型步骤，渲染由 CotCard + LuzzyThinkingTimeline 负责
+              // v0.4.0: 统一思考步骤添加逻辑
+              // 若 finalCot 非空（含原生思考或 CoT 标签内容），确保 thinking 步骤存在且内容为 finalCot
+              // 这样 CotCard 显示 message.cot，LuzzyAgentSteps 作为备份（当 message.cot 为空时）
+              if (finalCot && !thinkingStepAdded) {
+                thinkingStepAdded = true;
+                agentSteps.push({
+                  id: uuidv4(),
+                  type: "thinking",
+                  title: "模型思考",
+                  content: finalCot,
+                  status: "running",
+                  startedAt: Date.now(),
+                });
+              } else if (finalCot && thinkingStepAdded) {
+                const thinkingStep = agentSteps.find((s) => s.type === "thinking");
+                if (thinkingStep) {
+                  thinkingStep.content = finalCot;
+                }
+              }
 
               // v0.3.6: updateMessage 节流（最少 60ms 间隔），避免高频更新导致 UI 卡顿
               // v0.3.7: 间隔从 60ms 降至 30ms，提升流式输出流畅度（约 33fps）

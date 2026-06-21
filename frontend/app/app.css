@@ -736,9 +736,17 @@
 }
 
 /* v0.3.8: 修复 ScrollArea viewport 因 display:table 被长内容撑大导致横向溢出的问题 */
+/* v0.4.0: 修复 display:table 撑开高度导致 DialogFooter 被裁剪/重叠的问题 */
 [data-radix-scroll-area-viewport] {
   width: 100%;
   max-width: 100%;
+  height: 100%;
+  max-height: 100%;
+}
+
+/* v0.4.0: 修复 radix ScrollArea Viewport 内部 display:table 包裹层撑开高度的问题 */
+[data-radix-scroll-area-viewport] > div {
+  max-height: 100%;
 }
 
 /* v0.3.1: 弹窗输入法适配 — 移动端弹窗高度自适应，避免输入法弹出时显示 bug */

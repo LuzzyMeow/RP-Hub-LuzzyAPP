@@ -1090,7 +1090,7 @@ export default function SettingsPage() {
 
       {/* v0.3.6 C6: 自定义语言输入弹窗 */}
       <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
-        <DialogContent className="min-w-0 overflow-hidden max-w-xs">
+        <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-xs">
           <DialogHeader>
             <DialogTitle>自定义目标语言</DialogTitle>
             <DialogDescription>
@@ -1131,7 +1131,7 @@ export default function SettingsPage() {
         open={!!newProvider}
         onOpenChange={(o) => !o && setNewProvider(null)}
       >
-        <DialogContent className="min-w-0 overflow-hidden max-w-sm">
+        <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-sm">
           <DialogHeader>
             <DialogTitle>新增自定义供应商</DialogTitle>
             <DialogDescription>

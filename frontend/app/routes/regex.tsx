@@ -520,7 +520,7 @@ export default function RegexPage() {
 
       {/* 正则组编辑弹窗 */}
       <Dialog open={!!editingGroup} onOpenChange={(o) => !o && setEditingGroup(null)}>
-        <DialogContent className="max-h-[85vh] min-w-0 overflow-y-auto overflow-x-hidden max-w-3xl">
+        <DialogContent className="max-h-[85vh] min-w-0 overflow-hidden max-w-3xl">
           <DialogHeader>
             <DialogTitle>{isNewGroup ? "新建正则组" : "编辑正则组"}</DialogTitle>
             <DialogDescription>
@@ -528,6 +528,7 @@ export default function RegexPage() {
             </DialogDescription>
           </DialogHeader>
           {editingGroup && (
+            <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="grid gap-4 py-2">
               {/* 组名称 */}
               <div className="grid gap-2">
@@ -600,6 +601,7 @@ export default function RegexPage() {
                 )}
               </div>
             </div>
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingGroup(null)}>
@@ -612,7 +614,7 @@ export default function RegexPage() {
 
       {/* 条目编辑弹窗 */}
       <Dialog open={!!editingEntry} onOpenChange={(o) => !o && setEditingEntry(null)}>
-        <DialogContent className="max-h-[90vh] min-w-0 overflow-y-auto overflow-x-hidden max-w-2xl">
+        <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNewEntry ? "新建条目" : "编辑条目"}</DialogTitle>
             <DialogDescription>
@@ -620,6 +622,7 @@ export default function RegexPage() {
             </DialogDescription>
           </DialogHeader>
           {editingEntry && (
+            <ScrollArea className="flex-1 min-h-0 pr-2">
             <div className="grid gap-4 py-2">
               {/* 1. 条目名称 */}
               <div className="grid gap-2">
@@ -841,6 +844,7 @@ export default function RegexPage() {
                 )}
               </div>
             </div>
+            </ScrollArea>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingEntry(null)}>

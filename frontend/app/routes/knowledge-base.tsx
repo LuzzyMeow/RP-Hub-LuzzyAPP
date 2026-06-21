@@ -887,7 +887,7 @@ export default function KnowledgeBasePage() {
         open={!!editingKb}
         onOpenChange={(o) => !o && setEditingKb(null)}
       >
-        <DialogContent className="min-w-0 overflow-hidden max-w-md">
+        <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>{isNewKb ? "新建知识库" : "编辑知识库"}</DialogTitle>
             <DialogDescription>

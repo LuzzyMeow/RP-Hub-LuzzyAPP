@@ -158,11 +158,9 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
       .map((p) => p.trim())
       .filter((p) => /\*\*\s*Step\s*\d+|【\s*Step\s*\d+/i.test(p));
   } else {
-    // 回退到双换行分段
-    paragraphs = cot
-      .split(/\n\n+/)
-      .map((p) => p.trim())
-      .filter(Boolean);
+    // v0.4.0: 不包含 Step 标记的内容（如模型原生思考），作为单个"头脑风暴"节点
+    // 不再按双换行分段，避免原生思考内容被拆成多个无意义节点
+    paragraphs = [cot.trim()];
   }
 
   if (paragraphs.length === 0) return [];
@@ -185,8 +183,9 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
     const isLast = i === merged.length - 1;
     const status: "running" | "completed" = isGenerating && isLast ? "running" : "completed";
 
-    // v0.3.5: 提取真正的步骤标题，而非截断内容
-    const title = extractStepTitle(para, i);
+    // v0.4.0: 不包含 Step 标记的内容（原生思考），标题固定为"头脑风暴"
+    // 包含 Step 标记的内容，提取真正的步骤标题
+    const title = hasStepMarkers ? extractStepTitle(para, i) : "头脑风暴";
 
     steps.push({
       title,

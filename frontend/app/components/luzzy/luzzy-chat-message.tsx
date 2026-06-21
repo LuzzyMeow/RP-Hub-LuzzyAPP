@@ -595,10 +595,13 @@ export function LuzzyChatMessage({
         </div>
 
         {/* Agent 执行步骤卡片（v0.3.0 新增，仅 Agent 消息显示） */}
-        {/* v0.4.0: 完全过滤掉 thinking 类型步骤，思考内容统一由上方 CotCard + LuzzyThinkingTimeline 渲染 */}
+        {/* v0.4.0: 当 message.cot 存在时，过滤掉 thinking 步骤（由 CotCard + LuzzyThinkingTimeline 渲染）；
+            当 message.cot 为空时，保留 thinking 步骤作为备份显示（避免思考内容完全消失） */}
         {!isUser && message.agentSteps && message.agentSteps.length > 0 && (
           <LuzzyAgentSteps
-            steps={message.agentSteps.filter((s) => s.type !== "thinking")}
+            steps={message.agentSteps.filter(
+              (s) => !(s.type === "thinking" && message.cot)
+            )}
           />
         )}
 

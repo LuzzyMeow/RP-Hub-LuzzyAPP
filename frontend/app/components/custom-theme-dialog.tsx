@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/components/ui/dialog";
+import { ScrollArea } from "~/components/ui/scroll-area";
 import { Textarea } from "~/components/ui/textarea";
 import type { CustomThemeCss } from "~/components/theme-provider";
 
@@ -51,12 +52,12 @@ export function CustomThemeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85svh] min-w-0 max-w-3xl overflow-y-auto overflow-x-hidden">
+      <DialogContent className="max-h-[85svh] min-w-0 max-w-3xl overflow-hidden">
         <DialogHeader>
           <DialogTitle>{t("custom_theme_dialog.title")}</DialogTitle>
           <DialogDescription>{t("custom_theme_dialog.description")}</DialogDescription>
         </DialogHeader>
-
+        <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="space-y-4">
           <div className="space-y-2">
             <div className="text-sm font-medium">{t("custom_theme_dialog.theme_variables")}</div>
@@ -83,6 +84,7 @@ export function CustomThemeDialog({
             </a>
           </div>
         </div>
+        </ScrollArea>
 
         <DialogFooter>
           <Button

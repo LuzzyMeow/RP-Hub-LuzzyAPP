@@ -892,7 +892,7 @@ export default function WorldInfoPage() {
         open={!!editingBook}
         onOpenChange={(o) => !o && setEditingBook(null)}
       >
-        <DialogContent className="min-w-0 overflow-hidden max-w-md">
+        <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>{isNewBook ? "新建世界书" : "重命名世界书"}</DialogTitle>
             <DialogDescription>

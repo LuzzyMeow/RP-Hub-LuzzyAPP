@@ -1333,12 +1333,13 @@ function SkillEditDialog({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="min-w-0 overflow-hidden max-w-md">
+      <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-md">
         <DialogHeader>
           <DialogTitle>
             {isAddingNew ? "新增策略" : "编辑策略"}
           </DialogTitle>
         </DialogHeader>
+        <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="flex flex-col gap-4 py-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-sm font-medium">分类</label>
@@ -1389,8 +1390,9 @@ function SkillEditDialog({
             </>
           )}
         </div>
+        </ScrollArea>
         {/* v0.4.0: 移除 flex-row 强制覆盖，恢复移动端默认 flex-col-reverse 布局，修复按钮重叠 */}
-        <DialogFooter className="justify-between sm:justify-between">
+        <DialogFooter>
           <div className="flex gap-1">
             {!isAddingNew && skill && onSoftDelete && (
               <Button

@@ -55,25 +55,26 @@ function DialogContent({
 }) {
   // v0.3.1: 弹窗输入法适配 — 监听 VisualViewport 变化，自适应弹窗高度
   // v0.3.9: 仅限制最大高度，不再覆盖 transform，避免破坏居中定位；只作用于当前打开弹窗
+  // v0.4.0: 移除无效的 style.maxHeight 设置（被 app.css 的 !important 覆盖），
+  //         改为依赖 CSS 90dvh 单位自动适应输入法弹出；保留监听用于触发重排
   React.useEffect(() => {
     if (typeof window === "undefined" || !window.visualViewport) return;
     let rafId: number;
     const onResize = () => {
       cancelAnimationFrame(rafId);
       rafId = requestAnimationFrame(() => {
-        const viewport = window.visualViewport!;
+        // v0.4.0: 通过强制重排触发弹窗重新计算布局，依赖 CSS 90dvh 自动适应
         const dialogs = document.querySelectorAll("[data-slot='dialog-content'][data-state='open']");
         dialogs.forEach((dialog) => {
           if (dialog instanceof HTMLElement) {
-            // 调整最大高度为可视区域的 90%，其余居中由 CSS 负责
-            dialog.style.maxHeight = `${Math.min(viewport.height * 0.9, window.innerHeight * 0.9)}px`;
+            // 触发重排，让 CSS dvh 单位生效
+            void dialog.offsetHeight;
           }
         });
       });
     };
     window.visualViewport.addEventListener("resize", onResize);
     window.visualViewport.addEventListener("scroll", onResize);
-    // 初始触发一次
     onResize();
     return () => {
       cancelAnimationFrame(rafId);
