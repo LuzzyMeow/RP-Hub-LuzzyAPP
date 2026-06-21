@@ -148,6 +148,8 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
   // 优先按 **Step N 标记切分（v0.3.6 核心修复）
   // v0.3.7: 同时匹配 **Step N 和 【Step N 两种格式，确保所有 step 卡片正确切分
   // 使用前瞻断言，保留分隔标记在结果中
+  // v0.4.0-patch3: 不再 filter 掉非 Step 段落（修复 BUG：原生思考内容在 Step 标记出现后被丢弃，
+  //               导致流式中"思考内容被截断"。非 Step 前缀段落作为第一个节点保留）
   const stepMarkerRegex = /(?=\*\*\s*Step\s*\d+|【\s*Step\s*\d+)/i;
   const hasStepMarkers = /\*\*\s*Step\s*\d+|【\s*Step\s*\d+/i.test(cot);
 
@@ -156,7 +158,7 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
     paragraphs = cot
       .split(stepMarkerRegex)
       .map((p) => p.trim())
-      .filter((p) => /\*\*\s*Step\s*\d+|【\s*Step\s*\d+/i.test(p));
+      .filter((p) => p.length > 0);
   } else {
     // v0.4.0: 不包含 Step 标记的内容（如模型原生思考），作为单个"头脑风暴"节点
     // 不再按双换行分段，避免原生思考内容被拆成多个无意义节点
@@ -233,9 +235,16 @@ function useTypewriter(fullText: string, isGenerating: boolean, speed = 20): str
     }
 
     if (fullText.length <= displayedRef.current.length) {
-      // 新文本比已显示的短或相等（不应该发生，但防御性处理）
-      displayedRef.current = fullText;
-      setDisplayedText(fullText);
+      // v0.4.0-patch3: 新文本比已显示的短或相等时
+      //   - 完全相等或前缀关系：仍可继续显示已有内容（避免无意义重置）
+      //   - 完全不同（如分段切换导致 step.content 变化）：以新文本为准，避免显示陈旧内容
+      if (fullText !== displayedRef.current.slice(0, fullText.length)) {
+        // 内容确实变化（不只是变短），重置为新文本
+        displayedRef.current = fullText;
+        setDisplayedText(fullText);
+      }
+      // 否则保留已显示的内容（防止"截断 BUG"：流式中 parseThinkingSteps 重新切分
+      // 时同一节点的 content 短暂变短，原版会把已显示文字直接截断）
       return;
     }
 

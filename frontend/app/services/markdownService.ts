@@ -114,40 +114,53 @@ export const parseCot = (content: string, useCache = true): CotParseResult => {
     return parseCotCache.get(content)!;
   }
 
-  // 匹配多种思考链标签变体，支持未闭合的情况
-  // 允许闭合标签中存在空格，防止因闭合标签格式不规范（如 </think >）导致正文被吞
-  // 同时支持闭合标签缺失斜杠的情况（如 <cot>...<cot>），这是某些模型常见的错误输出
-  // 强制匹配：cot、think、thinking、reasoning、thought、thoughts、reflection、analysis
-  const cotPattern = /<(think|thinking|cot|reasoning|thought|thoughts|reflection|analysis)>([\s\S]*?)(?:<\/\s*\1\s*>|<\s*\1\s*>|$)/gi;
+  // v0.4.0-patch3: 仅匹配已闭合的标签 + 仅在内容首部出现的未闭合标签
+  // 原版正则中 `|<\s*\1\s*>` 与 `|$` 会在两种场景下错误吞掉正文：
+  //   1) 流式中 `<think>...` 未闭合时，`|$` 让 `[\s\S]*?` 吃完整字符串，正文为空（气泡空白）
+  //   2) 思考内容本身含 `<think>` 等开标签字符串时，被误判为"伪闭合"，思考被截断
+  // 修复策略：
+  //   - 先匹配所有"已闭合"标签 `<tag>...</tag>` 并从 main 中移除（贪婪安全）
+  //   - 再单独处理"未闭合的首个标签"（流式态）：把开标签后所有内容当 cot，main 保持开标签前的部分
+  //   - 闭合标签缺斜杠（`<cot>...<cot>`）的情况：仅当首尾完全相同且无 `</tag>` 时降级处理
+  const tagNames = ['think', 'thinking', 'cot', 'reasoning', 'thought', 'thoughts', 'reflection', 'analysis'];
+  const tagAlternation = tagNames.join('|');
+
   let cotContent = '';
   let mainContent = content;
   let isFinished = false;
 
-  // 提取 CoT 内容并从正文中移除
-  mainContent = mainContent.replace(
-    cotPattern,
-    (match: string, tag: string, inner: string): string => {
-      // 对 CoT 的内容中的 < 符号进行转义，防止 DOMPurify 吞掉类似 <动作> 或 <thinking> 的标签
-      // 通过跳过 ``` 和 ` 块，保证代码块的正常显示和复制功能
-      const parts = inner.split(/(```[\s\S]*?```|`[^`]+`)/);
-      const escapedContent = parts
-        .map((part, i) => {
-          if (i % 2 === 1) return part; // 保留代码块原样
-          return part.replace(/</g, '&lt;'); // 仅转义左括号，不影响 Markdown 的 > 引用块语法
-        })
-        .join('');
+  // Pass 1: 提取所有已闭合的标签 `<tag>...</tag>`
+  const closedPattern = new RegExp(`<(${tagAlternation})>([\\s\\S]*?)<\\/\\s*\\1\\s*>`, 'gi');
+  mainContent = mainContent.replace(closedPattern, (_match, _tag, inner: string): string => {
+    const parts = inner.split(/(```[\s\S]*?```|`[^`]+`)/);
+    const escapedContent = parts
+      .map((part, i) => {
+        if (i % 2 === 1) return part;
+        return part.replace(/</g, '&lt;');
+      })
+      .join('');
+    cotContent += (cotContent ? '\n' : '') + escapedContent;
+    isFinished = true;
+    return '';
+  });
 
-      cotContent += escapedContent;
-      // 如果匹配项包含闭合标签，则认为思维链已结束
-      if (
-        match.includes('</') ||
-        (match.match(new RegExp('<' + tag + '>', 'gi')) || []).length > 1
-      ) {
-        isFinished = true;
-      }
-      return '';
-    },
-  );
+  // Pass 2: 处理首个"未闭合的开标签"（流式过程中的常态）
+  // 例如 `正文前缀<think>思考中...`，将思考内容存入 cot，main 仅保留 `正文前缀`
+  // 注意：这里 cot 内容不视为 isFinished，且仅处理第一个未闭合标签后所有内容
+  const openOnlyPattern = new RegExp(`<(${tagAlternation})>([\\s\\S]*)$`, 'i');
+  const openMatch = openOnlyPattern.exec(mainContent);
+  if (openMatch) {
+    const inner = openMatch[2] ?? '';
+    const parts = inner.split(/(```[\s\S]*?```|`[^`]+`)/);
+    const escapedContent = parts
+      .map((part, i) => {
+        if (i % 2 === 1) return part;
+        return part.replace(/</g, '&lt;');
+      })
+      .join('');
+    cotContent += (cotContent ? '\n' : '') + escapedContent;
+    mainContent = mainContent.slice(0, openMatch.index);
+  }
 
   // 提取末尾的系统指令
   let sys = '';
@@ -164,12 +177,14 @@ export const parseCot = (content: string, useCache = true): CotParseResult => {
     isFinished,
   };
 
-  parseCotCache.set(content, result);
-  // 限制缓存大小，防止超长会话内存泄漏
-  if (parseCotCache.size > 2000) {
-    const firstKey = parseCotCache.keys().next().value;
-    if (firstKey !== undefined) {
-      parseCotCache.delete(firstKey);
+  // v0.4.0-patch3: 仅完成态写入缓存，避免流式过程中的中间结果污染缓存
+  if (useCache) {
+    parseCotCache.set(content, result);
+    if (parseCotCache.size > 2000) {
+      const firstKey = parseCotCache.keys().next().value;
+      if (firstKey !== undefined) {
+        parseCotCache.delete(firstKey);
+      }
     }
   }
   return result;
