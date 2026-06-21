@@ -80,6 +80,8 @@ export interface SettingsSlice {
   apiProviderId: string;
   customApiProviders: ApiProvider[];
   apiProviderKeys: Record<string, string>;
+  /** v0.3.5: 每供应商上次选中的模型名（含前缀），切换供应商时恢复 */
+  apiProviderSelectedModel: Record<string, string>;
   /** 内置供应商的思考深度覆盖（v0.3.0：内置供应商不可变，用 override map 存储） */
   builtinThinkingDepthOverrides: Record<string, ThinkingDepth>;
   /** v0.3.2: 内置供应商的 URL 覆盖（内置供应商不可变，用 override map 存储用户自定义 URL） */
@@ -250,7 +252,7 @@ export interface SessionSlice {
   sessions: Session[];
   currentSessionId: string | null;
 
-  createSession: (characterId: string, characterName: string) => string;
+  createSession: (characterId: string, characterName: string, firstMessage?: string) => string;
   switchSession: (id: string) => void;
   deleteSession: (id: string) => void;
   renameSession: (id: string, title: string) => void;

@@ -141,7 +141,7 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.3-debug.apk`
+**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.5-debug.apk`
 
 ## 项目结构
 
@@ -176,6 +176,12 @@ RP-Hub/
 ```
 
 ## 近期更新
+
+### v0.3.5
+
+9 项 Bug 修复 + 5 项新增功能 + 4 项功能增强。主要改动包括：DeepSeek 供应商切换模型名同步（apiProviderSelectedModel 状态）、错误气泡溢出修复（pre + break-all）、CoT 节点标题提取（extractStepTitle 8 种策略）、CoT 重复显示过滤、会话列表隐藏 icon 删除、分享 Emoji 替换为图标 + 占位符、PNG 导出 Android 适配（Capacitor Filesystem）、流式输出 3 层平台检测、开场白注入 firstMessage；快捷切换角色按钮 + 角色卡标签筛选 + 切换角色打开最近会话、模型 ID 与显示名称拆分、鹿溪性别设定；关于页 LOGO 替换、Luzzy 预设固定内容、角色名边界处理、版本号升级。
+
+详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ### v0.3.3
 

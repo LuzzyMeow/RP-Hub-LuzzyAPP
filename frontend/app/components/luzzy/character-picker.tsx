@@ -2,6 +2,7 @@
  * 角色卡选择器组件
  *
  * 可折叠的角色卡列表，用于聊天页面侧边选择当前角色卡
+ * v0.3.5: 增加标签筛选功能
  */
 
 import * as React from "react";
@@ -13,6 +14,7 @@ import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { Badge } from "~/components/ui/badge";
 
 interface CharacterPickerProps {
   /** 角色卡列表 */
@@ -33,16 +35,40 @@ export function CharacterPicker({
   className,
 }: CharacterPickerProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
+  const [selectedTags, setSelectedTags] = React.useState<string[]>([]);
 
+  // v0.3.5: 提取所有不重复标签
+  const allTags = React.useMemo(() => {
+    const tagSet = new Set<string>();
+    characters.forEach((c) => c.tags?.forEach((t) => tagSet.add(t)));
+    return Array.from(tagSet).sort();
+  }, [characters]);
+
+  // v0.3.5: 标签筛选 + 关键词搜索组合过滤
   const filtered = React.useMemo(() => {
-    if (!searchQuery.trim()) return characters;
-    const q = searchQuery.toLowerCase();
-    return characters.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.tags.some((t) => t.toLowerCase().includes(q)),
+    let result = characters;
+    if (selectedTags.length > 0) {
+      result = result.filter((c) =>
+        selectedTags.every((t) => c.tags?.includes(t)),
+      );
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          c.tags.some((t) => t.toLowerCase().includes(q)),
+      );
+    }
+    return result;
+  }, [characters, selectedTags, searchQuery]);
+
+  /** v0.3.5: 切换标签选中状态 */
+  const toggleTag = React.useCallback((tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
     );
-  }, [characters, searchQuery]);
+  }, []);
 
   return (
     <div className={cn("flex h-full flex-col", className)}>
@@ -57,6 +83,46 @@ export function CharacterPicker({
             className="pl-8"
           />
         </div>
+        {/* v0.3.5: 标签筛选条 */}
+        {allTags.length > 0 && (
+          <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
+            <AnimatePresence mode="popLayout">
+              {allTags.map((tag) => {
+                const isActive = selectedTags.includes(tag);
+                return (
+                  <motion.button
+                    key={tag}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                    onClick={() => toggleTag(tag)}
+                    className={cn(
+                      "shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-all active:scale-95",
+                      isActive
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-accent",
+                    )}
+                  >
+                    {tag}
+                  </motion.button>
+                );
+              })}
+            </AnimatePresence>
+            {selectedTags.length > 0 && (
+              <motion.button
+                layout
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                onClick={() => setSelectedTags([])}
+                className="shrink-0 rounded-full px-2.5 py-0.5 text-xs text-muted-foreground hover:bg-accent active:scale-95"
+              >
+                清除
+              </motion.button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 角色卡列表 */}
@@ -93,6 +159,20 @@ export function CharacterPicker({
                       {char.description}
                     </div>
                   )}
+                  {/* v0.3.5: 显示标签 */}
+                  {char.tags && char.tags.length > 0 && (
+                    <div className="mt-0.5 flex flex-wrap gap-1">
+                      {char.tags.slice(0, 3).map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="outline"
+                          className="shrink-0 px-1 py-0 text-[10px] leading-tight"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </motion.button>
             ))}
@@ -103,7 +183,9 @@ export function CharacterPicker({
             <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
               <IconUser className="size-8" />
               <p className="text-xs">
-                {searchQuery ? "未找到匹配的角色卡" : "暂无角色卡"}
+                {searchQuery || selectedTags.length > 0
+                  ? "未找到匹配的角色卡"
+                  : "暂无角色卡"}
               </p>
             </div>
           )}

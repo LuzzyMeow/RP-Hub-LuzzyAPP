@@ -605,7 +605,7 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
                   ) : (
                     characters.map((c) => (
                       <SelectItem key={c.uuid} value={c.uuid}>
-                        {c.name}
+                        <span className="truncate">{c.name}</span>
                       </SelectItem>
                     ))
                   )}
@@ -832,7 +832,7 @@ function LongTermMemoryTab({ settings }: LongTermMemoryTabProps) {
                   ) : (
                     characters.map((c) => (
                       <SelectItem key={c.uuid} value={c.uuid}>
-                        {c.name}
+                        <span className="truncate">{c.name}</span>
                       </SelectItem>
                     ))
                   )}

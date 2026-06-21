@@ -271,8 +271,10 @@ export default function SettingsPage() {
   /** 保存模型 */
   const handleSaveModel = React.useCallback(() => {
     if (!editingModel) return;
-    if (!editingModel.model.name.trim()) {
-      toast.warning("请输入模型名称");
+    // v0.3.5: 验证 modelId（若未设置则回退到 name）
+    const modelIdValue = editingModel.model.modelId ?? editingModel.model.name;
+    if (!modelIdValue.trim()) {
+      toast.warning("请输入模型 ID");
       return;
     }
     const { providerId, model, isNew } = editingModel;
@@ -613,7 +615,7 @@ export default function SettingsPage() {
                                 <div className="min-w-0 flex-1">
                                   <div className="flex min-w-0 items-center gap-2">
                                     <span className="min-w-0 truncate text-sm font-medium">
-                                      {m.name}
+                                      {m.displayName ?? m.name}
                                     </span>
                                     <div className="flex shrink-0 gap-1">
                                       {m.supportsVision && (
@@ -1037,22 +1039,47 @@ export default function SettingsPage() {
           {editingModel && (
             <ScrollArea className="max-h-[60vh] pr-2">
               <div className="grid gap-4 py-2">
-                {/* 模型名称 */}
+                {/* v0.3.5: 模型 ID（实际请求时的 model name） */}
                 <div className="grid gap-2">
-                  <label className="text-sm font-medium">模型名称</label>
+                  <label className="text-sm font-medium">模型 ID</label>
                   <Input
-                    value={editingModel.model.name}
+                    value={editingModel.model.modelId ?? editingModel.model.name}
                     onChange={(e) =>
                       setEditingModel({
                         ...editingModel,
                         model: {
                           ...editingModel.model,
-                          name: e.target.value,
+                          modelId: e.target.value,
+                          name: e.target.value, // 同步 name 以保持兼容
                         },
                       })
                     }
                     placeholder="deepseek-v4-pro"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    实际请求 API 时使用的模型名称
+                  </p>
+                </div>
+
+                {/* v0.3.5: 显示名称（仅前端显示） */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">显示名称（可选）</label>
+                  <Input
+                    value={editingModel.model.displayName ?? ""}
+                    onChange={(e) =>
+                      setEditingModel({
+                        ...editingModel,
+                        model: {
+                          ...editingModel.model,
+                          displayName: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="DeepSeek V4 Pro"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    仅用于前端显示，留空则使用模型 ID
+                  </p>
                 </div>
 
                 {/* 上下文长度 */}

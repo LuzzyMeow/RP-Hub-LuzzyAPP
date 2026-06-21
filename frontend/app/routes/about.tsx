@@ -10,6 +10,7 @@ import { motion } from "motion/react";
 import { IconInfo, IconLink, IconCopyEdit } from "~/components/luzzy/luzzy-icons";
 
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
+import Logo from "~/components/logo";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { ScrollArea } from "~/components/ui/scroll-area";
@@ -22,7 +23,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.3.4";
+const APP_VERSION = "v0.3.5";
 
 export default function AboutPage() {
   const [systemInfo, setSystemInfo] = React.useState<Record<string, string>>({});
@@ -93,7 +94,7 @@ export default function AboutPage() {
             className="flex flex-col items-center gap-3 py-8"
           >
             <div className="flex size-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/80 to-primary shadow-lg">
-              <span className="text-3xl font-bold text-primary-foreground">L</span>
+              <Logo className="size-12 text-primary-foreground" />
             </div>
             <div className="text-center">
               <h1 className="text-2xl font-bold tracking-tight">LUZZY</h1>

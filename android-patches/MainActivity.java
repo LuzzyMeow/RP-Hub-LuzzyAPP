@@ -241,7 +241,7 @@ public class MainActivity extends BridgeActivity {
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod(method.name());
                 conn.setConnectTimeout(30000);
-                conn.setReadTimeout(120000); // 降低到 2 分钟
+                conn.setReadTimeout(0); // v0.3.5: 流式响应无超时，避免长时间思考被中断
                 conn.setDoInput(true);
 
                 // 复制请求头（排除不需要转发的头，排除占位符 Authorization）

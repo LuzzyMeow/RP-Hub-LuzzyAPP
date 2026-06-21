@@ -164,8 +164,12 @@ export type ThinkingDepth = 'minimal' | 'auto' | 'low' | 'medium' | 'high' | 'ma
 /** 模型配置（每供应商多模型） */
 export interface ModelConfig {
   id: string;
-  /** 模型名（用户填写，如 doubao-pro） */
+  /** 模型名（向后兼容，作为 modelId 和 displayName 的回退值） */
   name: string;
+  /** v0.3.5: 模型 ID（实际请求时的 model name，如 deepseek-v4-pro） */
+  modelId?: string;
+  /** v0.3.5: 显示名称（仅前端页面使用，如 DeepSeek V4 Pro） */
+  displayName?: string;
   /** 上下文长度（数字，如 1000000） */
   contextLength?: number;
   /** 输出长度 */

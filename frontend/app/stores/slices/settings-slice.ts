@@ -147,6 +147,7 @@ const extractPersistableData = (state: SettingsSlice): Record<string, unknown> =
   apiProviderId: state.apiProviderId,
   customApiProviders: state.customApiProviders,
   apiProviderKeys: state.apiProviderKeys,
+  apiProviderSelectedModel: state.apiProviderSelectedModel,
   builtinThinkingDepthOverrides: state.builtinThinkingDepthOverrides,
   builtinUrlOverrides: state.builtinUrlOverrides,
   builtinModelOverrides: state.builtinModelOverrides,
@@ -185,6 +186,8 @@ export const createSettingsSlice: StateCreator<
   apiProviderId: DEFAULT_API_PROVIDER_ID,
   customApiProviders: [],
   apiProviderKeys: {},
+  // v0.3.5: 持久化每供应商上次选中的模型，切换供应商时恢复
+  apiProviderSelectedModel: {},
   builtinThinkingDepthOverrides: {},
   builtinUrlOverrides: {},
   builtinModelOverrides: {},
@@ -285,6 +288,11 @@ export const createSettingsSlice: StateCreator<
         ...state.apiProviderKeys,
         [state.apiProviderId]: state.apiKey,
       };
+      // v0.3.5: 保存当前 modelName 到当前供应商的选中模型记录
+      const apiProviderSelectedModel: Record<string, string> = {
+        ...state.apiProviderSelectedModel,
+        [state.apiProviderId]: state.modelName,
+      };
       // 保存当前 customRequestBody 到当前自定义供应商
       let customApiProviders = state.customApiProviders;
       const currentProvider = customApiProviders.find(
@@ -306,13 +314,29 @@ export const createSettingsSlice: StateCreator<
         newProvider?.customRequestBody ??
         (BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.customRequestBody ??
           "");
+      // v0.3.5: 加载新供应商的选中模型
+      // 优先使用该供应商上次选中的模型；若无则使用第一个模型（添加前缀）
+      const newProviderModels =
+        newProvider?.models ??
+        (BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.models ?? []);
+      const savedModel = apiProviderSelectedModel[provider.id];
+      let newModelName = "";
+      if (savedModel) {
+        newModelName = savedModel;
+      } else if (newProviderModels.length > 0) {
+        const firstModel = newProviderModels[0];
+        const modelId = firstModel.modelId || firstModel.name;
+        newModelName = `${provider.id}_${modelId}`;
+      }
       return {
         apiProviderKeys,
+        apiProviderSelectedModel,
         customApiProviders,
         apiProviderId: provider.id,
         apiUrl: provider.apiUrl || "",
         apiKey: apiProviderKeys[provider.id] || "",
         customRequestBody: newCustomRequestBody,
+        modelName: newModelName,
       };
     }),
 
@@ -706,6 +730,12 @@ export const createSettingsSlice: StateCreator<
           !Array.isArray(data.apiProviderKeys)
             ? (data.apiProviderKeys as Record<string, string>)
             : state.apiProviderKeys,
+        apiProviderSelectedModel:
+          data.apiProviderSelectedModel &&
+          typeof data.apiProviderSelectedModel === "object" &&
+          !Array.isArray(data.apiProviderSelectedModel)
+            ? (data.apiProviderSelectedModel as Record<string, string>)
+            : state.apiProviderSelectedModel,
         builtinThinkingDepthOverrides:
           data.builtinThinkingDepthOverrides &&
           typeof data.builtinThinkingDepthOverrides === "object" &&

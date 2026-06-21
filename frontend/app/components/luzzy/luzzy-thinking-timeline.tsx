@@ -39,8 +39,91 @@ interface LuzzyThinkingTimelineProps {
 // ============================================================================
 
 /**
+ * 从段落中提取步骤标题
+ *
+ * v0.3.5: 识别 CoT 内容中的步骤标记，提取真正的"思维节点"名称
+ * 支持格式：
+ *   - Step1、Step 1、Step1：xxx、Step 1：xxx
+ *   - 【Step1】、【Step 1：xxx】
+ *   - **Step1**、**Step 1：xxx**
+ *   - **Step1：宇宙声明与认知隔离**
+ * 若无法匹配步骤标记，根据内容关键词智能识别
+ */
+function extractStepTitle(para: string, fallbackIndex: number): string {
+  // 1. 优先匹配 **Step N：xxx** 或 **Step N: xxx** 格式（含中文/英文冒号）
+  const boldStepMatch = para.match(/\*+\s*Step\s*(\d+)\s*[:：]\s*([^*\n*【】]+)/i);
+  if (boldStepMatch) {
+    return boldStepMatch[2].trim();
+  }
+
+  // 2. 匹配 **Step N** 格式（仅步骤号，无名称）
+  const boldStepOnlyMatch = para.match(/\*+\s*Step\s*(\d+)\s*\*+/i);
+  if (boldStepOnlyMatch) {
+    return `Step ${boldStepOnlyMatch[1]}`;
+  }
+
+  // 3. 匹配 【Step N：xxx】 或 【Step N: xxx】 格式
+  const bracketStepMatch = para.match(/【\s*Step\s*(\d+)\s*[:：]\s*([^】]+)】/i);
+  if (bracketStepMatch) {
+    return bracketStepMatch[2].trim();
+  }
+
+  // 4. 匹配 【Step N】 格式
+  const bracketStepOnlyMatch = para.match(/【\s*Step\s*(\d+)\s*】/i);
+  if (bracketStepOnlyMatch) {
+    return `Step ${bracketStepOnlyMatch[1]}`;
+  }
+
+  // 5. 匹配行首 Step N：xxx 或 Step N: xxx 格式
+  const lineStepMatch = para.match(/^Step\s*(\d+)\s*[:：]\s*([^\n]+)/i);
+  if (lineStepMatch) {
+    return lineStepMatch[2].trim();
+  }
+
+  // 6. 匹配行首 Step N 格式
+  const lineStepOnlyMatch = para.match(/^Step\s*(\d+)/i);
+  if (lineStepOnlyMatch) {
+    return `Step ${lineStepOnlyMatch[1]}`;
+  }
+
+  // 7. 关键词智能识别（基于 CoT 14 步路径的常见关键词）
+  const keywordMap: Array<{ keywords: string[]; title: string }> = [
+    { keywords: ["宇宙声明", "认知隔离", "平行创作宇宙"], title: "宇宙声明与认知隔离" },
+    { keywords: ["核心指令", "指令加载", "忽略所有平台"], title: "核心指令加载" },
+    { keywords: ["NSFW", "场景协议", "禁止隐晦"], title: "NSFW 场景协议" },
+    { keywords: ["R-LOGIC", "现实主义逻辑", "信息限制", "能力限制"], title: "R-LOGIC 现实主义逻辑审查" },
+    { keywords: ["人格内核", "人格惯性", "角色是文本内的真人"], title: "人格内核审查" },
+    { keywords: ["写作风格", "白描", "生活流"], title: "写作风格审查" },
+    { keywords: ["反重复", "禁止隐喻", "固定修辞"], title: "反重复审查" },
+    { keywords: ["反劫持", "第四面墙", "漂移"], title: "反劫持审查" },
+    { keywords: ["禁止内容", "禁用句式", "禁用词"], title: "禁止内容审查" },
+    { keywords: ["场景与意图", "解密", "潜台词"], title: "场景与意图解密" },
+    { keywords: ["角色与世界设定", "设定分析", "世界观"], title: "角色与世界设定分析" },
+    { keywords: ["逻辑预演", "预演", "构思即将"], title: "逻辑预演" },
+    { keywords: ["自我驳斥", "4轮问答", "自我否定"], title: "自我驳斥" },
+    { keywords: ["最终执行锁", "执行锁", "正文"], title: "最终执行锁" },
+    { keywords: ["记忆", "加载", "召回"], title: "记忆加载" },
+    { keywords: ["设定代入", "角色代入"], title: "设定代入" },
+    { keywords: ["场景分析", "分析当前场景"], title: "场景分析" },
+    { keywords: ["工具调用", "调用工具"], title: "工具调用" },
+    { keywords: ["头脑风暴", "原生思考", "thinking"], title: "头脑风暴" },
+  ];
+
+  const lowerPara = para.toLowerCase();
+  for (const { keywords, title } of keywordMap) {
+    if (keywords.some((kw) => lowerPara.includes(kw.toLowerCase()))) {
+      return title;
+    }
+  }
+
+  // 8. 兜底：使用"思考步骤 N"
+  return `思考步骤 ${fallbackIndex + 1}`;
+}
+
+/**
  * 将 CoT 文本拆分为多个思考步骤
  *
+ * v0.3.5: 增强版，识别 CoT 14 步路径标记，提取真正的"思维节点"名称
  * 按 \n\n 分割为段落，每个段落是一个步骤。
  * 若段落过短（<10 字符），合并到上一个步骤。
  */
@@ -61,12 +144,11 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
     const isLast = i === paragraphs.length - 1;
     const status: "running" | "completed" = isGenerating && isLast ? "running" : "completed";
 
-    // 生成步骤标题：取段落前 30 字符作为预览
-    const titleMatch = para.match(/^(.{0,30})/);
-    const preview = titleMatch ? titleMatch[1].trim() : `思考步骤 ${i + 1}`;
+    // v0.3.5: 提取真正的步骤标题，而非截断内容
+    const title = extractStepTitle(para, i);
 
     steps.push({
-      title: preview.length < para.length ? preview + "..." : preview,
+      title,
       content: para,
       status,
     });

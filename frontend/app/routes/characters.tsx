@@ -779,9 +779,13 @@ export default function CharactersPage() {
         switchSession(charSessions[0].id);
         setMessages(charSessions[0].messages);
       } else {
-        // 无会话则自动新建
-        createSession(c.uuid, c.name);
-        setMessages([]);
+        // 无会话则自动新建（v0.3.5: 注入角色卡开场白）
+        createSession(c.uuid, c.name, c.firstMessage);
+        // 同步消息列表（开场白已由 createSession 预置）
+        const newSession = useAppStore.getState().sessions.find(
+          (s) => s.characterId === c.uuid && s.messages.length > 0
+        );
+        setMessages(newSession?.messages ?? []);
       }
       navigate("/");
     },

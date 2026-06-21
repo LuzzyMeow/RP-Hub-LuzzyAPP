@@ -1,5 +1,34 @@
 # Changelog
 
+## v0.3.5
+
+### 🐛 Bug 修复
+
+- **DeepSeek 供应商切换模型名错误**：`settings-slice.ts` 新增 `apiProviderSelectedModel` 状态，`selectApiProvider` 切换供应商时保存/加载对应模型，修复切换供应商后 modelName 仍为旧值（如 glm-5.2）导致 API 400 错误
+- **错误信息气泡溢出**：`luzzy-chat-message.tsx` 错误信息改为 `<pre>` + `whitespace-pre-wrap break-all` + `max-h-[200px] overflow-auto`，修复长错误信息超出屏幕右侧
+- **CoT 节点标题截断**：`luzzy-thinking-timeline.tsx` 新增 `extractStepTitle` 函数，8 种匹配策略提取思维节点标题（头脑风暴/记忆加载/设定代入/场景分析/工具调用等），点击展开才是具体思考文字
+- **CoT 重复显示**：`luzzy-chat-message.tsx` 当 cot 存在时过滤 thinking steps，避免 CotCard 与 LuzzyAgentSteps 同时显示思考内容
+- **会话列表隐藏 icon**：`all-sessions-list.tsx` 移除会话项右侧隐藏的 icon 按钮组，改为仅点击标题文字触发重命名（`stopPropagation` 避免触发切换）
+- **分享 Emoji 违规**：`luzzy-share-dialog.tsx` 替换 Emoji 为 `IconUser`/`IconCat` 图标，用户改为 `{user}` 占位符、AI 改为 `{character}` 占位符，自动提取用户档案名称和当前角色卡名称
+- **PNG 导出 Android 适配**：`luzzy-share-dialog.tsx` `downloadBlob` 改为 async，原生平台使用 Capacitor Filesystem API 保存到 `Documents/LUZZY/` 目录，Web 端回退到 `<a download>`
+- **流式输出失效**：`apiClient.ts` `isNativePlatform()` 增强 3 层检测（Capacitor API → getPlatform → User-Agent），`MainActivity.java` `setReadTimeout(0)` 避免长连接超时
+- **开场白不生效**：`session-slice.ts` `createSession` 注入 `firstMessage` 作为 agent 预置消息，`characters.tsx`/`chat.tsx` 传入 `currentCharacter.firstMessage`
+
+### ✨ 新增功能
+
+- **快捷切换角色按钮**：`chat.tsx` 头部 actions 新增 `IconUserGroup` 切换角色按钮，点击打开角色选择器
+- **角色卡标签筛选**：`character-picker.tsx` 新增标签筛选条（横向滚动），从所有角色卡提取不重复标签，支持多标签组合筛选 + 关键词搜索，角色卡项显示前 3 个标签 Badge
+- **切换角色打开最近会话**：`chat.tsx` `handleSelectCharacter` 查找该角色最近会话（按 updatedAt 降序），有则打开，无则加载历史新建
+- **模型 ID 与显示名称拆分**：`types/luzzy.ts` ModelConfig 新增 `modelId`（实际请求 API 的模型名）和 `displayName`（仅前端显示）可选字段；`settings.tsx` 模型编辑表单拆分为两个输入框；`luzzy-chat-input.tsx` 模型下拉显示 displayName，构建 fullModelName 使用 modelId
+- **鹿溪性别设定**：`presetContent.ts` LUXI_PROMPT 身份锚定表格新增"性别 | 男"行
+
+### 🚀 功能增强
+
+- **关于页 LOGO 替换**：`about.tsx` LOGO 从"L"文字替换为 `Logo` SVG 组件，版本号升级到 v0.3.5
+- **Luzzy 预设固定内容**：`preset.tsx` Luzzy 预设隐藏编辑和删除按钮，仅保留预览、绑定、开关，成为固定内容
+- **角色名边界处理**：`memory.tsx` SelectItem 角色名添加 `truncate` 包装，避免名称过长溢出容器
+- **版本号升级**：v0.3.4 → v0.3.5（package.json + build.gradle versionCode 13 + about.tsx）
+
 ## v0.3.4
 
 ### 🐛 Bug 修复

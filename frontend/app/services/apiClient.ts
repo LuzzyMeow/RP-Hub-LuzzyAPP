@@ -26,14 +26,44 @@ const NATIVE_PROXY_BASE = 'http://localhost:18527';
  *
  * CapacitorHttp 会 patch 全局 fetch，导致 response.body.getReader() 在 Android 上
  * 一次性返回完整数据，无法实现真流式。原生平台需通过 XMLHttpRequest + 本地代理实现真流式。
+ *
+ * v0.3.5: 增强检测，多重判断确保原生平台正确识别
  */
 export const isNativePlatform = (): boolean => {
-  return !!(
-    typeof window !== 'undefined' &&
-    window.Capacitor &&
-    typeof window.Capacitor.isNativePlatform === 'function' &&
-    window.Capacitor.isNativePlatform()
-  );
+  if (typeof window === 'undefined') return false;
+
+  // 1. 优先使用 Capacitor 官方 API
+  if (window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function') {
+    try {
+      if (window.Capacitor.isNativePlatform()) return true;
+    } catch {
+      // 忽略异常，继续其他检测
+    }
+  }
+
+  // 2. 检测 Capacitor 平台标识
+  const platform = (window as unknown as { Capacitor?: { getPlatform?: () => string } }).Capacitor;
+  if (platform && typeof platform.getPlatform === 'function') {
+    try {
+      const p = platform.getPlatform();
+      if (p === 'android' || p === 'ios') return true;
+    } catch {
+      // 忽略异常
+    }
+  }
+
+  // 3. 检测 User-Agent 中的 Android/iOS 标识（兜底）
+  if (typeof navigator !== 'undefined' && navigator.userAgent) {
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes('android') || ua.includes('iphone') || ua.includes('ipad')) {
+      // 进一步确认是 Capacitor 环境（非普通移动浏览器）
+      if (window.Capacitor || ua.includes('capacitor')) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 };
 
 // ============================================================================

@@ -26,15 +26,24 @@ export const createSessionSlice: StateCreator<
   currentSessionId: null,
 
   // ===== Actions =====
-  createSession: (characterId, characterName) => {
+  createSession: (characterId, characterName, firstMessage) => {
     const now = Date.now();
     const id = uuidv4();
+    // v0.3.5: 若角色卡有开场白，预置一条 assistant 消息作为消息列表第一条
+    const messages = firstMessage && firstMessage.trim()
+      ? [{
+          id: uuidv4(),
+          role: 'assistant' as const,
+          content: firstMessage.trim(),
+          createdAt: now,
+        }]
+      : [];
     const newSession: Session = {
       id,
       title: "新会话",
       characterId,
       characterName,
-      messages: [],
+      messages,
       createdAt: now,
       updatedAt: now,
       retryBranches: {},

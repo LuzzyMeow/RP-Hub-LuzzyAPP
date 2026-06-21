@@ -15,6 +15,7 @@ import {
   IconGrid,
   IconMessage,
   IconUser,
+  IconUserGroup,
   IconExclamation,
   IconSettings,
   IconArrowDown,
@@ -150,10 +151,19 @@ export default function ChatPage() {
       if (!char) return;
       setCurrentCharacterUuid(uuid);
       setCurrentCharacter(char);
-      await loadChatHistory(uuid);
+      // v0.3.5: 查找该角色最近会话，有则打开，无则加载历史（新建）
+      const charSessions = sessions
+        .filter((s) => s.characterId === uuid)
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+      if (charSessions.length > 0) {
+        switchSession(charSessions[0].id);
+        setMessages(charSessions[0].messages);
+      } else {
+        await loadChatHistory(uuid);
+      }
       setShowCharacterPicker(false);
     },
-    [characters, setCurrentCharacterUuid, setCurrentCharacter, loadChatHistory],
+    [characters, sessions, setCurrentCharacterUuid, setCurrentCharacter, switchSession, setMessages, loadChatHistory],
   );
 
   /** 发送消息 */
@@ -208,8 +218,13 @@ export default function ChatPage() {
       toast.warning("请先选择角色卡");
       return;
     }
-    createSession(currentCharacter.uuid, currentCharacter.name);
-    setMessages([]);
+    // v0.3.5: 注入角色卡开场白
+    createSession(currentCharacter.uuid, currentCharacter.name, currentCharacter.firstMessage);
+    // 同步消息列表（开场白已由 createSession 预置）
+    const newSession = useAppStore.getState().sessions.find(
+      (s) => s.characterId === currentCharacter.uuid && s.messages.length > 0
+    );
+    setMessages(newSession?.messages ?? []);
     setShowAllSessions(false);
     toast.success("已创建新会话");
     void saveSessions();
@@ -367,6 +382,15 @@ export default function ChatPage() {
         title={currentCharacter.name}
         actions={
           <>
+            {/* v0.3.5: 快捷切换角色 */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowCharacterPicker(true)}
+              title="切换角色"
+            >
+              <IconUserGroup className="size-4" />
+            </Button>
             {/* 新建会话 */}
             <Button
               variant="ghost"

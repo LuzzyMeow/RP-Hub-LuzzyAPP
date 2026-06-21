@@ -319,7 +319,9 @@ export function LuzzyChatInput({
                     </div>
                     <div className="flex flex-col gap-1">
                       {providerModels.map((model) => {
-                        const fullModelName = `${provider.id}_${model.name}`;
+                        // v0.3.5: 使用 modelId（若存在）构建 fullModelName，否则回退到 name
+                        const modelIdValue = model.modelId ?? model.name;
+                        const fullModelName = `${provider.id}_${modelIdValue}`;
                         const isActive = modelName === fullModelName;
                         return (
                           <motion.button
@@ -338,7 +340,7 @@ export function LuzzyChatInput({
                             )}
                           >
                             <div className="flex flex-col gap-1">
-                              <span className="text-sm font-medium">{model.name}</span>
+                              <span className="text-sm font-medium">{model.displayName ?? model.name}</span>
                               <div className="flex flex-wrap gap-1">
                                 {model.supportsVision && <Badge variant="outline" className="text-xs">视觉</Badge>}
                                 {model.supportsReasoning && <Badge variant="outline" className="text-xs">推理</Badge>}

@@ -28,6 +28,7 @@ import type { Preset } from "~/types/luzzy";
 import {
   BUILTIN_PRESET_DEFAULTS,
   BUILTIN_PRESET_NAME_SET,
+  LUZZY_PRESET_NAME,
 } from "~/services/presetContent";
 import { getItem, setItem } from "~/services/storage";
 import { useAppStore } from "~/stores";
@@ -391,15 +392,18 @@ export default function PresetPage() {
               >
                 <IconSearch className="size-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="size-8 p-0"
-                onClick={() => handleEdit(preset)}
-                {...pressableSubtle}
-              >
-                <IconEdit className="size-4" />
-              </Button>
+              {/* v0.3.5: Luzzy 预设为固定内容，隐藏编辑按钮 */}
+              {preset.name !== LUZZY_PRESET_NAME && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0"
+                  onClick={() => handleEdit(preset)}
+                  {...pressableSubtle}
+                >
+                  <IconEdit className="size-4" />
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -409,19 +413,22 @@ export default function PresetPage() {
               >
                 <IconBookmark className="size-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="size-8 p-0 text-destructive"
-                onClick={() => void handleDelete(preset)}
-                {...pressableSubtle}
-              >
-                {preset.isBuiltin ? (
-                  <IconClose className="size-4" />
-                ) : (
-                  <IconTrash className="size-4" />
-                )}
-              </Button>
+              {/* v0.3.5: Luzzy 预设为固定内容，隐藏删除按钮 */}
+              {preset.name !== LUZZY_PRESET_NAME && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="size-8 p-0 text-destructive"
+                  onClick={() => void handleDelete(preset)}
+                  {...pressableSubtle}
+                >
+                  {preset.isBuiltin ? (
+                    <IconClose className="size-4" />
+                  ) : (
+                    <IconTrash className="size-4" />
+                  )}
+                </Button>
+              )}
             </div>
           </Card>
         </motion.div>

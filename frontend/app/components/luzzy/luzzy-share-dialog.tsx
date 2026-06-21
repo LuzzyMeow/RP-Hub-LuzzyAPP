@@ -20,6 +20,8 @@ import {
   IconCheck,
   IconShare,
   IconDownload,
+  IconUser,
+  IconCat,
 } from "~/components/luzzy/luzzy-icons";
 import {
   Dialog,
@@ -36,6 +38,8 @@ import { springEnter, pressable } from "~/lib/motion-presets";
 import { cn } from "~/lib/utils";
 import { toast } from "sonner";
 import type { Session, ChatMessage } from "~/types/luzzy";
+import { useAppStore } from "~/stores/app-store";
+import { isNativePlatform } from "~/services/apiClient";
 
 type ShareFormat = "md" | "json" | "png";
 type ShareStep = "format" | "select";
@@ -87,6 +91,20 @@ export function LuzzyShareDialog({
   const [step, setStep] = React.useState<ShareStep>("format");
   const [exporting, setExporting] = React.useState(false);
 
+  // v0.3.5: 获取用户名和角色名用于占位符替换
+  const userName = useAppStore((s) => s.user.name) || "用户";
+  const characterName = session?.characterName || "AI";
+
+  // v0.3.5: 解析占位符 {user} 和 {character}
+  const resolvePlaceholders = React.useCallback(
+    (text: string): string => {
+      return text
+        .replace(/\{user\}/g, userName)
+        .replace(/\{character\}/g, characterName);
+    },
+    [userName, characterName],
+  );
+
   // 打开时全选 + 重置步骤
   React.useEffect(() => {
     if (open) {
@@ -124,11 +142,58 @@ export function LuzzyShareDialog({
 
   /** 下载 Blob 文件 */
   const downloadBlob = React.useCallback(
-    (content: string | Blob, fileName: string, mime: string) => {
+    async (content: string | Blob, fileName: string, mime: string) => {
       const blob =
         typeof content === "string"
           ? new Blob([content], { type: mime })
           : content;
+
+      // v0.3.5: 原生平台使用 Capacitor Filesystem API 保存文件
+      if (isNativePlatform()) {
+        try {
+          const { Filesystem, Directory } = await import('@capacitor/filesystem');
+          // 将 Blob 转 base64
+          const arrayBuffer = await blob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          let binary = '';
+          for (let i = 0; i < uint8Array.length; i++) {
+            binary += String.fromCharCode(uint8Array[i]);
+          }
+          const base64Data = btoa(binary);
+
+          // 确保 LUZZY 目录存在
+          try {
+            await Filesystem.mkdir({
+              path: 'LUZZY',
+              directory: Directory.Documents,
+              recursive: true,
+            });
+          } catch {
+            // 目录已存在，忽略
+          }
+
+          // 写入文件
+          await Filesystem.writeFile({
+            path: `LUZZY/${fileName}`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+
+          // 获取文件 URI 用于提示
+          const uriResult = await Filesystem.getUri({
+            path: `LUZZY/${fileName}`,
+            directory: Directory.Documents,
+          });
+          toast.success(`已导出到：${uriResult.uri}`);
+        } catch (err) {
+          console.error("[ShareDialog] 原生导出失败:", err);
+          toast.error("导出失败：" + (err as Error).message);
+        }
+        return;
+      }
+
+      // Web 平台：浏览器下载
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -143,7 +208,7 @@ export function LuzzyShareDialog({
   );
 
   /** 导出 Markdown */
-  const exportMd = React.useCallback(() => {
+  const exportMd = React.useCallback(async () => {
     if (!session) return;
     const lines: string[] = [
       `# ${session.title}`,
@@ -156,9 +221,10 @@ export function LuzzyShareDialog({
       "",
     ];
     for (const msg of selectedMessages) {
+      // v0.3.5: 使用占位符 {user}/{character}，导出时解析为实际名称
       const role =
-        msg.role === "user" ? "🧑 用户" : msg.role === "assistant" ? "🤖 AI" : "系统";
-      lines.push(`## ${role}`);
+        msg.role === "user" ? "{user}" : msg.role === "assistant" ? "{character}" : "系统";
+      lines.push(`## ${resolvePlaceholders(role)}`);
       lines.push("");
       lines.push(msg.content || "（空消息）");
       lines.push("");
@@ -166,11 +232,11 @@ export function LuzzyShareDialog({
       lines.push("");
     }
     const fileName = `${session.title || "session"}-${Date.now()}.md`;
-    downloadBlob(lines.join("\n"), fileName, "text/markdown");
-  }, [session, selectedMessages, downloadBlob]);
+    await downloadBlob(lines.join("\n"), fileName, "text/markdown");
+  }, [session, selectedMessages, downloadBlob, resolvePlaceholders]);
 
   /** 导出 JSON */
-  const exportJson = React.useCallback(() => {
+  const exportJson = React.useCallback(async () => {
     if (!session) return;
     const data = {
       session: {
@@ -193,7 +259,7 @@ export function LuzzyShareDialog({
       })),
     };
     const fileName = `${session.title || "session"}-${Date.now()}.json`;
-    downloadBlob(JSON.stringify(data, null, 2), fileName, "application/json");
+    await downloadBlob(JSON.stringify(data, null, 2), fileName, "application/json");
   }, [session, selectedMessages, downloadBlob]);
 
   /** 导出 PNG 长截图 */
@@ -221,9 +287,10 @@ export function LuzzyShareDialog({
         const isUser = msg.role === "user";
         const msgEl = document.createElement("div");
         msgEl.style.cssText = `margin-bottom:16px;padding:12px 14px;border-radius:12px;${isUser ? "background:#eff6ff;border:1px solid #dbeafe;" : "background:#f9fafb;border:1px solid #f3f4f6;"}`;
-        const roleLabel = isUser ? "🧑 用户" : msg.role === "assistant" ? "🤖 AI" : "系统";
+        // v0.3.5: 使用占位符 {user}/{character}，导出时解析为实际名称
+        const roleLabel = isUser ? "{user}" : msg.role === "assistant" ? "{character}" : "系统";
         msgEl.innerHTML = `
-          <div style="font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:500;">${roleLabel}</div>
+          <div style="font-size:11px;color:#6b7280;margin-bottom:6px;font-weight:500;">${escapeHtml(resolvePlaceholders(roleLabel))}</div>
           <div style="font-size:14px;color:#111827;white-space:pre-wrap;word-break:break-word;line-height:1.6;">${escapeHtml(msg.content || "（空消息）")}</div>
         `;
         container.appendChild(msgEl);
@@ -258,7 +325,7 @@ export function LuzzyShareDialog({
     } finally {
       setExporting(false);
     }
-  }, [session, selectedMessages, downloadBlob]);
+  }, [session, selectedMessages, downloadBlob, resolvePlaceholders]);
 
   /** 执行导出 */
   const handleExport = React.useCallback(async () => {
@@ -267,9 +334,9 @@ export function LuzzyShareDialog({
       return;
     }
     if (shareFormat === "md") {
-      exportMd();
+      await exportMd();
     } else if (shareFormat === "json") {
-      exportJson();
+      await exportJson();
     } else if (shareFormat === "png") {
       await exportPng();
     }
@@ -392,8 +459,16 @@ export function LuzzyShareDialog({
                           className="mt-1"
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="text-xs font-medium text-muted-foreground">
-                            {isUser ? "🧑 用户" : "🤖 AI"}
+                          {/* v0.3.5: 使用 icon 替代 Emoji，显示用户名/角色名 */}
+                          <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                            {isUser ? (
+                              <IconUser className="size-3" />
+                            ) : (
+                              <IconCat className="size-3" />
+                            )}
+                            <span className="truncate">
+                              {isUser ? userName : characterName}
+                            </span>
                           </div>
                           <div className="line-clamp-2 text-sm">
                             {m.content || "（空消息）"}

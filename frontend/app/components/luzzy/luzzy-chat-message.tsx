@@ -515,7 +515,9 @@ export function LuzzyChatMessage({
 
           {/* 错误信息 */}
           {hasError && (
-            <div className="mt-2 text-xs text-destructive">{message.error}</div>
+            <pre className="mt-2 max-h-[200px] overflow-auto whitespace-pre-wrap break-all rounded bg-destructive/10 p-2 font-mono text-xs text-destructive">
+              {message.error}
+            </pre>
           )}
 
           {/* 生成中止标记 */}
@@ -580,8 +582,13 @@ export function LuzzyChatMessage({
         </div>
 
         {/* Agent 执行步骤卡片（v0.3.0 新增，仅 Agent 消息显示） */}
+        {/* v0.3.5: 当 message.cot 存在时，过滤掉 thinking 步骤，避免与 CotCard 重复显示 */}
         {!isUser && message.agentSteps && message.agentSteps.length > 0 && (
-          <LuzzyAgentSteps steps={message.agentSteps} />
+          <LuzzyAgentSteps
+            steps={message.agentSteps.filter(
+              (s) => !(s.type === "thinking" && message.cot)
+            )}
+          />
         )}
 
         {/* Token 使用统计行（v0.3.0 新增，仅 Agent 消息显示） */}

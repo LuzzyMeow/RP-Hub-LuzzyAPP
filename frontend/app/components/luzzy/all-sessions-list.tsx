@@ -13,7 +13,6 @@ import {
   IconGrid,
   IconClock,
   IconTrash,
-  IconEdit,
   IconPlus,
   IconShare,
 } from "~/components/luzzy/luzzy-icons";
@@ -347,6 +346,7 @@ function SessionSwipeItem({
             animate(x, 0, { duration: 0.3 });
             onShare(session.id);
           } else {
+            // v0.3.5: 确保未触发删除/分享时回弹到原位，避免删除状态保持
             animate(x, 0, { duration: 0.3 });
           }
         }}
@@ -361,7 +361,14 @@ function SessionSwipeItem({
           onClick={() => onSwitch(session.id)}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-sm font-medium">
+            {/* v0.3.5: 仅点击标题文字触发重命名，停止冒泡避免触发切换 */}
+            <span
+              className="truncate text-sm font-medium hover:text-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRename(session);
+              }}
+            >
               {session.title}
             </span>
             <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground/70">
@@ -370,29 +377,11 @@ function SessionSwipeItem({
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>{session.characterName}</span>
+            <span className="truncate">{session.characterName}</span>
             <span>·</span>
             <span>{session.messages.length} 条消息</span>
           </div>
         </button>
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onRename(session)}
-            {...pressableSubtle}
-          >
-            <IconEdit className="size-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onDelete(session.id)}
-            {...pressableSubtle}
-          >
-            <IconTrash className="size-3.5 text-destructive" />
-          </Button>
-        </div>
       </motion.div>
     </div>
   );
