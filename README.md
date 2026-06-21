@@ -26,9 +26,9 @@
 
 > **LUZZY** is a mobile-first conversation app for **AI roleplay** and **TRPG tabletop role-playing**, optimized for Android and also runnable in browsers.
 
-前端基于 [rikkahub](https://github.com/lucky-rikkahub/rikkahub) Web UI 重构，完整保留其成熟的后端业务逻辑，并在此基础上围绕移动端交互、主题系统、角色卡生态与记忆机制进行了深度定制。
+前端基于 [rikkahub]([https://github.com/lucky-rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)) Web UI 重构，完整保留其成熟的后端业务逻辑，并在此基础上围绕移动端交互、主题系统、角色卡生态与记忆机制进行了深度定制。
 
-> The frontend is rebuilt from [rikkahub](https://github.com/lucky-rikkahub/rikkahub) Web UI, preserving its proven backend logic while deeply customizing mobile interaction, theming, character cards, and memory systems.
+> The frontend is rebuilt from [rikkahub]([https://github.com/lucky-rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)) Web UI, preserving its proven backend logic while deeply customizing mobile interaction, theming, character cards, and memory systems.
 
 ---
 
