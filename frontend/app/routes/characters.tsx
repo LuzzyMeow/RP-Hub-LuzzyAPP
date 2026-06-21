@@ -17,7 +17,6 @@ import {
   IconSearch,
   IconStar,
   IconUpload,
-  IconDownload,
   IconEdit,
   IconTrash,
   IconUser,
@@ -25,12 +24,14 @@ import {
   IconImage,
   IconClose,
   IconCharacter,
+  IconShare,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
 import type { Character, WorldInfoEntry, RegexScriptGroup } from "~/types/luzzy";
 import { logger } from "~/services/logger";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
+import { SwipeCard } from "~/components/luzzy/swipe-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
@@ -56,12 +57,6 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -813,82 +808,75 @@ export default function CharactersPage() {
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
                   >
-                    <Card className="group gap-3 p-3 transition-all hover:shadow-md">
-                      <div className="flex items-start gap-3">
-                        <Avatar className="size-12 shrink-0 rounded-lg">
-                          <AvatarImage src={c.avatar} alt={c.name} />
-                          <AvatarFallback className="rounded-lg">
-                            {c.name.charAt(0) || "?"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <h3 className="truncate font-medium">{c.name || "未命名"}</h3>
-                            {c.favorite && (
-                              <IconStar className="size-3.5 shrink-0 fill-yellow-400 text-yellow-400" />
+                    <SwipeCard
+                      onSwipeLeft={() => void handleDelete(c)}
+                      onSwipeRight={() => handleEdit(c)}
+                      leftIcon={<IconTrash className="size-5" />}
+                      rightIcon={<IconEdit className="size-5" />}
+                    >
+                      <Card className="gap-3 rounded-xl p-3 transition-all">
+                        <div className="flex items-start gap-3">
+                          <Avatar className="size-12 shrink-0 rounded-lg">
+                            <AvatarImage src={c.avatar} alt={c.name} />
+                            <AvatarFallback className="rounded-lg">
+                              {c.name.charAt(0) || "?"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="truncate font-medium">{c.name || "未命名"}</h3>
+                              {c.favorite && (
+                                <IconStar className="size-3.5 shrink-0 fill-yellow-400 text-yellow-400" />
+                              )}
+                            </div>
+                            <p className="line-clamp-2 text-xs text-muted-foreground">
+                              {c.description || "暂无描述"}
+                            </p>
+                          </div>
+                        </div>
+                        {c.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {c.tags.slice(0, 3).map((t) => (
+                              <Badge key={t} variant="secondary" className="text-xs">
+                                {t}
+                              </Badge>
+                            ))}
+                            {c.tags.length > 3 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{c.tags.length - 3}
+                              </Badge>
                             )}
                           </div>
-                          <p className="line-clamp-2 text-xs text-muted-foreground">
-                            {c.description || "暂无描述"}
-                          </p>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            onClick={() => void toggleFavorite(c.uuid)}
+                            {...pressableSubtle}
+                          >
+                            <IconStar
+                              className={`size-4 ${
+                                c.favorite
+                                  ? "fill-yellow-400 text-yellow-400"
+                                  : "text-muted-foreground"
+                              }`}
+                            />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            onClick={() => handleExport(c)}
+                            title="分享/导出"
+                            {...pressableSubtle}
+                          >
+                            <IconShare className="size-4" />
+                          </Button>
                         </div>
-                      </div>
-                      {c.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {c.tags.slice(0, 3).map((t) => (
-                            <Badge key={t} variant="secondary" className="text-xs">
-                              {t}
-                            </Badge>
-                          ))}
-                          {c.tags.length > 3 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{c.tags.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-8"
-                          onClick={() => void toggleFavorite(c.uuid)}
-                          {...pressableSubtle}
-                        >
-                          <IconStar
-                            className={`size-4 ${
-                              c.favorite
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-muted-foreground"
-                            }`}
-                          />
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="size-8 p-0">
-                              <IconEdit className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(c)}>
-                              <IconEdit className="mr-2 size-4" />
-                              编辑
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExport(c)}>
-                              <IconDownload className="mr-2 size-4" />
-                              导出 JSON
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => void handleDelete(c)}
-                            >
-                              <IconTrash className="mr-2 size-4" />
-                              删除
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </Card>
+                      </Card>
+                    </SwipeCard>
                   </motion.div>
                 ))}
               </AnimatePresence>

@@ -38,6 +38,8 @@ import {
 
 import type { ChatMessage, ToolCall, MemoryRecall } from "~/types/luzzy";
 import { cn } from "~/lib/utils";
+import { copyTextToClipboard } from "~/lib/clipboard";
+import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
@@ -74,8 +76,8 @@ interface LuzzyChatMessageProps {
   onRegenerate?: (message: ChatMessage) => void;
   /** 重试回调（user 消息重试=根据当前 user 重新生成；agent 消息重试上一条 user） */
   onRetry?: (message: ChatMessage) => void;
-  /** 翻译回调 */
-  onTranslate?: (message: ChatMessage) => void;
+  /** 翻译回调（返回 Promise 以支持加载状态跟踪） */
+  onTranslate?: (message: ChatMessage) => void | Promise<void>;
   /** 分享回调 */
   onShare?: (message: ChatMessage) => void;
   /** 创建分支回调 */
@@ -278,11 +280,13 @@ function ActionButton({
   label,
   onClick,
   disabled,
+  spinning,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  spinning?: boolean;
 }) {
   return (
     <motion.button
@@ -297,7 +301,7 @@ function ActionButton({
         "disabled:cursor-not-allowed disabled:opacity-40",
       )}
     >
-      <Icon className="size-4" />
+      <Icon className={cn("size-4", spinning && "animate-spin text-blue-500")} />
       <span>{label}</span>
     </motion.button>
   );
@@ -400,6 +404,8 @@ export function LuzzyChatMessage({
   const [moreDialogOpen, setMoreDialogOpen] = React.useState(false);
   // 选择复制（原始文本）二级弹窗
   const [rawCopyDialogOpen, setRawCopyDialogOpen] = React.useState(false);
+  // 翻译加载状态（v0.3.3：前端动画提示）
+  const [translating, setTranslating] = React.useState(false);
 
   /** 处理复制 */
   const handleCopy = React.useCallback(() => {
@@ -417,10 +423,16 @@ export function LuzzyChatMessage({
     }
   }, [isUser, onRetry, onRegenerate, message]);
 
-  /** 处理翻译 */
-  const handleTranslate = React.useCallback(() => {
-    onTranslate?.(message);
-  }, [onTranslate, message]);
+  /** 处理翻译（异步，跟踪加载状态用于动画反馈） */
+  const handleTranslate = React.useCallback(async () => {
+    if (translating || hasTranslation) return;
+    setTranslating(true);
+    try {
+      await onTranslate?.(message);
+    } finally {
+      setTranslating(false);
+    }
+  }, [onTranslate, message, translating, hasTranslation]);
 
   /** 处理更多弹窗 */
   const handleMore = React.useCallback(() => {
@@ -428,9 +440,14 @@ export function LuzzyChatMessage({
   }, []);
 
   /** 复制原始文本（不渲染 markdown） */
-  const handleCopyRaw = React.useCallback(() => {
-    navigator.clipboard.writeText(message.content);
-    setRawCopyDialogOpen(false);
+  const handleCopyRaw = React.useCallback(async () => {
+    try {
+      await copyTextToClipboard(message.content);
+      setRawCopyDialogOpen(false);
+      toast.success("已复制到剪贴板");
+    } catch {
+      toast.error("复制失败");
+    }
   }, [message.content]);
 
   return (
@@ -548,10 +565,11 @@ export function LuzzyChatMessage({
             disabled={isGenerating}
           />
           <ActionButton
-            icon={IconBook}
-            label="翻译"
+            icon={translating ? IconRefresh : IconBook}
+            label={translating ? "翻译中" : "翻译"}
             onClick={handleTranslate}
-            disabled={isGenerating || hasTranslation}
+            disabled={isGenerating || hasTranslation || translating}
+            spinning={translating}
           />
           <ActionButton
             icon={IconMenu}

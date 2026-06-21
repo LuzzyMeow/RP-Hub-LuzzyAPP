@@ -84,7 +84,7 @@ export function LuzzyLayout({
         <AppHeader title={title} actions={actions} onMenuClick={toggleSideMenu} />
         <main
           className={cn(
-            "flex-1 overflow-hidden",
+            "flex-1 overflow-hidden min-h-0",
             contentClassName,
           )}
         >

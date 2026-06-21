@@ -10,7 +10,7 @@
  */
 
 import * as React from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   IconPlane,
   IconStop,
@@ -22,7 +22,6 @@ import {
   IconImage,
   IconCamera,
   IconExpand,
-  IconArrowDown,
 } from "~/components/luzzy/luzzy-icons";
 import { toast } from "sonner";
 
@@ -63,10 +62,6 @@ interface LuzzyChatInputProps {
   placeholder?: string;
   /** 额外样式 */
   className?: string;
-  /** 是否显示滚动到底部按钮 */
-  showScrollToBottom?: boolean;
-  /** 滚动到底部回调 */
-  onScrollToBottom?: () => void;
 }
 
 /** 思考深度选项（v0.3.0 扩展为 6 档，对齐 OpenAI reasoning_effort） */
@@ -89,8 +84,6 @@ export function LuzzyChatInput({
   disabled = false,
   placeholder = "输入消息...",
   className,
-  showScrollToBottom = false,
-  onScrollToBottom,
 }: LuzzyChatInputProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const [showModelPicker, setShowModelPicker] = React.useState(false);
@@ -275,30 +268,6 @@ export function LuzzyChatInput({
             </Button>
           </div>
         </div>
-
-        {/* 滚动到底部浮动按钮 */}
-        <AnimatePresence>
-          {showScrollToBottom && (
-            <motion.div
-              className="absolute -top-12 right-4 z-10"
-              initial={{ opacity: 0, y: 10, scale: 0.8 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.8 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
-            >
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={onScrollToBottom}
-                className="size-9 rounded-full shadow-lg border border-border/20"
-                title="滚动到底部"
-                {...pressable}
-              >
-                <IconArrowDown className="size-4" />
-              </Button>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
 
       {/* 全屏编辑器 */}

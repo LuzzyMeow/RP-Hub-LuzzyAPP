@@ -14,6 +14,7 @@ import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { toast } from "sonner";
+import { copyTextToClipboard } from "~/lib/clipboard";
 import { getLogFilePath, getBufferedLogs, logger } from "~/services/logger";
 
 export function meta(_: Route.MetaArgs) {
@@ -21,7 +22,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.3.2";
+const APP_VERSION = "v0.3.3";
 
 export default function AboutPage() {
   const [systemInfo, setSystemInfo] = React.useState<Record<string, string>>({});
@@ -74,7 +75,7 @@ export default function AboutPage() {
       return;
     }
     try {
-      await navigator.clipboard.writeText(logPath);
+      await copyTextToClipboard(logPath);
       toast.success("日志路径已复制到剪贴板");
     } catch {
       toast.error("复制失败");
@@ -177,15 +178,19 @@ export default function AboutPage() {
                   <IconInfo className="size-4 text-primary" />
                   <h2 className="text-sm font-semibold">最近日志（{recentLogs.length} 条）</h2>
                 </div>
-                <ScrollArea className="max-h-[300px] rounded-md border bg-muted/30">
+                <div className="max-h-[300px] overflow-auto rounded-md border bg-muted/30">
                   <div className="space-y-0.5 p-2">
                     {recentLogs.map((line, i) => (
-                      <p key={i} className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed">
+                      <p
+                        key={i}
+                        className="whitespace-pre-wrap break-all font-mono text-xs leading-relaxed"
+                        style={{ wordBreak: "break-all", overflowWrap: "anywhere" }}
+                      >
                         {line}
                       </p>
                     ))}
                   </div>
-                </ScrollArea>
+                </div>
               </Card>
             </motion.div>
           )}

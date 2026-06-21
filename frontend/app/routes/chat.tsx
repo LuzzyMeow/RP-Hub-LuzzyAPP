@@ -17,6 +17,7 @@ import {
   IconUser,
   IconExclamation,
   IconSettings,
+  IconArrowDown,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
@@ -31,6 +32,8 @@ import { useIsMobile } from "~/hooks/use-mobile";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { toast } from "sonner";
 import { logger } from "~/services/logger";
+import { copyTextToClipboard } from "~/lib/clipboard";
+import { pressable } from "~/lib/motion-presets";
 import { Button } from "~/components/ui/button";
 import {
   Empty,
@@ -104,19 +107,31 @@ export default function ChatPage() {
   const createBranch = useAppStore((s) => s.createBranch);
   const switchRetryVersion = useAppStore((s) => s.switchRetryVersion);
 
-  // 初始化：加载会话列表 + 确保默认角色"鹿溪"存在
+  // 初始化：加载会话列表 + 确保默认角色"鹿溪"存在 + 恢复上次会话状态
   React.useEffect(() => {
-    void loadSessions();
-    ensureDefaultCharacter().then(() => {
-      if (!currentCharacter && currentCharacterUuid) {
-        const char = characters.find((c) => c.uuid === currentCharacterUuid);
-        if (char) {
-          setCurrentCharacter(char);
-          loadChatHistory(char.uuid);
+    void loadSessions().then(() => {
+      ensureDefaultCharacter().then(() => {
+        const state = useAppStore.getState();
+        // v0.3.2: 优先恢复持久化的 currentCharacterUuid
+        if (!state.currentCharacter && state.currentCharacterUuid) {
+          const char = state.characters.find((c) => c.uuid === state.currentCharacterUuid);
+          if (char) {
+            setCurrentCharacter(char);
+            // v0.3.2: 若有持久化的 currentSessionId，恢复该会话消息
+            if (state.currentSessionId) {
+              const session = state.sessions.find((s) => s.id === state.currentSessionId);
+              if (session && session.messages.length > 0) {
+                setMessages(session.messages);
+                return;
+              }
+            }
+            // 无有效会话则加载角色聊天历史
+            loadChatHistory(char.uuid);
+          }
         }
-      }
+      });
     });
-  }, [ensureDefaultCharacter, currentCharacter, currentCharacterUuid, characters, setCurrentCharacter, loadChatHistory, loadSessions]);
+  }, [ensureDefaultCharacter, setCurrentCharacter, loadChatHistory, loadSessions, setMessages]);
 
   // 智能滚动附着（use-stick-to-bottom）
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
@@ -164,9 +179,13 @@ export default function ChatPage() {
   }, [inputDraft, isGenerating, currentCharacter, apiUrl, apiKey, sendMessage, setInputDraft, currentSessionId, saveSessions]);
 
   /** 复制消息 */
-  const handleCopy = React.useCallback((msg: { content: string }) => {
-    navigator.clipboard.writeText(msg.content);
-    toast.success("已复制到剪贴板");
+  const handleCopy = React.useCallback(async (msg: { content: string }) => {
+    try {
+      await copyTextToClipboard(msg.content);
+      toast.success("已复制到剪贴板");
+    } catch {
+      toast.error("复制失败");
+    }
   }, []);
 
   /** 删除消息 */
@@ -270,10 +289,10 @@ export default function ChatPage() {
     [retryMessage],
   );
 
-  /** 翻译消息 */
+  /** 翻译消息（返回 Promise 以支持前端加载动画） */
   const handleTranslate = React.useCallback(
     (msg: { id: string }) => {
-      void translateMessage(msg.id);
+      return translateMessage(msg.id);
     },
     [translateMessage],
   );
@@ -476,14 +495,31 @@ export default function ChatPage() {
               onSend={handleSend}
               onStop={stopGenerating}
               isGenerating={isGenerating}
-              showScrollToBottom={!isAtBottom}
-              onScrollToBottom={() => {
-                const el = scrollRef.current;
-                if (el) {
-                  el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-                }
-              }}
             />
+
+            {/* v0.3.3: 浮动置底按钮 - 浮在最上层，不依附于输入框 */}
+            <AnimatePresence>
+              {!isAtBottom && (
+                <motion.div
+                  className="absolute bottom-24 right-4 z-30"
+                  initial={{ opacity: 0, y: 10, scale: 0.8 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.8 }}
+                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                >
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    onClick={() => scrollToBottom()}
+                    className="size-10 rounded-full border border-border/20 shadow-lg"
+                    title="滚动到底部"
+                    {...pressable}
+                  >
+                    <IconArrowDown className="size-5" />
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 

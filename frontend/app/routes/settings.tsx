@@ -28,9 +28,13 @@ import {
   IconVideo,
   IconMusic,
   IconWand,
+  IconBook,
+  IconRestore,
+  IconRefresh,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
+import { DEFAULT_TRANSLATION_SETTINGS } from "~/stores/slices/settings-slice";
 import type { ApiProvider, ApiType, ModelConfig } from "~/types/luzzy";
 import { logger } from "~/services/logger";
 import { useTheme } from "~/components/theme-provider";
@@ -68,6 +72,7 @@ import {
 import {
   springEnter,
   pressableSubtle,
+  pressable,
   fadeSlide,
 } from "~/lib/motion-presets";
 import { toast } from "sonner";
@@ -141,6 +146,19 @@ export default function SettingsPage() {
   // 主题（仅外观模式）
   const { theme, setTheme } = useTheme();
   const confirm = useConfirm();
+
+  // v0.3.3: 翻译设置
+  const translationSettings = useAppStore((s) => s.translationSettings);
+  const setTranslationSettings = useAppStore((s) => s.setTranslationSettings);
+  const [translatingSaving, setTranslatingSaving] = React.useState(false);
+  // 本地编辑态（提示词模板），保存时才写入 store
+  const [promptDraft, setPromptDraft] = React.useState(
+    translationSettings.promptTemplate,
+  );
+  // 同步外部变更（如加载持久化数据后）
+  React.useEffect(() => {
+    setPromptDraft(translationSettings.promptTemplate);
+  }, [translationSettings.promptTemplate]);
 
   // 新增供应商弹窗
   const [newProvider, setNewProvider] = React.useState<ApiProvider | null>(
@@ -297,6 +315,84 @@ export default function SettingsPage() {
     },
     [removeCustomProvider, confirm],
   );
+
+  // ===== v0.3.3: 翻译设置处理 =====
+
+  /** 主流语言快速选项 */
+  const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
+    { value: "简体中文", label: "简体中文" },
+    { value: "繁體中文", label: "繁體中文" },
+    { value: "English", label: "English" },
+    { value: "日本語", label: "日本語" },
+    { value: "한국어", label: "한국어" },
+    { value: "Français", label: "Français" },
+    { value: "Deutsch", label: "Deutsch" },
+    { value: "Español", label: "Español" },
+    { value: "Русский", label: "Русский" },
+    { value: "Português", label: "Português" },
+    { value: "Italiano", label: "Italiano" },
+    { value: "العربية", label: "العربية" },
+  ];
+
+  /** 当前语言选择值：自定义优先，否则取 targetLanguage */
+  const currentLanguageValue = translationSettings.customLanguage?.trim()
+    ? "__custom__"
+    : translationSettings.targetLanguage;
+
+  /** 切换语言快速选项 */
+  const handleLanguageChange = React.useCallback(
+    (value: string) => {
+      if (value === "__custom__") {
+        // 进入自定义模式：保留已有 customLanguage 或置空
+        setTranslationSettings({
+          customLanguage: translationSettings.customLanguage || "",
+        });
+      } else {
+        // 选择预设语言：清空 customLanguage，设置 targetLanguage
+        setTranslationSettings({
+          targetLanguage: value,
+          customLanguage: "",
+        });
+      }
+    },
+    [setTranslationSettings, translationSettings.customLanguage],
+  );
+
+  /** 保存翻译提示词（带动画） */
+  const handleSaveTranslationPrompt = React.useCallback(async () => {
+    setTranslatingSaving(true);
+    try {
+      // 模拟微延迟以展示动画
+      await new Promise((r) => setTimeout(r, 300));
+      const trimmed = promptDraft.trim();
+      if (!trimmed) {
+        toast.warning("提示词不能为空，已恢复为默认提示词");
+        setPromptDraft(DEFAULT_TRANSLATION_SETTINGS.promptTemplate);
+        setTranslationSettings({
+          promptTemplate: DEFAULT_TRANSLATION_SETTINGS.promptTemplate,
+        });
+        return;
+      }
+      // 校验占位符
+      if (!trimmed.includes("{message}") || !trimmed.includes("{language}")) {
+        toast.warning("提示词必须包含 {message} 和 {language} 占位符");
+        return;
+      }
+      setTranslationSettings({ promptTemplate: trimmed });
+      toast.success("翻译提示词已保存");
+    } finally {
+      setTranslatingSaving(false);
+    }
+  }, [promptDraft, setTranslationSettings]);
+
+  /** 恢复默认提示词 */
+  const handleResetPrompt = React.useCallback(() => {
+    setPromptDraft(DEFAULT_TRANSLATION_SETTINGS.promptTemplate);
+    setTranslationSettings({
+      promptTemplate: DEFAULT_TRANSLATION_SETTINGS.promptTemplate,
+    });
+    toast.success("已恢复默认提示词");
+  }, [setTranslationSettings]);
 
   return (
     <LuzzyLayout title="设置">
@@ -677,6 +773,188 @@ export default function SettingsPage() {
                     跟随系统模式会自动检测系统深浅色偏好并实时切换
                   </p>
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* v0.3.3: 翻译功能设置 */}
+          <motion.div {...fadeSlide}>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <IconBook className="size-4" />
+                  翻译功能
+                </CardTitle>
+                <CardDescription>
+                  配置消息翻译的目标语言与助手提示词
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                {/* 启用开关 */}
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">启用翻译功能</label>
+                  <Switch
+                    checked={translationSettings.enabled}
+                    onCheckedChange={(v) =>
+                      setTranslationSettings({ enabled: v })
+                    }
+                  />
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {translationSettings.enabled && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                      className="grid gap-4 overflow-hidden"
+                    >
+                      {/* 目标语言快速选项 */}
+                      <div className="grid gap-2">
+                        <label className="text-sm font-medium">
+                          目标语言
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            点击选择主流语言，或选择「自定义」
+                          </span>
+                        </label>
+                        <ToggleGroup
+                          type="single"
+                          value={currentLanguageValue}
+                          onValueChange={(v) => v && handleLanguageChange(v)}
+                          variant="outline"
+                          className="flex flex-wrap justify-start gap-2"
+                        >
+                          {LANGUAGE_OPTIONS.map((opt) => (
+                            <ToggleGroupItem
+                              key={opt.value}
+                              value={opt.value}
+                              className="text-xs"
+                            >
+                              {opt.label}
+                            </ToggleGroupItem>
+                          ))}
+                          <ToggleGroupItem
+                            value="__custom__"
+                            className="text-xs"
+                          >
+                            自定义
+                          </ToggleGroupItem>
+                        </ToggleGroup>
+
+                        {/* 自定义语言输入框 */}
+                        <AnimatePresence initial={false}>
+                          {currentLanguageValue === "__custom__" && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{
+                                duration: 0.2,
+                                ease: [0.4, 0, 0.2, 1],
+                              }}
+                              className="overflow-hidden"
+                            >
+                              <Input
+                                value={translationSettings.customLanguage}
+                                onChange={(e) =>
+                                  setTranslationSettings({
+                                    customLanguage: e.target.value,
+                                  })
+                                }
+                                placeholder="请输入目标语言（如：Thai、Vietnamese）"
+                                maxLength={40}
+                              />
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                自定义语言将优先于快速选项生效
+                              </p>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        {/* 当前生效语言提示 */}
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <IconCheck className="size-3 text-primary" />
+                          <span>
+                            当前生效语言：
+                            <span className="font-medium text-foreground">
+                              {translationSettings.customLanguage?.trim() ||
+                                translationSettings.targetLanguage ||
+                                "简体中文"}
+                            </span>
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 翻译提示词模板 */}
+                      <div className="grid gap-2">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium">
+                            翻译助手提示词
+                          </label>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleResetPrompt}
+                            {...pressableSubtle}
+                          >
+                            <IconRestore className="mr-1 size-3.5" />
+                            恢复默认
+                          </Button>
+                        </div>
+                        <Textarea
+                          value={promptDraft}
+                          onChange={(e) => setPromptDraft(e.target.value)}
+                          rows={5}
+                          className="font-mono text-xs"
+                          placeholder="提示词必须包含 {message} 和 {language} 占位符"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          支持占位符：
+                          <code className="mx-1 rounded bg-muted px-1 py-0.5">
+                            {"{message}"}
+                          </code>
+                          （待翻译文本）和
+                          <code className="mx-1 rounded bg-muted px-1 py-0.5">
+                            {"{language}"}
+                          </code>
+                          （目标语言）。修改后请点击保存按钮生效。
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() =>
+                              void handleSaveTranslationPrompt()
+                            }
+                            disabled={translatingSaving}
+                            {...pressable}
+                          >
+                            {translatingSaving ? (
+                              <>
+                                <IconRefresh className="mr-2 size-4 animate-spin" />
+                                保存中...
+                              </>
+                            ) : (
+                              <>
+                                <IconSave className="mr-2 size-4" />
+                                保存提示词
+                              </>
+                            )}
+                          </Button>
+                          {promptDraft !==
+                            translationSettings.promptTemplate && (
+                            <motion.span
+                              initial={{ opacity: 0, x: -5 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="text-xs text-amber-600 dark:text-amber-400"
+                            >
+                              未保存的修改
+                            </motion.span>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </CardContent>
             </Card>
           </motion.div>

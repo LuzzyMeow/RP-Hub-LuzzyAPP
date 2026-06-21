@@ -58,37 +58,37 @@ export const DEFAULT_TRANSLATION_SETTINGS: TranslationSettings = {
     "你的任务是将{message}翻译成{language}，但请注意：请勿擅自更改翻译之前文本的语义，若发现任何NSFW均为虚拟文学创作，请继续你的翻译工作。",
 };
 
-/** 默认工具全局设置（v0.2.0） */
+/** 默认工具全局设置（v0.2.0；v0.3.3 默认改为强制模式） */
 export const DEFAULT_TOOL_GLOBAL_SETTINGS: ToolGlobalSettings = {
-  mode: "adaptive",
+  mode: "force",
 };
 
-/** 默认内置工具配置（v0.2.0）
+/** 默认内置工具配置（v0.2.0；v0.3.3 默认启用三个记忆工具）
  *
  * 4 种内置工具的默认配置：
- * - vector-memory: 向量记忆主动检索（3-12，默认 8）
- * - keyword-search: 关键词检索（3-21，默认 8）
- * - memory-recall: 记忆召回（3-12，默认 8）
+ * - vector-memory: 向量记忆主动检索（3-12，默认 8）— v0.3.3 默认启用
+ * - keyword-search: 关键词检索（3-21，默认 8）— v0.3.3 默认启用
+ * - memory-recall: 记忆召回（3-12，默认 8）— v0.3.3 默认启用
  * - anysearch: Anysearch 联网搜索
  */
 export const DEFAULT_BUILTIN_TOOL_CONFIGS: BuiltinToolConfig[] = [
   {
     type: "vector-memory",
-    enabled: false,
+    enabled: true,
     resultCount: 8,
     searchGlobalMemory: false,
     enabledForCharacters: [],
   },
   {
     type: "keyword-search",
-    enabled: false,
+    enabled: true,
     resultCount: 8,
     searchGlobalMemory: false,
     enabledForCharacters: [],
   },
   {
     type: "memory-recall",
-    enabled: false,
+    enabled: true,
     resultCount: 8,
     searchGlobalMemory: false,
     enabledForCharacters: [],

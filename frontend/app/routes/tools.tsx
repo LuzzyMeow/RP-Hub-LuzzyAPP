@@ -25,6 +25,7 @@ import {
   IconClose,
   IconTag,
   IconLink,
+  IconInfo,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
@@ -34,6 +35,7 @@ import type {
   BuiltinToolType,
   ToolGlobalMode,
   McpSubTool,
+  MemorySettings,
 } from "~/types/luzzy";
 import { getItem, setItem } from "~/services/storage";
 import { logger } from "~/services/logger";
@@ -1364,6 +1366,18 @@ function BuiltinToolsTab() {
   const toolGlobalSettings = useAppStore((s) => s.toolGlobalSettings);
   const setToolGlobalMode = useAppStore((s) => s.setToolGlobalMode);
   const characters = useAppStore((s) => s.characters);
+  // v0.3.3: 从 IndexedDB 加载记忆设置以检查嵌入模型配置状态
+  const [hasEmbeddingModel, setHasEmbeddingModel] = React.useState(false);
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const data = await getItem<MemorySettings>("memory", "memorySettings");
+        setHasEmbeddingModel(Boolean(data?.embeddingModel?.trim()));
+      } catch {
+        setHasEmbeddingModel(false);
+      }
+    })();
+  }, []);
   const [editingType, setEditingType] = React.useState<BuiltinToolType | null>(
     null,
   );
@@ -1500,6 +1514,19 @@ function BuiltinToolsTab() {
                       exit={{ opacity: 0, height: 0 }}
                       className="space-y-3 border-t border-border/50 pt-3"
                     >
+                      {/* v0.3.3: 向量记忆工具未配置嵌入模型时的提示 */}
+                      {toolType === "vector-memory" && !hasEmbeddingModel && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400"
+                        >
+                          <IconInfo className="mt-0.5 size-3.5 shrink-0" />
+                          <span>
+                            此工具需要配置嵌入模型才能进行语义检索。请在「记忆」页面配置嵌入模型，否则将降级为关键词匹配。
+                          </span>
+                        </motion.div>
+                      )}
                       {/* 返回条数 */}
                       <div className="grid gap-2">
                         <div className="flex items-center justify-between">
