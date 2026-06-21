@@ -202,10 +202,10 @@ export function LuzzyChatInput({
               onClick={() => setShowFullscreen(true)}
               disabled={disabled}
               title="全屏编辑"
-              className="absolute bottom-2 right-2 size-8"
+              className="absolute top-1/2 right-2 size-9 -translate-y-1/2"
               {...pressableSubtle}
             >
-              <IconExpand className="size-4" />
+              <IconExpand className="size-5" />
             </Button>
           </div>
           <Button
@@ -235,7 +235,7 @@ export function LuzzyChatInput({
               title="切换模型"
               {...pressableSubtle}
             >
-              <IconToolKit className="size-4" />
+              <IconToolKit className="size-5" />
             </Button>
             <Button
               variant="ghost"
@@ -246,7 +246,7 @@ export function LuzzyChatInput({
               className={cn(thinkingDepthLockedByJson && "opacity-40")}
               {...pressableSubtle}
             >
-              <IconLight className="size-4" />
+              <IconLight className="size-5" />
             </Button>
           </div>
 
@@ -271,7 +271,7 @@ export function LuzzyChatInput({
               title="更多"
               {...pressableSubtle}
             >
-              <IconPlus className="size-4" />
+              <IconPlus className="size-5" />
             </Button>
           </div>
         </div>
@@ -318,7 +318,7 @@ export function LuzzyChatInput({
 
       {/* 模型选择弹窗 */}
       <Sheet open={showModelPicker} onOpenChange={setShowModelPicker}>
-        <SheetContent side="bottom" className="h-[60vh] p-0">
+        <SheetContent side="bottom" className="h-[60vh] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
           <SheetHeader>
             <SheetTitle>选择模型</SheetTitle>
           </SheetHeader>

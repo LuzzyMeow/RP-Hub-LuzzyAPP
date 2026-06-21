@@ -37,6 +37,7 @@ import type {
   AceSkillbook,
 } from "~/types/luzzy";
 import { getItem, setItem } from "~/services/storage";
+import { logger } from "~/services/logger";
 import {
   loadVectorMemoryShards,
   loadLongTermMemory,
@@ -188,6 +189,7 @@ export default function MemoryPage() {
   const handleSaveSettings = React.useCallback(async () => {
     try {
       await setItem("memory", MEMORY_SETTINGS_KEY, settings);
+      logger.info("user", "保存记忆设置");
       toast.success("记忆设置已保存");
     } catch (e) {
       toast.error("保存失败：" + (e as Error).message);

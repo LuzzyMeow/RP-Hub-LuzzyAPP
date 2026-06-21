@@ -15,17 +15,21 @@ import * as React from "react";
 import { useLocation } from "react-router";
 
 const TRPG_IFRAME_URL = "https://aisandboxgame.com/";
+const TRPG_IFRAME_STORAGE_KEY = "trpg_iframe_loaded";
 
 export function GlobalTrpgIframe() {
   const location = useLocation();
   const isTrpgRoute = location.pathname.startsWith("/trpg");
-  // 仅在首次访问时记录 src 已设置，避免后续切换重新加载
-  const [srcSet, setSrcSet] = React.useState(false);
+  // v0.3.2: 从 localStorage 读取初始值，避免冷启动后 srcSet 重置
+  const [srcSet, setSrcSet] = React.useState(() => {
+    return localStorage.getItem(TRPG_IFRAME_STORAGE_KEY) === "true";
+  });
 
   React.useEffect(() => {
-    // 首次进入 TRPG 页面时标记 src 已设置
+    // 首次进入 TRPG 页面时标记 src 已设置，并持久化到 localStorage
     if (isTrpgRoute && !srcSet) {
       setSrcSet(true);
+      localStorage.setItem(TRPG_IFRAME_STORAGE_KEY, "true");
     }
   }, [isTrpgRoute, srcSet]);
 

@@ -39,6 +39,7 @@ import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { Card } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
+import { Switch } from "~/components/ui/switch";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import {
@@ -92,10 +93,12 @@ export default function ProfilePage() {
   const user = useAppStore((s) => s.user);
   const userProfiles = useAppStore((s) => s.userProfiles);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
+  const defaultProfileActive = useAppStore((s) => s.defaultProfileActive);
   const setUser = useAppStore((s) => s.setUser);
   const addProfile = useAppStore((s) => s.addProfile);
   const switchProfile = useAppStore((s) => s.switchProfile);
   const removeProfile = useAppStore((s) => s.removeProfile);
+  const setDefaultProfileActive = useAppStore((s) => s.setDefaultProfileActive);
   const confirm = useConfirm();
 
   // 编辑状态
@@ -116,6 +119,11 @@ export default function ProfilePage() {
   /** 新建档案 */
   const handleNew = React.useCallback(() => {
     addProfile();
+    // v0.3.2: 默认档案激活时，新增档案不自动激活，仅提示
+    if (defaultProfileActive) {
+      toast.info("已新增档案，关闭「默认档案」开关后可激活");
+      return;
+    }
     // addProfile 会把新档案设为激活，editing 直接基于新档案
     setIsNew(true);
     // 使用 setTimeout 确保 store 已更新
@@ -123,7 +131,7 @@ export default function ProfilePage() {
       const state = useAppStore.getState();
       setEditing({ ...state.user });
     }, 0);
-  }, [addProfile]);
+  }, [addProfile, defaultProfileActive]);
 
   /** 保存编辑 */
   const handleSave = React.useCallback(() => {
@@ -330,6 +338,18 @@ export default function ProfilePage() {
                 <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
                   {user.description || "暂无描述"}
                 </p>
+                {/* v0.3.2: 默认档案激活开关 */}
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">默认档案</span>
+                  <Switch
+                    checked={defaultProfileActive}
+                    onCheckedChange={(v) => {
+                      setDefaultProfileActive(v);
+                      toast.success(v ? "已激活默认档案" : "已切换到新增档案");
+                    }}
+                    aria-label="默认档案激活开关"
+                  />
+                </div>
               </div>
               <Button
                 variant="ghost"
@@ -354,6 +374,13 @@ export default function ProfilePage() {
           </h3>
         </div>
 
+        {/* v0.3.2: 默认档案激活提示 */}
+        {defaultProfileActive && userProfiles.length > 0 && (
+          <p className="px-1 text-xs text-muted-foreground">
+            默认档案激活中，新增档案不可激活。关闭上方开关可切换到新增档案。
+          </p>
+        )}
+
         <ScrollArea className="flex-1">
           {userProfiles.length === 0 ? (
             <Empty>
@@ -372,12 +399,14 @@ export default function ProfilePage() {
               <AnimatePresence mode="popLayout">
                 {userProfiles.map((profile) => {
                   const isActive = profile.uuid === activeProfileId;
+                  // v0.3.2: 默认档案激活时，新增档案置灰且不可激活
+                  const isDisabled = defaultProfileActive;
                   return (
                     <motion.div
                       key={profile.uuid}
                       layout
                       {...fadeSlide}
-                      className="group"
+                      className={`group ${isDisabled ? "opacity-50" : ""}`}
                     >
                       <Card
                         className={`flex items-center gap-3 p-3 transition-colors ${
@@ -396,7 +425,8 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => handleSwitch(profile.uuid)}
-                          className="min-w-0 flex-1 text-left"
+                          disabled={isDisabled}
+                          className="min-w-0 flex-1 text-left disabled:cursor-not-allowed"
                         >
                           <div className="flex items-center gap-2">
                             <span className="truncate text-sm font-medium">

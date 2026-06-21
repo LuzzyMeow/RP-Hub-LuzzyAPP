@@ -83,6 +83,8 @@ export interface SettingsSlice {
   apiProviderKeys: Record<string, string>;
   /** 内置供应商的思考深度覆盖（v0.3.0：内置供应商不可变，用 override map 存储） */
   builtinThinkingDepthOverrides: Record<string, ThinkingDepth>;
+  /** v0.3.2: 内置供应商的 URL 覆盖（内置供应商不可变，用 override map 存储用户自定义 URL） */
+  builtinUrlOverrides: Record<string, string>;
 
   // ===== 模型模式（v0.2.0 保留但设置页不展示，向后兼容） =====
   modelMode: ModelMode;
@@ -94,6 +96,8 @@ export interface SettingsSlice {
   user: UserProfile;
   userProfiles: UserProfile[];
   activeProfileId: string | null;
+  /** v0.3.2: 默认档案是否激活（true 时新增档案置灰） */
+  defaultProfileActive: boolean;
 
   // ===== v0.2.0 新增 =====
   /** 翻译设置 */
@@ -155,6 +159,8 @@ export interface SettingsSlice {
   addProfile: (profile?: Partial<UserProfile>) => void;
   switchProfile: (uuid: string) => void;
   removeProfile: (uuid: string) => void;
+  /** v0.3.2: 设置默认档案激活状态 */
+  setDefaultProfileActive: (active: boolean) => void;
 
   // ===== Actions：v0.2.0 新增 =====
   setTranslationSettings: (settings: Partial<TranslationSettings>) => void;

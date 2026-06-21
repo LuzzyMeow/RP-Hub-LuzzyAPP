@@ -36,6 +36,7 @@ import type {
   McpSubTool,
 } from "~/types/luzzy";
 import { getItem, setItem } from "~/services/storage";
+import { logger } from "~/services/logger";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 import { Button } from "~/components/ui/button";
@@ -346,12 +347,10 @@ function SkillTab() {
             // 保存 rawUrl 到 description 末尾以便后续更新（避免新增字段）
             void rawUrl;
           } catch (e) {
-            // 降级：仅记录 URL，不拉取文件
-            console.warn("[Tools] GitHub 完整导入失败，降级为仅记录 URL:", e);
-            finalSkill.githubUrl = githubUrl;
-            finalSkill.source = "github";
-            finalSkill.files = [];
-            toast.warning(`GitHub 文件拉取失败，仅记录 URL：${e instanceof Error ? e.message : String(e)}`);
+            // v0.3.2: 不再降级保存空文件，直接报错返回
+            toast.error(`GitHub 导入失败：${e instanceof Error ? e.message : String(e)}`);
+            setSaving(false);
+            return;
           }
         }
         finalSkill.tags = skillTags;
@@ -783,7 +782,9 @@ function SkillTab() {
             <Button variant="outline" onClick={() => setEditing(null)}>
               取消
             </Button>
-            <Button onClick={() => void handleSave()}>保存</Button>
+            <Button onClick={() => void handleSave()} disabled={saving}>
+              {saving ? "保存中..." : "保存"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -896,6 +897,7 @@ function McpTab() {
     }
     setTesting(true);
     setTestResult(null);
+    logger.info("user", `测试 MCP 连接: ${editing.mcpServerUrl}`);
     try {
       // 1. 初始化连接
       const serverInfo = await initializeMcpServer(editing.mcpServerUrl);
@@ -909,6 +911,17 @@ function McpTab() {
         message: `连接成功，发现 ${mcpTools.length} 个工具`,
         tools: mcpTools,
       });
+      // v0.3.2: 持久化连接状态和工具列表到 editing 对象
+      setEditing((prev) =>
+        prev
+          ? {
+              ...prev,
+              mcpTools,
+              mcpConnectionStatus: "connected",
+              mcpLastTestedAt: Date.now(),
+            }
+          : prev,
+      );
       toast.success(`MCP 连接成功，发现 ${mcpTools.length} 个工具`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -916,6 +929,17 @@ function McpTab() {
         success: false,
         message: msg,
       });
+      // v0.3.2: 持久化失败状态到 editing 对象
+      setEditing((prev) =>
+        prev
+          ? {
+              ...prev,
+              mcpConnectionStatus: "failed",
+              mcpConnectionError: msg,
+              mcpLastTestedAt: Date.now(),
+            }
+          : prev,
+      );
       toast.error(`MCP 连接失败：${msg}`);
     } finally {
       setTesting(false);
@@ -973,7 +997,47 @@ function McpTab() {
     }
 
     const names = newTools.map((t) => t.name).join(", ");
+    logger.info("user", `导入工具: ${newTools.length} 个（${names}）`);
     toast.success(`已导入 ${newTools.length} 个 MCP 工具：${names}`);
+
+    // v0.3.2: 导入后自动测试每个新工具的连接
+    let currentTools = [...tools, ...newTools];
+    for (const newTool of newTools) {
+      if (!newTool.mcpServerUrl?.trim()) continue;
+      try {
+        const serverInfo = await initializeMcpServer(newTool.mcpServerUrl);
+        const mcpTools = await listMcpTools(
+          newTool.mcpServerUrl,
+          serverInfo.sessionId,
+        );
+        currentTools = currentTools.map((t) =>
+          t.id === newTool.id
+            ? {
+                ...t,
+                mcpTools,
+                mcpConnectionStatus: "connected" as const,
+                mcpLastTestedAt: Date.now(),
+              }
+            : t,
+        );
+        await persist(currentTools);
+        toast.success(`${newTool.name}: 连接成功，发现 ${mcpTools.length} 个工具`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        currentTools = currentTools.map((t) =>
+          t.id === newTool.id
+            ? {
+                ...t,
+                mcpConnectionStatus: "failed" as const,
+                mcpConnectionError: msg,
+                mcpLastTestedAt: Date.now(),
+              }
+            : t,
+        );
+        await persist(currentTools);
+        toast.error(`${newTool.name}: 连接失败`);
+      }
+    }
   }, [jsonInput, tools, persist]);
 
   const updateField = React.useCallback(
@@ -1043,7 +1107,25 @@ function McpTab() {
                   <Card className="gap-3 p-4 transition-all hover:shadow-md">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <h3 className="truncate font-medium">{t.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <h3 className="truncate font-medium">{t.name}</h3>
+                          {/* v0.3.2: MCP 连接状态徽章 */}
+                          {t.mcpConnectionStatus === "connected" && (
+                            <Badge variant="default" className="shrink-0 bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
+                              已连接
+                            </Badge>
+                          )}
+                          {t.mcpConnectionStatus === "failed" && (
+                            <Badge variant="destructive" className="shrink-0 text-xs">
+                              连接失败
+                            </Badge>
+                          )}
+                          {(!t.mcpConnectionStatus || t.mcpConnectionStatus === "untested") && (
+                            <Badge variant="secondary" className="shrink-0 text-xs">
+                              未测试
+                            </Badge>
+                          )}
+                        </div>
                         <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                           {t.displayDescription || t.description || "暂无描述"}
                         </p>

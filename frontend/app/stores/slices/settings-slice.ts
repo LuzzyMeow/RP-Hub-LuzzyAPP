@@ -131,6 +131,7 @@ const extractPersistableData = (state: SettingsSlice): Record<string, unknown> =
   customApiProviders: state.customApiProviders,
   apiProviderKeys: state.apiProviderKeys,
   builtinThinkingDepthOverrides: state.builtinThinkingDepthOverrides,
+  builtinUrlOverrides: state.builtinUrlOverrides,
   modelMode: state.modelMode,
   qualityModel: state.qualityModel,
   balancedModel: state.balancedModel,
@@ -168,6 +169,7 @@ export const createSettingsSlice: StateCreator<
   customApiProviders: [],
   apiProviderKeys: {},
   builtinThinkingDepthOverrides: {},
+  builtinUrlOverrides: {},
   modelMode: "quality",
   qualityModel: "",
   balancedModel: "",
@@ -175,6 +177,7 @@ export const createSettingsSlice: StateCreator<
   user: { ...DEFAULT_USER_PROFILE },
   userProfiles: [],
   activeProfileId: null,
+  defaultProfileActive: true,
 
   // ===== v0.2.0 新增状态 =====
   translationSettings: { ...DEFAULT_TRANSLATION_SETTINGS },
@@ -191,15 +194,23 @@ export const createSettingsSlice: StateCreator<
   // ===== Actions：API 基础 =====
   setApiUrl: (apiUrl) =>
     set((state) => {
-      // 若当前为自定义供应商，同步 URL 回供应商对象
-      const isCustom = state.customApiProviders.some(
+      // v0.3.2: 内置供应商 URL 覆盖持久化到 builtinUrlOverrides
+      const isBuiltin = BUILTIN_PROVIDERS.some(
         (p) => p.id === state.apiProviderId,
       );
-      const customApiProviders = isCustom
-        ? state.customApiProviders.map((p) =>
-            p.id === state.apiProviderId ? { ...p, apiUrl } : p,
-          )
-        : state.customApiProviders;
+      if (isBuiltin) {
+        return {
+          apiUrl,
+          builtinUrlOverrides: {
+            ...state.builtinUrlOverrides,
+            [state.apiProviderId]: apiUrl,
+          },
+        };
+      }
+      // 自定义供应商：同步 URL 回供应商对象
+      const customApiProviders = state.customApiProviders.map((p) =>
+        p.id === state.apiProviderId ? { ...p, apiUrl } : p,
+      );
       return { apiUrl, customApiProviders };
     }),
 
@@ -368,12 +379,13 @@ export const createSettingsSlice: StateCreator<
 
   getAllProviders: () => {
     const overrides = get().builtinThinkingDepthOverrides;
+    const urlOverrides = get().builtinUrlOverrides;
     return [
-      ...BUILTIN_PROVIDERS.map((p) =>
-        overrides[p.id]
-          ? { ...p, thinkingDepth: overrides[p.id] }
-          : p,
-      ),
+      ...BUILTIN_PROVIDERS.map((p) => ({
+        ...p,
+        apiUrl: urlOverrides[p.id] ?? p.apiUrl,
+        thinkingDepth: overrides[p.id] ?? p.thinkingDepth,
+      })),
       ...get().customApiProviders,
     ];
   },
@@ -498,6 +510,10 @@ export const createSettingsSlice: StateCreator<
         description: profile?.description ?? "",
         person: profile?.person ?? "second",
       };
+      // v0.3.2: 默认档案激活时，新增档案但不自动激活
+      if (state.defaultProfileActive) {
+        return { userProfiles: [...state.userProfiles, newProfile] };
+      }
       return {
         userProfiles: [...state.userProfiles, newProfile],
         activeProfileId: newProfile.uuid,
@@ -507,10 +523,19 @@ export const createSettingsSlice: StateCreator<
 
   switchProfile: (uuid) =>
     set((state) => {
+      if (uuid === "default") {
+        // v0.3.2: 切换回默认档案
+        return {
+          activeProfileId: null,
+          defaultProfileActive: true,
+          user: { ...DEFAULT_USER_PROFILE },
+        };
+      }
       const profile = state.userProfiles.find((p) => p.uuid === uuid);
       if (!profile) return {};
       return {
         activeProfileId: uuid,
+        defaultProfileActive: false,
         user: { ...profile },
       };
     }),
@@ -522,14 +547,46 @@ export const createSettingsSlice: StateCreator<
       );
       // 若删除的是当前激活的档案，回退到第一个档案或默认档案
       if (state.activeProfileId === uuid) {
-        const fallback = userProfiles[0] ?? null;
+        if (userProfiles.length === 0) {
+          // v0.3.2: 无档案时回退到默认档案
+          return {
+            userProfiles,
+            activeProfileId: null,
+            defaultProfileActive: true,
+            user: { ...DEFAULT_USER_PROFILE },
+          };
+        }
+        const fallback = userProfiles[0];
         return {
           userProfiles,
-          activeProfileId: fallback?.uuid ?? null,
-          user: fallback ? { ...fallback } : { ...DEFAULT_USER_PROFILE },
+          activeProfileId: fallback.uuid,
+          defaultProfileActive: false,
+          user: { ...fallback },
         };
       }
       return { userProfiles };
+    }),
+
+  setDefaultProfileActive: (active) =>
+    set((state) => {
+      if (active) {
+        // v0.3.2: 激活默认档案，清除激活的新增档案
+        return {
+          defaultProfileActive: true,
+          activeProfileId: null,
+          user: { ...DEFAULT_USER_PROFILE },
+        };
+      }
+      // 取消激活默认档案：若有新增档案则激活第一个
+      if (state.userProfiles.length > 0) {
+        const first = state.userProfiles[0];
+        return {
+          defaultProfileActive: false,
+          activeProfileId: first.uuid,
+          user: { ...first },
+        };
+      }
+      return { defaultProfileActive: false };
     }),
 
   // ===== Actions：v0.2.0 新增设置 =====
@@ -594,6 +651,12 @@ export const createSettingsSlice: StateCreator<
           !Array.isArray(data.builtinThinkingDepthOverrides)
             ? (data.builtinThinkingDepthOverrides as Record<string, ThinkingDepth>)
             : state.builtinThinkingDepthOverrides,
+        builtinUrlOverrides:
+          data.builtinUrlOverrides &&
+          typeof data.builtinUrlOverrides === "object" &&
+          !Array.isArray(data.builtinUrlOverrides)
+            ? (data.builtinUrlOverrides as Record<string, string>)
+            : state.builtinUrlOverrides,
         modelMode: (data.modelMode as SettingsSlice["modelMode"]) ?? state.modelMode,
         qualityModel: (data.qualityModel as string) ?? state.qualityModel,
         balancedModel: (data.balancedModel as string) ?? state.balancedModel,

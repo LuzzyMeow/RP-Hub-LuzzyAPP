@@ -14,14 +14,14 @@ import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { toast } from "sonner";
-import { initLogger, getLogFilePath, getBufferedLogs, logger } from "~/services/logger";
+import { getLogFilePath, getBufferedLogs, logger } from "~/services/logger";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "关于 - LUZZY" }];
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.3.1";
+const APP_VERSION = "v0.3.2";
 
 export default function AboutPage() {
   const [systemInfo, setSystemInfo] = React.useState<Record<string, string>>({});
@@ -30,8 +30,7 @@ export default function AboutPage() {
 
   React.useEffect(() => {
     void (async () => {
-      // 初始化日志系统
-      await initLogger();
+      // v0.3.2: logger 已由 root.tsx 全局初始化，此处无需重复调用
       logger.info("user", "进入关于页");
 
       // 获取系统信息
@@ -147,7 +146,7 @@ export default function AboutPage() {
                 <h2 className="text-sm font-semibold">日志路径</h2>
               </div>
               <div className="flex items-center gap-2">
-                <code className="flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
+                <code className="min-w-0 flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
                   {logPath || "/Documents/LUZZY/logs/YYYYMMDD.log (Web 环境不可用)"}
                 </code>
                 <Button

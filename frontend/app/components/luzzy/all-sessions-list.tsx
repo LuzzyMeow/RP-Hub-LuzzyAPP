@@ -6,7 +6,7 @@
  */
 
 import * as React from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useMotionValue, useTransform, animate } from "motion/react";
 import {
   IconSearch,
   IconClose,
@@ -15,6 +15,7 @@ import {
   IconTrash,
   IconEdit,
   IconPlus,
+  IconShare,
 } from "~/components/luzzy/luzzy-icons";
 
 import type { Session } from "~/types/luzzy";
@@ -54,6 +55,8 @@ interface AllSessionsListProps {
   onDeleteSession: (id: string) => void;
   /** 重命名会话回调 */
   onRenameSession: (id: string, title: string) => void;
+  /** v0.3.2: 右滑分享会话回调 */
+  onShareSession: (id: string) => void;
 }
 
 /** 时间分类 */
@@ -102,6 +105,7 @@ export function AllSessionsList({
   onCreateSession,
   onDeleteSession,
   onRenameSession,
+  onShareSession,
 }: AllSessionsListProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [searchMode, setSearchMode] = React.useState<"keyword" | "semantic">(
@@ -228,64 +232,24 @@ export function AllSessionsList({
                   </div>
                   <AnimatePresence mode="popLayout">
                     {groupSessions.map((session) => (
-                      <motion.div
+                      <SessionSwipeItem
                         key={session.id}
-                        layout
-                        {...springEnter}
-                        className={cn(
-                          "group flex items-center gap-3 rounded-xl border border-border/20 bg-card/50 p-3 transition-colors",
-                          session.id === currentSessionId
-                            ? "border-primary/40 bg-primary/5"
-                            : "hover:bg-accent/50",
-                        )}
-                      >
-                        <button
-                          className="flex flex-1 flex-col gap-1 text-left"
-                          onClick={() => onSwitchSession(session.id)}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="truncate text-sm font-medium">
-                              {session.title}
-                            </span>
-                            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground/70">
-                              <IconClock className="size-3" />
-                              {formatTime(session.updatedAt)}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>{session.characterName}</span>
-                            <span>·</span>
-                            <span>{session.messages.length} 条消息</span>
-                          </div>
-                        </button>
-                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => handleOpenRename(session)}
-                            {...pressableSubtle}
-                          >
-                            <IconEdit className="size-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={async () => {
-                              const ok = await confirm({
-                                title: "操作确认",
-                                description: `确定删除会话「${session.title || "未命名"}」吗？此操作不可撤销。`,
-                                destructive: true,
-                              });
-                              if (ok) {
-                                onDeleteSession(session.id);
-                              }
-                            }}
-                            {...pressableSubtle}
-                          >
-                            <IconTrash className="size-3.5 text-destructive" />
-                          </Button>
-                        </div>
-                      </motion.div>
+                        session={session}
+                        isActive={session.id === currentSessionId}
+                        onSwitch={onSwitchSession}
+                        onRename={handleOpenRename}
+                        onDelete={async (id) => {
+                          const ok = await confirm({
+                            title: "操作确认",
+                            description: `确定删除会话「${session.title || "未命名"}」吗？此操作不可撤销。`,
+                            destructive: true,
+                          });
+                          if (ok) {
+                            onDeleteSession(id);
+                          }
+                        }}
+                        onShare={onShareSession}
+                      />
                     ))}
                   </AnimatePresence>
                 </div>
@@ -317,5 +281,119 @@ export function AllSessionsList({
         </DialogContent>
       </Dialog>
     </motion.div>
+  );
+}
+
+/**
+ * v0.3.2: 可滑动的会话项
+ *
+ * 左滑超过 80px 触发删除，右滑超过 80px 触发分享。
+ * 使用 motion drag + useMotionValue + useTransform 实现丝滑动画。
+ */
+interface SessionSwipeItemProps {
+  session: Session;
+  isActive: boolean;
+  onSwitch: (id: string) => void;
+  onRename: (session: Session) => void;
+  onDelete: (id: string) => void;
+  onShare: (id: string) => void;
+}
+
+function SessionSwipeItem({
+  session,
+  isActive,
+  onSwitch,
+  onRename,
+  onDelete,
+  onShare,
+}: SessionSwipeItemProps) {
+  const x = useMotionValue(0);
+  const deleteOpacity = useTransform(x, [-120, -60], [1, 0]);
+  const shareOpacity = useTransform(x, [60, 120], [0, 1]);
+
+  return (
+    <div className="relative overflow-hidden rounded-xl">
+      {/* 背景层：左删除 + 右分享 */}
+      <div className="absolute inset-0 flex items-center justify-between px-4">
+        <motion.div
+          style={{ opacity: deleteOpacity }}
+          className="flex items-center gap-2 text-destructive"
+        >
+          <IconTrash className="size-5" />
+          <span className="text-sm font-medium">删除</span>
+        </motion.div>
+        <motion.div
+          style={{ opacity: shareOpacity }}
+          className="flex items-center gap-2 text-primary"
+        >
+          <span className="text-sm font-medium">分享</span>
+          <IconShare className="size-5" />
+        </motion.div>
+      </div>
+      {/* 前景层：原会话内容 */}
+      <motion.div
+        layout
+        drag="x"
+        dragConstraints={{ left: -120, right: 120 }}
+        dragElastic={0.15}
+        style={{ x }}
+        onDragEnd={(_, info) => {
+          if (info.offset.x < -80) {
+            animate(x, -500, {
+              duration: 0.2,
+              onComplete: () => onDelete(session.id),
+            });
+          } else if (info.offset.x > 80) {
+            animate(x, 0, { duration: 0.3 });
+            onShare(session.id);
+          } else {
+            animate(x, 0, { duration: 0.3 });
+          }
+        }}
+        {...springEnter}
+        className={cn(
+          "group flex items-center gap-3 rounded-xl border border-border/20 bg-card/50 p-3 transition-colors",
+          isActive ? "border-primary/40 bg-primary/5" : "hover:bg-accent/50",
+        )}
+      >
+        <button
+          className="flex flex-1 flex-col gap-1 text-left"
+          onClick={() => onSwitch(session.id)}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-medium">
+              {session.title}
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground/70">
+              <IconClock className="size-3" />
+              {formatTime(session.updatedAt)}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span>{session.characterName}</span>
+            <span>·</span>
+            <span>{session.messages.length} 条消息</span>
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onRename(session)}
+            {...pressableSubtle}
+          >
+            <IconEdit className="size-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => onDelete(session.id)}
+            {...pressableSubtle}
+          >
+            <IconTrash className="size-3.5 text-destructive" />
+          </Button>
+        </div>
+      </motion.div>
+    </div>
   );
 }

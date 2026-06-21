@@ -32,6 +32,7 @@ import {
 
 import { useAppStore } from "~/stores";
 import type { ApiProvider, ApiType, ModelConfig } from "~/types/luzzy";
+import { logger } from "~/services/logger";
 import { useTheme } from "~/components/theme-provider";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
@@ -340,7 +341,10 @@ export default function SettingsPage() {
                     value={apiProviderId}
                     onValueChange={(id) => {
                       const p = allProviders.find((x) => x.id === id);
-                      if (p) selectApiProvider(p);
+                      if (p) {
+                        logger.info("user", `切换供应商: ${p.displayName ?? p.name}`);
+                        selectApiProvider(p);
+                      }
                     }}
                   >
                     <SelectTrigger>
@@ -384,6 +388,8 @@ export default function SettingsPage() {
                         value={apiUrl}
                         onChange={(e) => handleApiUrlChange(e.target.value)}
                         placeholder="https://api.example.com/v1"
+                        className="font-mono text-xs"
+                        maxLength={500}
                       />
                     </div>
 
@@ -396,6 +402,9 @@ export default function SettingsPage() {
                         onChange={(e) =>
                           setProviderKey(apiProviderId, e.target.value)
                         }
+                        onBlur={() => {
+                          logger.info("user", `保存 API Key（供应商: ${apiProviderId}）`);
+                        }}
                         placeholder="sk-..."
                       />
                       <p className="text-xs text-muted-foreground">
@@ -725,6 +734,8 @@ export default function SettingsPage() {
                     setNewProvider({ ...newProvider, apiUrl: e.target.value })
                   }
                   placeholder="https://api.example.com/v1"
+                  className="font-mono text-xs"
+                  maxLength={500}
                 />
               </div>
             </div>

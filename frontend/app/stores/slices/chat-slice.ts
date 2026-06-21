@@ -55,6 +55,7 @@ import { loadVectorMemoryShards } from "~/services/memoryService";
 import { BUILTIN_PRESET_DEFAULTS } from "~/services/presetContent";
 import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
 import type { AppStoreState, ChatSlice } from "~/stores/slices/types";
+import { toast } from "sonner";
 
 // ============================================================================
 // 辅助函数
@@ -221,7 +222,11 @@ export const createChatSlice: StateCreator<
       ]);
 
       const presets = presetsData ?? getDefaultPresets();
-      const worldInfoEntries = worldInfoData ?? [];
+      // v0.3.2: 按角色过滤世界书条目（仅加载当前角色关联的 + 全局无 bookId 的）
+      const currentCharacterId = currentCharacter?.uuid;
+      const worldInfoEntries = currentCharacterId
+        ? (worldInfoData ?? []).filter(e => e.bookId === currentCharacterId || !e.bookId)
+        : (worldInfoData ?? []);
       const globalMemory = globalMemoryData ?? null;
       // v0.3.0: 优先使用新的 regexGroups；若不存在但有旧 regexScripts，则迁移
       let regexGroups: RegexScriptGroup[] = regexGroupsData ?? [];
@@ -302,6 +307,18 @@ export const createChatSlice: StateCreator<
         );
         const actualModel = getActualModelName(get().modelName);
         const url = getChatCompletionsUrl(chatApiUrl);
+
+        // v0.3.2: API Key 和 URL 空值校验，提前给出友好提示
+        if (!chatApiKey?.trim()) {
+          toast.error("未配置 API Key，请前往设置页配置");
+          set({ isGenerating: false });
+          return { content: "", reasoning: "" };
+        }
+        if (!chatApiUrl?.trim()) {
+          toast.error("未配置 API URL，请前往设置页配置");
+          set({ isGenerating: false });
+          return { content: "", reasoning: "" };
+        }
 
         // 调试日志：打印多供应商路由结果
         console.log("[ChatSlice] API 路由:", {

@@ -1,5 +1,45 @@
 # Changelog
 
+## v0.3.2
+
+### 🐛 Bug 修复
+
+- **工具页**：MCP 工具导入后自动测试连接，卡片显示连接状态徽章
+- **工具页**：SKILL GitHub URL 导入修复，保存按钮 loading 状态，错误明确提示
+- **设置页**：API Key 空值校验，内置供应商 URL 修改后持久化保存（builtinUrlOverrides）
+- **设置页/关于页**：URL 输入框和日志路径溢出修复（font-mono + maxLength + min-w-0）
+- **聊天页**：模型选择弹窗框选修复（onOpenAutoFocus preventDefault）
+- **聊天页**：底部 4 个 icon 尺寸统一为 size-5
+- **全屏编辑器**：换行符生效（remark-breaks import 修复）+ 双向同步滚动
+- **角色页**：世界书字段映射修复（keys/insertion_order vs key/order 兼容）
+- **角色页**：非中英文文本字体降级（CJK 回退字体链：Noto Sans CJK SC/KR/JP + Malgun Gothic + Yu Gothic）
+- **markdown**：remark-breaks import 缺失修复
+- **chat-slice**：API Key/URL 空值校验返回类型修复（isStreaming → isGenerating）
+
+### ✨ 新增功能
+
+- **聊天页**：会话列表左滑删除、右滑分享（motion drag 手势动画，阈值 80px）
+- **聊天页**：会话分享支持 MD/JSON/PNG 三种格式（html-to-image 长截图，动态 import）
+- **聊天页**：分享前可勾选消息（全选/全不选/单条勾选），两步式分享对话框
+- **全屏编辑器**：标题工具支持 H1/H2/H3 循环切换
+- **全屏编辑器**：全屏 icon 靠右居中
+- **全面日志**：应用启动 + 路由变化 + 关键操作（发送/删除/切换/导入/保存/测试连接）日志记录
+- **内置 URL 持久化**：内置供应商 URL 修改后自动保存应用
+
+### 🚀 功能增强
+
+- **TRPG 页**：WebView 缓存模式 LOAD_DEFAULT + iframe srcSet localStorage 持久化，避免冷启动重新下载
+- **角色页**：世界书导入后自动关联角色（extensions.worldInfoId）
+- **角色页**：聊天时按角色过滤世界书条目（仅加载当前角色关联的 + 全局无 bookId 的）
+- **用户档案页**：多档案管理重构（默认档案激活开关 + 新增档案置灰逻辑 + 删除最后一个档案自动回退默认）
+
+### 📦 技术债务
+
+- 修复 settings-slice.ts 缺少 builtinUrlOverrides 初始值
+- 修复 luzzy-chat-input.tsx 两个 icon 尺寸未统一
+- logger 全局初始化迁移至 root.tsx，about.tsx 移除冗余 initLogger 调用
+- 修复 chat.tsx/settings.tsx/tools.tsx/characters.tsx 缺少 logger import 导致 typecheck 失败
+
 ## v0.3.1
 
 13 项 Bug 修复 + 8 项新增功能 + 7 项功能增强 + 全局弹窗输入法适配 + ICON 一致性优化。

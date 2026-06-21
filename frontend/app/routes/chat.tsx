@@ -26,9 +26,11 @@ import { LuzzyChatInput } from "~/components/luzzy/luzzy-chat-input";
 import { CharacterPicker } from "~/components/luzzy/character-picker";
 import { SessionList } from "~/components/luzzy/session-list";
 import { AllSessionsList } from "~/components/luzzy/all-sessions-list";
+import { LuzzyShareDialog } from "~/components/luzzy/luzzy-share-dialog";
 import { useIsMobile } from "~/hooks/use-mobile";
 import { useStickToBottom } from "use-stick-to-bottom";
 import { toast } from "sonner";
+import { logger } from "~/services/logger";
 import { Button } from "~/components/ui/button";
 import {
   Empty,
@@ -56,6 +58,16 @@ export default function ChatPage() {
   const [showSessionList, setShowSessionList] = React.useState(false);
   const [showAllSessions, setShowAllSessions] = React.useState(false);
   const [showApiConfigWarning, setShowApiConfigWarning] = React.useState(false);
+  // v0.3.2: 会话分享对话框状态
+  const [shareDialog, setShareDialog] = React.useState<{
+    open: boolean;
+    sessionId: string | null;
+  }>({ open: false, sessionId: null });
+
+  /** v0.3.2: 分享会话 */
+  const handleShareSession = React.useCallback((sessionId: string) => {
+    setShareDialog({ open: true, sessionId });
+  }, []);
 
   // Store 数据
   const messages = useAppStore((s) => s.messages);
@@ -187,6 +199,7 @@ export default function ChatPage() {
   /** 切换会话 */
   const handleSwitchSession = React.useCallback(
     (id: string) => {
+      logger.info("user", `切换会话: ${id}`);
       switchSession(id);
       const session = sessions.find((s) => s.id === id);
       if (session) {
@@ -206,6 +219,7 @@ export default function ChatPage() {
   /** 删除会话 */
   const handleDeleteSession = React.useCallback(
     (id: string) => {
+      logger.info("user", `删除会话: ${id}`);
       deleteSession(id);
       // 若删除的是当前会话，清空消息或切换到第一个剩余会话
       if (id === currentSessionId) {
@@ -511,8 +525,19 @@ export default function ChatPage() {
           onCreateSession={handleCreateSession}
           onDeleteSession={handleDeleteSession}
           onRenameSession={handleRenameSession}
+          onShareSession={handleShareSession}
         />
       )}
+
+      {/* v0.3.2: 会话分享对话框 */}
+      <LuzzyShareDialog
+        open={shareDialog.open}
+        onOpenChange={(v) => setShareDialog({ ...shareDialog, open: v })}
+        session={sessions.find((s) => s.id === shareDialog.sessionId) ?? null}
+        messages={
+          sessions.find((s) => s.id === shareDialog.sessionId)?.messages ?? []
+        }
+      />
     </>
   );
 }

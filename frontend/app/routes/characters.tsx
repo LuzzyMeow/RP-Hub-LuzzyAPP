@@ -29,6 +29,7 @@ import {
 
 import { useAppStore } from "~/stores";
 import type { Character, WorldInfoEntry, RegexScriptGroup } from "~/types/luzzy";
+import { logger } from "~/services/logger";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -212,6 +213,7 @@ async function parsePngCharacterCard(file: File): Promise<unknown> {
 /**
  * 从 SillyTavern 角色卡数据提取世界书条目
  * 兼容 data.character_book 和顶层 character_book 两种位置
+ * v0.3.2: 修正字段映射，兼容角色卡 v2 规范（keys 复数/insertion_order）和 SillyTavern 独立格式（key 单数/order）
  */
 function extractWorldInfoFromCard(
   cardData: unknown,
@@ -223,26 +225,63 @@ function extractWorldInfoFromCard(
       : (cardData as Record<string, unknown>) ?? {};
   const book = data.character_book as Record<string, unknown> | undefined;
   if (!book || typeof book !== "object") return [];
-  const entries = book.entries as Record<string, unknown>[] | undefined;
-  if (!Array.isArray(entries)) return [];
-  return entries.map((entry, idx) => ({
-    id: `${characterUuid}-wi-${idx}-${Date.now()}`,
-    name: String(entry.name ?? entry.comment ?? `条目 ${idx + 1}`),
-    bookId: characterUuid,
-    bookName: String(book.name ?? "角色卡世界书"),
-    keys: Array.isArray(entry.key) ? entry.key.map(String) : [String(entry.key ?? "")].filter(Boolean),
-    secondaryKeys: Array.isArray(entry.secondary_keys) ? entry.secondary_keys.map(String) : undefined,
-    content: String(entry.content ?? ""),
-    enabled: true,
-    constant: Boolean(entry.constant ?? false),
-    order: Number(entry.order ?? 0),
-    position: Number(entry.position ?? 0),
-    depth: Number(entry.depth ?? 0),
-    probability: Number(entry.probability ?? 100),
-    insertionOrder: idx,
-    useRegex: Boolean(entry.use_regex ?? false),
-    selective: Boolean(entry.selective ?? false),
-  }));
+  // 兼容数组格式（角色卡 v2）和对象格式（SillyTavern entries 以 uid 为 key）
+  const rawEntries = book.entries;
+  const entryList: Record<string, unknown>[] = Array.isArray(rawEntries)
+    ? rawEntries
+    : rawEntries && typeof rawEntries === "object"
+      ? Object.values(rawEntries as Record<string, unknown>)
+      : [];
+  return entryList.map((entry, idx) => {
+    // v0.3.2: 兼容两种字段名
+    // 角色卡 v2: keys（复数）/ secondary_keys / insertion_order / position（字符串）
+    // SillyTavern 独立: key（单数）/ keysecondary / order / position（数字）
+    const rawKeys = entry.keys ?? entry.key;
+    const rawSecondary = entry.secondary_keys ?? entry.keysecondary;
+    const rawOrder = entry.insertion_order ?? entry.order;
+    const rawPosition = entry.position;
+    const position =
+      typeof rawPosition === "string"
+        ? positionStringToNumber(rawPosition)
+        : Number(rawPosition ?? 0);
+    return {
+      id: `${characterUuid}-wi-${idx}-${Date.now()}`,
+      name: String(entry.name ?? entry.comment ?? `条目 ${idx + 1}`),
+      bookId: characterUuid,
+      bookName: String(book.name ?? "角色卡世界书"),
+      keys: Array.isArray(rawKeys) ? rawKeys.map(String) : [String(rawKeys ?? "")].filter(Boolean),
+      secondaryKeys: Array.isArray(rawSecondary) ? rawSecondary.map(String) : undefined,
+      content: String(entry.content ?? ""),
+      enabled: true,
+      constant: Boolean(entry.constant ?? false),
+      order: Number(rawOrder ?? 0),
+      position,
+      depth: Number(entry.depth ?? 0),
+      probability: Number(entry.probability ?? 100),
+      insertionOrder: idx,
+      useRegex: Boolean(entry.use_regex ?? false),
+      selective: Boolean(entry.selective ?? false),
+    };
+  });
+}
+
+/**
+ * v0.3.2: 角色卡 v2 字符串位置转数字
+ * before_char(0) / after_char(1) / before_an(2) / after_an(3)
+ */
+function positionStringToNumber(pos: string): number {
+  switch (pos) {
+    case "before_char":
+      return 0;
+    case "after_char":
+      return 1;
+    case "before_an":
+      return 2;
+    case "after_an":
+      return 3;
+    default:
+      return 0;
+  }
 }
 
 /**
@@ -495,6 +534,15 @@ export default function CharactersPage() {
               try {
                 const existing = (await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo")) ?? [];
                 await setItem("worldInfo", "worldInfo", [...existing, ...worldInfoEntries]);
+                // v0.3.2: 自动关联世界书到角色（bookId 已设为 characterUuid）
+                const updatedCharacters = useAppStore.getState().characters.map(c =>
+                  c.uuid === latestCharacter.uuid
+                    ? { ...c, extensions: { ...c.extensions, worldInfoId: latestCharacter.uuid } }
+                    : c
+                );
+                useAppStore.setState({ characters: updatedCharacters });
+                await useAppStore.getState().saveCharacters();
+                toast.success(`已自动关联 ${worldInfoEntries.length} 条世界书`);
               } catch (wiErr) {
                 console.warn("[Characters] 世界书导入失败:", wiErr);
               }
@@ -515,6 +563,8 @@ export default function CharactersPage() {
           const text = await file.text();
           await importCharacter(text);
         }
+        const latestChar = useAppStore.getState().characters.slice(-1)[0];
+        logger.info("user", `导入角色卡: ${latestChar?.name ?? "未知"}`);
         toast.success("角色卡导入成功");
       } catch (err) {
         toast.error("导入失败：" + (err as Error).message);

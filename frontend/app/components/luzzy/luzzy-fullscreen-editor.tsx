@@ -91,10 +91,28 @@ const TOOLBAR_TOOLS: ToolbarTool[] = [
     action: (text, ta) => {
       const { selectionStart, selectionEnd } = ta;
       const selected = text.slice(selectionStart, selectionEnd) || "标题";
-      const before = text.slice(0, selectionStart);
-      const after = text.slice(selectionEnd);
+      const lineStart = text.lastIndexOf("\n", selectionStart - 1) + 1;
+      const currentLine = text.slice(lineStart, selectionStart);
+      const headingMatch = currentLine.match(/^(#{1,3})\s/);
+
+      if (headingMatch) {
+        // v0.3.2: 已有标题，循环切换 H1→H2→H3→H1
+        const currentLevel = headingMatch[1].length;
+        const nextLevel = currentLevel >= 3 ? 1 : currentLevel + 1;
+        const newPrefix = "#".repeat(nextLevel) + " ";
+        const beforeLine = text.slice(0, lineStart);
+        const afterPrefix = text.slice(lineStart + headingMatch[0].length);
+        const newText = `${beforeLine}${newPrefix}${selected}${afterPrefix}`;
+        const newStart = lineStart + newPrefix.length;
+        const newEnd = newStart + selected.length;
+        return { text: newText, selectionStart: newStart, selectionEnd: newEnd };
+      }
+
+      // v0.3.2: 无标题，添加 H1
+      const before = text.slice(0, lineStart);
+      const after = text.slice(lineStart);
       const newText = `${before}# ${selected}${after}`;
-      const newStart = selectionStart + 2;
+      const newStart = lineStart + 2;
       const newEnd = newStart + selected.length;
       return { text: newText, selectionStart: newStart, selectionEnd: newEnd };
     },
@@ -191,15 +209,41 @@ export function LuzzyFullscreenEditor({
   const reduceMotion = useReducedMotion();
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const previewRef = React.useRef<HTMLDivElement>(null);
+  const isSyncing = React.useRef(false);
   const [enablePreview, setEnablePreview] = React.useState(false);
 
-  /** 同步滚动：编辑区滚动时同步预览区 */
+  /** v0.3.2: 同步滚动（双向）— 编辑区滚动时同步预览区 */
   const handleEditorScroll = () => {
+    if (isSyncing.current) return;
+    isSyncing.current = true;
     const textarea = textareaRef.current;
     const preview = previewRef.current;
-    if (!textarea || !preview) return;
+    if (!textarea || !preview) {
+      isSyncing.current = false;
+      return;
+    }
     const ratio = textarea.scrollTop / (textarea.scrollHeight - textarea.clientHeight || 1);
     preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+    requestAnimationFrame(() => {
+      isSyncing.current = false;
+    });
+  };
+
+  /** v0.3.2: 同步滚动（双向）— 预览区滚动时同步编辑区 */
+  const handlePreviewScroll = () => {
+    if (isSyncing.current) return;
+    isSyncing.current = true;
+    const textarea = textareaRef.current;
+    const preview = previewRef.current;
+    if (!textarea || !preview) {
+      isSyncing.current = false;
+      return;
+    }
+    const ratio = preview.scrollTop / (preview.scrollHeight - preview.clientHeight || 1);
+    textarea.scrollTop = ratio * (textarea.scrollHeight - textarea.clientHeight);
+    requestAnimationFrame(() => {
+      isSyncing.current = false;
+    });
   };
 
   /** 工具按钮点击 */
@@ -313,6 +357,7 @@ export function LuzzyFullscreenEditor({
             {enablePreview && (
               <motion.div
                 ref={previewRef}
+                onScroll={handlePreviewScroll}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 20 }}

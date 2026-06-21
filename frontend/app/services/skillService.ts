@@ -305,17 +305,22 @@ const fetchGithubFile = async (
   filePath: string,
 ): Promise<string | null> => {
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filePath}`;
+  const errors: string[] = [];
   for (const mirror of GITHUB_MIRRORS) {
     const fetchUrl = mirror ? `${mirror}${rawUrl}` : rawUrl;
     try {
       const response = await fetch(fetchUrl);
-      if (!response.ok) continue;
+      if (!response.ok) {
+        errors.push(`${mirror || "direct"}: HTTP ${response.status}`);
+        continue;
+      }
       const content = await response.text();
       return content;
-    } catch {
-      // 尝试下一个镜像
+    } catch (e) {
+      errors.push(`${mirror || "direct"}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
+  console.warn("[fetchGithubFile] All mirrors failed:\n" + errors.join("\n"));
   return null;
 };
 

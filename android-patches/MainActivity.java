@@ -3,6 +3,7 @@ package com.luzzymeow.luzzy;
 import android.os.Bundle;
 import android.util.Log;
 import android.webkit.WebView;
+import android.webkit.WebSettings;
 import android.webkit.DownloadListener;
 
 import com.getcapacitor.BridgeActivity;
@@ -116,6 +117,13 @@ public class MainActivity extends BridgeActivity {
         if (this.bridge == null) return;
         WebView webView = this.bridge.getWebView();
         if (webView == null) return;
+
+        // v0.3.2: 配置 WebView 缓存模式，避免 TRPG iframe 每次冷启动重新下载
+        WebSettings settings = webView.getSettings();
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        Log.i(TAG, "WebView cache mode set to LOAD_DEFAULT");
 
         webView.setDownloadListener(new DownloadListener() {
             @Override

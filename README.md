@@ -141,7 +141,7 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.1-debug.apk`
+**APK 输出**：`android/app/build/outputs/apk/debug/LUZZY-v0.3.2-debug.apk`
 
 ## 项目结构
 
@@ -176,6 +176,12 @@ RP-Hub/
 ```
 
 ## 近期更新
+
+### v0.3.2
+
+工具页 MCP 自动测试 + SKILL GitHub 修复；设置页 API Key 校验 + 内置 URL 持久化 + 溢出修复；聊天页会话左滑删除/右滑分享（MD/JSON/PNG）+ 全屏编辑器双向滚动 + 标题 H1/H2/H3；角色页字体降级 + 世界书自动关联；用户档案页多档案管理重构；全面日志系统 + TRPG WebView 缓存优化。
+
+详见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ### v0.3.1
 

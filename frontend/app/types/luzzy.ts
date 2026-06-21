@@ -355,6 +355,10 @@ export interface ActiveTool {
   mcpServerUrl?: string;
   mcpServerName?: string;
   mcpTools?: McpSubTool[];
+  /** v0.3.2: MCP 连接状态（导入后自动测试） */
+  mcpConnectionStatus?: "connected" | "failed" | "untested";
+  mcpConnectionError?: string;
+  mcpLastTestedAt?: number;
   /** SKILL 相关 */
   skillFileContent?: string;
   skillFileName?: string;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -6,6 +6,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
 } from "react-router";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -17,6 +18,7 @@ import { ThemeProvider } from "./components/theme-provider";
 import { LuzzySplash } from "./components/luzzy/luzzy-splash";
 import { GlobalTrpgIframe } from "./components/luzzy/luzzy-global-trpg-iframe";
 import { ConfirmProvider } from "./components/luzzy/luzzy-confirm";
+import { initLogger, logger } from "./services/logger";
 
 const queryClient = new QueryClient();
 
@@ -43,10 +45,41 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 function AppContent() {
+  const location = useLocation();
   const [showSplash, setShowSplash] = useState(() => {
     // 本会话已显示过启动屏则跳过
     return sessionStorage.getItem("luzzy-splash-shown") ? false : true;
   });
+
+  // v0.3.2: 应用启动时初始化 logger
+  useEffect(() => {
+    void initLogger().then(() => {
+      logger.info("app", "LUZZY 应用启动");
+    });
+  }, []);
+
+  // v0.3.2: 路由变化时记录日志
+  useEffect(() => {
+    if (showSplash) return;
+    const path = location.pathname;
+    const routeName =
+      path === "/" ? "聊天"
+      : path.startsWith("/characters") ? "角色卡"
+      : path.startsWith("/settings") ? "设置"
+      : path.startsWith("/tools") ? "工具"
+      : path.startsWith("/memory") ? "记忆"
+      : path.startsWith("/trpg") ? "TRPG"
+      : path.startsWith("/about") ? "关于"
+      : path.startsWith("/preset") ? "预设"
+      : path.startsWith("/world-info") ? "世界书"
+      : path.startsWith("/knowledge-base") ? "知识库"
+      : path.startsWith("/regex") ? "正则"
+      : path.startsWith("/ui-template") ? "UI模板"
+      : path.startsWith("/profile") ? "用户档案"
+      : path.startsWith("/skill") ? "技能"
+      : "未知";
+    logger.info("user", `进入${routeName}页`);
+  }, [location.pathname, showSplash]);
 
   return (
     <ThemeProvider defaultTheme="system">
