@@ -21,7 +21,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.4.0";
+const APP_VERSION = "v0.4.1";
 
 export default function AboutPage() {
   const [systemInfo, setSystemInfo] = React.useState<Record<string, string>>({});
@@ -63,9 +63,24 @@ export default function AboutPage() {
 
       // 获取最近日志
       const logs = getBufferedLogs();
-      setRecentLogs(logs.slice(-50).map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] [${l.category}] ${l.message}`));
+      // v0.4.1: 增加显示条数到 200,覆盖更多调试场景
+      setRecentLogs(logs.slice(-200).map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] [${l.category}] ${l.message}`));
     })();
   }, []);
+
+  /** v0.4.1: 一键复制最近日志到剪贴板 */
+  const handleCopyLogs = React.useCallback(async () => {
+    if (recentLogs.length === 0) {
+      toast.warning("暂无日志可复制");
+      return;
+    }
+    try {
+      await copyTextToClipboard(recentLogs.join('\n'));
+      toast.success(`已复制 ${recentLogs.length} 条日志到剪贴板`);
+    } catch {
+      toast.error("复制失败");
+    }
+  }, [recentLogs]);
 
   /** 复制日志路径到剪贴板 */
   const handleCopyLogPath = React.useCallback(async () => {
@@ -180,9 +195,21 @@ export default function AboutPage() {
               className="min-w-0"
             >
               <Card className="min-w-0 overflow-hidden p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <IconInfo className="size-4 text-primary" />
-                  <h2 className="text-sm font-semibold">最近日志（{recentLogs.length} 条）</h2>
+                {/* v0.4.1: 标题栏增加一键复制按钮 */}
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <IconInfo className="size-4 shrink-0 text-primary" />
+                    <h2 className="text-sm font-semibold">最近日志（{recentLogs.length} 条）</h2>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={handleCopyLogs}
+                    title="一键复制日志"
+                  >
+                    <IconCopyEdit className="size-4" />
+                  </Button>
                 </div>
                 <div className="max-h-[300px] overflow-auto rounded-md border bg-muted/30">
                   <div className="space-y-0.5 p-2">

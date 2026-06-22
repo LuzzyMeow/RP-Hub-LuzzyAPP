@@ -35,6 +35,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
         <Meta />
         <Links />
+        {/* v0.4.1: 提前设置主题 class,避免 hydration 阶段白屏闪烁 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('vite-ui-theme');var m=window.matchMedia('(prefers-color-scheme: dark)');var d=t==='dark'||((t==='system'||!t)&&m.matches);var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(d?'dark':'light');var ct=localStorage.getItem('vite-ui-theme-color');if(ct){r.dataset.theme=ct;}}catch(e){document.documentElement.classList.add('light');}})();`,
+          }}
+        />
       </head>
       <body>
         {children}
@@ -148,7 +154,7 @@ export default function App() {
 
 export function HydrateFallback() {
   return (
-    <div className="flex items-center justify-center h-screen w-screen bg-background">
+    <div className="flex items-center justify-center h-screen w-screen bg-white dark:bg-black">
       <div className="flex items-center gap-1.5">
         {[0, 1, 2].map((i) => (
           <div

@@ -305,7 +305,7 @@ function ThinkingNode({ step, index, isExpanded, onToggle }: ThinkingNodeProps) 
   return (
     <div className="relative pl-8">
       {/* 状态圆圈 */}
-      <div className="absolute left-0 top-0.5 flex size-6 items-center justify-center">
+      <div className="absolute left-0 top-0 flex size-6 shrink-0 items-center justify-center">
         {isRunning ? (
           // 执行中：pulse 动画的空心圆圈
           <motion.div
@@ -325,7 +325,7 @@ function ThinkingNode({ step, index, isExpanded, onToggle }: ThinkingNodeProps) 
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full min-w-0 items-center gap-1.5 text-left"
+        className="flex w-full min-w-0 items-center gap-1.5 text-left leading-6"
       >
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
           {isRunning ? "思考中..." : step.title}

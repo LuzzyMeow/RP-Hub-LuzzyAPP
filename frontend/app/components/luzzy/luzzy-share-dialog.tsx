@@ -186,14 +186,14 @@ export function LuzzyShareDialog({
             directory: Directory.Documents,
           });
           toast.success(`已导出到：${uriResult.uri}`);
+          return;
         } catch (err) {
-          console.error("[ShareDialog] 原生导出失败:", err);
-          toast.error("导出失败：" + (err as Error).message);
+          console.error("[ShareDialog] 原生导出失败,降级到 Web 下载:", err);
+          // v0.4.1: Filesystem 插件不可用时自动降级到 Web 下载
         }
-        return;
       }
 
-      // Web 平台：浏览器下载
+      // Web 平台或原生降级：浏览器下载
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

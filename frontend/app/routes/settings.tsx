@@ -1051,8 +1051,9 @@ export default function SettingsPage() {
                                   : "border-border hover:bg-accent",
                               )}
                             >
+                              {/* v0.4.1: 统一为圆角方形,颜色填满整个区域 */}
                               <span
-                                className="size-3 rounded-full"
+                                className="size-4 rounded-md"
                                 style={{ backgroundColor: preset.value }}
                               />
                               {preset.name}
@@ -1065,12 +1066,25 @@ export default function SettingsPage() {
                       <div className="grid min-w-0 gap-2">
                         <label className="text-sm font-medium">自定义颜色</label>
                         <div className="flex min-w-0 items-center gap-2">
-                          <input
-                            type="color"
-                            value={highlightSettings.color}
-                            onChange={(e) => setHighlightSettings({ color: e.target.value })}
-                            className="size-8 shrink-0 cursor-pointer rounded-md border border-border"
-                          />
+                          {/* v0.4.1: 用容器包裹 input[type=color],移除浏览器原生留白,颜色填满圆角方形 */}
+                          <div
+                            className="size-8 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border"
+                            style={{ padding: 0, background: highlightSettings.color }}
+                          >
+                            <input
+                              type="color"
+                              value={highlightSettings.color}
+                              onChange={(e) => setHighlightSettings({ color: e.target.value })}
+                              className="size-full cursor-pointer"
+                              style={{
+                                padding: 0,
+                                border: 'none',
+                                background: 'transparent',
+                                appearance: 'none',
+                                WebkitAppearance: 'none',
+                              }}
+                            />
+                          </div>
                           <Input
                             value={highlightSettings.color}
                             onChange={(e) => setHighlightSettings({ color: e.target.value })}

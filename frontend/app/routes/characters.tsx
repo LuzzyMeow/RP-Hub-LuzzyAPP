@@ -72,6 +72,12 @@ import {
   pressable,
 } from "~/lib/motion-presets";
 import { getItem, setItem } from "~/services/storage";
+// v0.4.1: 角色卡解析与提取函数已抽取为公共服务
+import {
+  parsePngCharacterCard,
+  extractWorldInfoFromCard,
+  extractRegexScriptsFromCard,
+} from "~/services/characterCardImport";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
@@ -132,252 +138,8 @@ const NON_CJK_FONT_STYLE: React.CSSProperties = {
     'system-ui, -apple-system, "Segoe UI", "Noto Sans CJK JP", "Noto Sans CJK KR", sans-serif',
 };
 
-/** 从 PNG 文件解析 SillyTavern 角色卡（支持 tEXt/iTXt/zTXt chunk） */
-
-/**
- * v0.3.7: 正确解码 base64 + UTF-8 字符串
- *
- * 旧实现 `JSON.parse(atob(b64))` 中 atob 返回 binary string，直接传给 JSON.parse
- * 无法正确处理 UTF-8 多字节字符（中文），导致角色卡设定文字乱码。
- * 新实现先将 base64 解码为字节数组，再用 TextDecoder("utf-8") 解码。
- */
-function decodeBase64Utf8(b64: string): string {
-  const binaryString = atob(b64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return new TextDecoder("utf-8").decode(bytes);
-}
-
-async function parsePngCharacterCard(file: File): Promise<unknown> {
-  const buf = await file.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  // PNG 签名 8 字节
-  if (bytes.length < 8) throw new Error("无效的 PNG 文件");
-  // 支持的 keyword 列表
-  const SUPPORTED_KEYWORDS = ["chara", "character", "ccv3"];
-  let offset = 8;
-  while (offset < bytes.length) {
-    const len =
-      (bytes[offset] << 24) |
-      (bytes[offset + 1] << 16) |
-      (bytes[offset + 2] << 8) |
-      bytes[offset + 3];
-    const type = String.fromCharCode(
-      bytes[offset + 4],
-      bytes[offset + 5],
-      bytes[offset + 6],
-      bytes[offset + 7],
-    );
-    offset += 8;
-    if (type === "tEXt") {
-      // tEXt: keyword\0text (Latin-1)
-      const chunkData = bytes.subarray(offset, offset + len);
-      const nul = chunkData.indexOf(0);
-      if (nul >= 0) {
-        const keyword = new TextDecoder("latin1").decode(chunkData.subarray(0, nul));
-        if (SUPPORTED_KEYWORDS.includes(keyword)) {
-          const b64 = new TextDecoder("latin1").decode(chunkData.subarray(nul + 1));
-          try {
-            const json = decodeBase64Utf8(b64);
-            return JSON.parse(json);
-          } catch {
-            // base64 解码失败,继续尝试其他 chunk
-          }
-        }
-      }
-    } else if (type === "iTXt") {
-      // iTXt: keyword\0compressionFlag\0compressionMethod\0languageTag\0translatedKeyword\0text
-      const chunkData = bytes.subarray(offset, offset + len);
-      const nul1 = chunkData.indexOf(0);
-      if (nul1 < 0) { offset += len + 4; continue; }
-      const keyword = new TextDecoder().decode(chunkData.subarray(0, nul1));
-      if (!SUPPORTED_KEYWORDS.includes(keyword)) { offset += len + 4; continue; }
-      const compressionFlag = chunkData[nul1 + 1];
-      // 跳过 compressionMethod(1字节)、languageTag(\0)、translatedKeyword(\0)
-      let pos = nul1 + 3;
-      const nul2 = chunkData.indexOf(0, pos);
-      if (nul2 < 0) { offset += len + 4; continue; }
-      pos = nul2 + 1;
-      const nul3 = chunkData.indexOf(0, pos);
-      if (nul3 < 0) { offset += len + 4; continue; }
-      const textData = chunkData.subarray(nul3 + 1);
-      try {
-        let text: string;
-        if (compressionFlag === 1) {
-          // zlib 压缩,使用 DecompressionStream 解压
-          const decompressed = await new Response(
-            new Blob([textData]).stream().pipeThrough(new DecompressionStream("deflate")),
-          ).text();
-          text = decompressed;
-        } else {
-          text = new TextDecoder().decode(textData);
-        }
-        const json = decodeBase64Utf8(text);
-        return JSON.parse(json);
-      } catch {
-        // 解码失败,继续尝试
-      }
-    } else if (type === "zTXt") {
-      // zTXt: keyword\0compressionMethod\0compressedText (zlib)
-      const chunkData = bytes.subarray(offset, offset + len);
-      const nul = chunkData.indexOf(0);
-      if (nul >= 0) {
-        const keyword = new TextDecoder("latin1").decode(chunkData.subarray(0, nul));
-        if (SUPPORTED_KEYWORDS.includes(keyword)) {
-          // 跳过 compressionMethod(1字节)
-          const compressedData = chunkData.subarray(nul + 2);
-          try {
-            const decompressed = await new Response(
-              new Blob([compressedData]).stream().pipeThrough(new DecompressionStream("deflate")),
-            ).text();
-            const b64 = decompressed;
-            const json = decodeBase64Utf8(b64);
-            return JSON.parse(json);
-          } catch {
-            // 解压失败,继续
-          }
-        }
-      }
-    }
-    offset += len + 4; // data + CRC
-    if (type === "IEND") break;
-  }
-  throw new Error("PNG 中未找到角色卡数据（支持的 keyword: chara/character/ccv3）");
-}
-
-/**
- * 从 SillyTavern 角色卡数据提取世界书条目
- * 兼容 data.character_book 和顶层 character_book 两种位置
- * v0.3.2: 修正字段映射，兼容角色卡 v2 规范（keys 复数/insertion_order）和 SillyTavern 独立格式（key 单数/order）
- */
-function extractWorldInfoFromCard(
-  cardData: unknown,
-  characterUuid: string,
-): WorldInfoEntry[] {
-  const data =
-    cardData && typeof cardData === "object" && (cardData as Record<string, unknown>).data
-      ? ((cardData as Record<string, unknown>).data as Record<string, unknown>)
-      : (cardData as Record<string, unknown>) ?? {};
-  const book = data.character_book as Record<string, unknown> | undefined;
-  if (!book || typeof book !== "object") return [];
-  // 兼容数组格式（角色卡 v2）和对象格式（SillyTavern entries 以 uid 为 key）
-  const rawEntries = book.entries;
-  const entryList: Record<string, unknown>[] = Array.isArray(rawEntries)
-    ? rawEntries
-    : rawEntries && typeof rawEntries === "object"
-      ? Object.values(rawEntries as Record<string, unknown>)
-      : [];
-  return entryList.map((entry, idx) => {
-    // v0.3.2: 兼容两种字段名
-    // 角色卡 v2: keys（复数）/ secondary_keys / insertion_order / position（字符串）
-    // SillyTavern 独立: key（单数）/ keysecondary / order / position（数字）
-    const rawKeys = entry.keys ?? entry.key;
-    const rawSecondary = entry.secondary_keys ?? entry.keysecondary;
-    const rawOrder = entry.insertion_order ?? entry.order;
-    const rawPosition = entry.position;
-    const position =
-      typeof rawPosition === "string"
-        ? positionStringToNumber(rawPosition)
-        : Number(rawPosition ?? 0);
-    return {
-      id: `${characterUuid}-wi-${idx}-${Date.now()}`,
-      name: String(entry.name ?? entry.comment ?? `条目 ${idx + 1}`),
-      bookId: characterUuid,
-      bookName: String(book.name ?? "角色卡世界书"),
-      keys: Array.isArray(rawKeys) ? rawKeys.map(String) : [String(rawKeys ?? "")].filter(Boolean),
-      secondaryKeys: Array.isArray(rawSecondary) ? rawSecondary.map(String) : undefined,
-      content: String(entry.content ?? ""),
-      enabled: true,
-      constant: Boolean(entry.constant ?? false),
-      order: Number(rawOrder ?? 0),
-      position,
-      depth: Number(entry.depth ?? 0),
-      probability: Number(entry.probability ?? 100),
-      insertionOrder: idx,
-      useRegex: Boolean(entry.use_regex ?? false),
-      selective: Boolean(entry.selective ?? false),
-    };
-  });
-}
-
-/**
- * v0.3.2: 角色卡 v2 字符串位置转数字
- * before_char(0) / after_char(1) / before_an(2) / after_an(3)
- */
-function positionStringToNumber(pos: string): number {
-  switch (pos) {
-    case "before_char":
-      return 0;
-    case "after_char":
-      return 1;
-    case "before_an":
-      return 2;
-    case "after_an":
-      return 3;
-    default:
-      return 0;
-  }
-}
-
-/**
- * 从 SillyTavern 角色卡数据提取正则脚本
- * 兼容 data.extensions.regex_scripts 和顶层 extensions.regex_scripts
- * v0.3.0: 返回 RegexScriptGroup[] 结构（每个脚本作为一个含单条目的组）
- */
-function extractRegexScriptsFromCard(
-  cardData: unknown,
-  characterUuid: string,
-): RegexScriptGroup[] {
-  const data =
-    cardData && typeof cardData === "object" && (cardData as Record<string, unknown>).data
-      ? ((cardData as Record<string, unknown>).data as Record<string, unknown>)
-      : (cardData as Record<string, unknown>) ?? {};
-  const extensions = data.extensions as Record<string, unknown> | undefined;
-  if (!extensions) return [];
-  const scripts = extensions.regex_scripts as Record<string, unknown>[] | undefined;
-  if (!Array.isArray(scripts)) return [];
-
-  const now = Date.now();
-  return scripts.map((script, idx) => {
-    const scriptName = String(script.scriptName ?? `正则 ${idx + 1}`);
-    const groupId = `${characterUuid}-regexgrp-${idx}-${now}`;
-    // 旧 SillyTavern placement: 1=User, 2=AI, 3=both
-    const placement = Number(script.placement ?? 2);
-    let scope: RegexScriptGroup["entries"][number]["scope"] = ["character"];
-    if (placement === 1) scope = ["user"];
-    else if (placement === 2) scope = ["character"];
-    else if (placement === 3) scope = ["user", "character"];
-
-    // 旧 markdownOnly: true → 仅显示
-    const markdownOnly = Number(script.markdownOnly ?? 0);
-    const timing: RegexScriptGroup["entries"][number]["timing"] =
-      markdownOnly === 1 ? "display" : "send_display";
-
-    const minDepth = Number(script.minDepth ?? 0);
-    return {
-      id: groupId,
-      name: scriptName,
-      enabled: true,
-      createdAt: now,
-      updatedAt: now,
-      entries: [
-        {
-          id: `${groupId}-entry`,
-          name: scriptName,
-          findRegex: String(script.findRegex ?? ""),
-          replaceString: String(script.replaceString ?? ""),
-          scope,
-          timing,
-          paramReplace: "none" as const,
-          depthRange: minDepth > 0 ? { min: minDepth, max: Number.MAX_SAFE_INTEGER } : undefined,
-          enabled: true,
-        },
-      ],
-    };
-  });
-}
+// v0.4.1: parsePngCharacterCard / extractWorldInfoFromCard / extractRegexScriptsFromCard
+// 已抽取到 ~/services/characterCardImport,此处不再保留本地副本
 
 /** 将文件转为 data URL（用于头像上传） */
 function fileToDataUrl(file: File): Promise<string> {
@@ -649,6 +411,22 @@ export default function CharactersPage() {
     return Array.from(tagSet).sort();
   }, [characters]);
 
+  /** v0.4.1: 世界书按 bookId 分组,用于角色编辑界面的"世界书启用"选择器 */
+  const worldInfoBooks = React.useMemo(() => {
+    const map = new Map<string, { bookId: string; bookName: string; count: number }>();
+    worldInfoEntries.forEach((e) => {
+      const bookId = e.bookId ?? "__default__";
+      const bookName = e.bookName ?? "未分组";
+      const existing = map.get(bookId);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        map.set(bookId, { bookId, bookName, count: 1 });
+      }
+    });
+    return Array.from(map.values());
+  }, [worldInfoEntries]);
+
   /** 过滤+排序后的角色卡列表 */
   const filtered = React.useMemo(() => {
     let result = searchQuery ? getFilteredCharacters() : characters;
@@ -854,7 +632,8 @@ export default function CharactersPage() {
             }
 
             // 提取并保存世界书条目
-            const worldInfoEntries = extractWorldInfoFromCard(cardData, latestCharacter.uuid);
+            // v0.4.1: 传入角色名,使世界书名称默认为 `${characterName}的世界书`
+            const worldInfoEntries = extractWorldInfoFromCard(cardData, latestCharacter.uuid, latestCharacter.name);
             if (worldInfoEntries.length > 0) {
               try {
                 const existing = (await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo")) ?? [];
@@ -1428,9 +1207,10 @@ export default function CharactersPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">不启用世界书</SelectItem>
-                    {worldInfoEntries.map((w) => (
-                      <SelectItem key={w.id} value={w.id}>
-                        {w.name || w.keys.join(", ") || "未命名条目"}
+                    {/* v0.4.1: 按 bookId 分组列出世界书,而非单个条目 */}
+                    {worldInfoBooks.map((b) => (
+                      <SelectItem key={b.bookId} value={b.bookId}>
+                        {b.bookName} ({b.count} 条)
                       </SelectItem>
                     ))}
                   </SelectContent>

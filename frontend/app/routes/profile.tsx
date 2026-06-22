@@ -330,7 +330,8 @@ export default function ProfilePage() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <h2 className="truncate text-lg font-semibold">
-                    {user.name || "未命名"}
+                    {/* v0.4.1: 默认用户名为空时显示占位符 */}
+                    {user.name || "未设置"}
                   </h2>
                   <Badge variant="secondary" className="shrink-0">
                     当前
@@ -441,7 +442,8 @@ export default function ProfilePage() {
                           >
                             <div className="flex items-center gap-2">
                               <span className="truncate text-sm font-medium">
-                                {profile.name || "未命名"}
+                                {/* v0.4.1: 默认用户名为空时显示占位符 */}
+                                {profile.name || "未设置"}
                               </span>
                               {isActive && (
                                 <IconCheck className="size-3 shrink-0 text-primary" />

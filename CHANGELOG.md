@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.4.1
+
+### 🐛 Bug 修复
+
+- **开场白不显示（重点任务）**：`chat.tsx` 首次启动时若历史为空且角色有开场白，自动创建默认会话显示开场白；修复 useEffect 回调中 `await` 语法错误（`.then(() => {` → `.then(async () => {`）
+- **流式输出正文空白（重点任务）**：`markdown.tsx` Streamdown `animated` 配置改为 `sep: 'char', duration: 80, stagger: 0` 实现逐字流式；`markdownService.ts` `parseCot` Pass 2 正则修复，避免主内容被字面 `<tag>` 字符吞掉；`chat-slice.ts` 流式结束后的 finalize 逻辑强制用 `accumulatedContent` 重新解析更新；`luzzy-thinking-timeline.tsx` 移除打字机动画，直接同步流式更新
+- **会话导出失败**：`luzzy-share-dialog.tsx` 原生平台 Filesystem 失败时 fall through 到 Web Blob 下载，避免导出无响应
+- **世界书导入名称不跟随角色名**：`characters.tsx` `extractWorldInfoFromCard` 新增 `characterName` 参数，默认世界书名称改为 `${characterName}的世界书`
+- **世界书条目滑动卡死**：`world-info.tsx` 条目列表 div 添加 `max-h-[50vh] overflow-y-auto`，避免展开动画期间阻止内部滚动
+- **世界书导出失败**：`world-info.tsx` `handleExportBook` 改为 async，添加原生平台 Filesystem 优先 + Web 下载 fallback
+- **角色卡内 UI 模板/正则无法导入（重点任务）**：新建 `characterCardImport.ts` 公共服务（`parsePngCharacterCard` / `extractWorldInfoFromCard` / `extractRegexScriptsFromCard` / `extractUiTemplatesFromCard`），`ui-template.tsx` 和 `regex.tsx` 添加"从角色卡导入"按钮与 handler；`characters.tsx` 移除本地副本改用公共服务导入
+- **导入角色卡未自动启用世界书（重点任务）**：`characters.tsx` 角色编辑 UI 世界书选择器改为按 `bookId` 分组列出"书"而非单个条目；`chat-slice.ts` 世界书过滤逻辑改用 `extensions.worldInfoId` 而非 `currentCharacterId`，使手动创建的世界书也能生效
+- **启动动画白屏**：`root.tsx` 内联主题脚本提前设置 `--background` CSS 变量；`luzzy-splash.tsx` 背景改为 `bg-white dark:bg-black` 硬编码兜底
+- **置底箭头位置遮挡输入栏**：`luzzy-chat-input.tsx` ResizeObserver 追踪输入栏高度，通过 CSS 变量 `--chat-input-height` 暴露给置底箭头
+- **角色卡侧边栏无法滚动**：`character-picker.tsx` 添加 `min-h-0 flex-1` 确保弹性布局正确
+- **输出时长重复显示**：`luzzy-chat-message.tsx` 删除工具按钮行左侧时长，仅保留思考卡片内时长
+- **弹窗按钮重叠**：`dialog.tsx` `DialogHeader` 添加 `shrink-0` 匹配 `DialogFooter`；`app.css` radix ScrollArea viewport 添加高度约束
+
+### ✨ 新增功能
+
+- **两次独立 API 请求架构（重点任务）**：`chat-slice.ts` 每次聊天改为两次独立 API 请求——第一次输出 CoT 思考（流式更新思考卡片），第二次基于 CoT 输出正文（流式更新正文气泡）。KV 缓存保护：两次请求的 `system_prompt + history + current_user_msg` 前缀完全一致，第二次仅在 messages 末尾追加 `assistant(CoT) + user(指令)`，缓存自然命中
+- **工具调用二级思考卡片**：`chat-slice.ts` force 模式下工具调用循环适配两次请求架构，生成二级思考卡片
+- **会话分支动画**：`chat.tsx` 消息列表外层包裹 `AnimatePresence mode="wait"` + `motion.div key={currentSessionId}`，会话切换/分支创建时淡入淡出 + 滑动过渡
+- **高亮颜色预览优化**：`settings.tsx` 预设颜色改为 `size-4 rounded-md` 统一圆角方形；自定义颜色用容器包裹 `input[type=color]`，`appearance: none` + `padding: 0` + `overflow: hidden` 让颜色填满
+- **默认用户名优化**：`chatService.ts` `DEFAULT_USER.name` 改为空字符串；`profile.tsx` 占位符显示"未设置"
+- **日志记录增强**：`logger.ts` `LogCategory` 新增 `memory` / `world` / `tool` 类别；`about.tsx` 日志显示条数从 50 增至 200，新增一键复制按钮
+- **鹿溪提示词更新**：`presetContent.ts` 附录1 鹿溪身份锚定内容已注入，NSFW CoT 框架原样保留
+
+### 🚀 功能增强
+
+- **深度调研验证**：tokens 计数逻辑正确（Anthropic usage 合并使用展开运算符）、内置工具逻辑链完整、世界书/UI模板/正则/知识库逻辑链完整、记忆功能逻辑链完整（默认 `enabled: false` 是设计决策）
+- **版本号升级**：v0.4.0 → v0.4.1（package.json + frontend/package.json + build.gradle versionCode 19 + about.tsx + README.md 徽章）
+
 ## v0.4.0
 
 ### 🐛 Bug 修复

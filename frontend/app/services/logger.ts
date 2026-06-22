@@ -7,6 +7,9 @@
  * - api: 请求/响应状态
  * - user: 用户操作
  * - chat: 聊天事件（不记录内容）
+ * - memory: 记忆操作（v0.4.1 新增）
+ * - world: 世界书操作（v0.4.1 新增）
+ * - tool: 工具调用详情（v0.4.1 新增）
  *
  * 存储路径：/Documents/LUZZY/logs/YYYYMMDD.log
  * 每次启动创建/追加当日 log 文件，启动时清理 3 天前的 log 文件
@@ -15,7 +18,7 @@
  */
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-type LogCategory = 'app' | 'agent' | 'api' | 'user' | 'chat';
+type LogCategory = 'app' | 'agent' | 'api' | 'user' | 'chat' | 'memory' | 'world' | 'tool';
 
 interface LogEntry {
   timestamp: string;

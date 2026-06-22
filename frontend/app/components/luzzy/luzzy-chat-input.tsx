@@ -86,10 +86,28 @@ export function LuzzyChatInput({
   className,
 }: LuzzyChatInputProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
   const [showModelPicker, setShowModelPicker] = React.useState(false);
   const [showThinkingDepth, setShowThinkingDepth] = React.useState(false);
   const [showPlusMenu, setShowPlusMenu] = React.useState(false);
   const [showFullscreen, setShowFullscreen] = React.useState(false);
+
+  // v0.4.1: 通过 ResizeObserver 动态追踪输入栏高度,暴露 CSS 变量供置底箭头使用
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const updateHeight = () => {
+      const h = el.offsetHeight;
+      document.documentElement.style.setProperty("--chat-input-height", `${h}px`);
+    };
+    updateHeight();
+    const ro = new ResizeObserver(updateHeight);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--chat-input-height");
+    };
+  }, []);
 
   // Store 数据
   const modelName = useAppStore((s) => s.modelName);
@@ -197,6 +215,7 @@ export function LuzzyChatInput({
   return (
     <>
       <div
+        ref={containerRef}
         className={cn("border-t bg-background/80 backdrop-blur-xl", className)}
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >

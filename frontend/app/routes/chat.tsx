@@ -79,6 +79,7 @@ export default function ChatPage() {
   const currentCharacterUuid = useAppStore((s) => s.currentCharacterUuid);
   const characters = useAppStore((s) => s.characters);
   const isGenerating = useAppStore((s) => s.isGenerating);
+  const isReceiving = useAppStore((s) => s.isReceiving);
   const inputDraft = useAppStore((s) => s.inputDraft);
   const sessions = useAppStore((s) => s.sessions);
   const currentSessionId = useAppStore((s) => s.currentSessionId);
@@ -111,7 +112,7 @@ export default function ChatPage() {
   // 初始化：加载会话列表 + 确保默认角色"鹿溪"存在 + 恢复上次会话状态
   React.useEffect(() => {
     void loadSessions().then(() => {
-      ensureDefaultCharacter().then(() => {
+      ensureDefaultCharacter().then(async () => {
         const state = useAppStore.getState();
         // v0.3.2: 优先恢复持久化的 currentCharacterUuid
         if (!state.currentCharacter && state.currentCharacterUuid) {
@@ -127,12 +128,22 @@ export default function ChatPage() {
               }
             }
             // 无有效会话则加载角色聊天历史
-            loadChatHistory(char.uuid);
+            await loadChatHistory(char.uuid);
+            // v0.4.1: 首次启动时若历史为空且角色有开场白,自动创建默认会话显示开场白
+            const currentMessages = useAppStore.getState().messages;
+            if (currentMessages.length === 0 && char.firstMessage) {
+              const sessionId = createSession(char.uuid, char.name, char.firstMessage);
+              const newSession = useAppStore.getState().sessions.find((s) => s.id === sessionId);
+              if (newSession) {
+                setMessages(newSession.messages);
+                void saveSessions();
+              }
+            }
           }
         }
       });
     });
-  }, [ensureDefaultCharacter, setCurrentCharacter, loadChatHistory, loadSessions, setMessages]);
+  }, [ensureDefaultCharacter, setCurrentCharacter, loadChatHistory, loadSessions, setMessages, createSession, saveSessions]);
 
   // 智能滚动附着（use-stick-to-bottom）
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
@@ -143,6 +154,16 @@ export default function ChatPage() {
       scrollToBottom();
     }
   }, [messages, isAtBottom, scrollToBottom]);
+
+  // v0.4.1: 正文阶段开始时(CoT 阶段结束)强制吸附置底,追踪正文流式输出
+  // 当 isReceiving 从 false 变为 true,说明 CoT 阶段结束、正文开始,强制滚动到底部
+  const prevReceivingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (isReceiving && !prevReceivingRef.current) {
+      scrollToBottom();
+    }
+    prevReceivingRef.current = isReceiving;
+  }, [isReceiving, scrollToBottom]);
 
   /** 选择角色卡 */
   const handleSelectCharacter = React.useCallback(
@@ -327,7 +348,8 @@ export default function ChatPage() {
   const handleCreateBranch = React.useCallback(
     (msg: { id: string }) => {
       createBranch(msg.id);
-      toast.success("已创建对话分支");
+      // v0.4.1: 分支创建成功提示(配合消息列表的过渡动画)
+      toast.success("已创建对话分支", { duration: 1500 });
     },
     [createBranch],
   );
@@ -451,27 +473,38 @@ export default function ChatPage() {
             )}
             {/* 消息列表 - 使用 use-stick-to-bottom 实现智能滚动附着 */}
             <div ref={scrollRef} className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden">
-              <div ref={contentRef} className="flex flex-col gap-1 py-4">
-                {messages.map((msg, i) => (
-                  <div key={msg.id} id={`msg-${msg.id}`}>
-                    <LuzzyChatMessage
-                      message={msg}
-                      avatarUrl={currentCharacter.avatar}
-                      avatarName={currentCharacter.name}
-                      isLast={i === messages.length - 1}
-                      isGenerating={isGenerating}
-                      onCopy={handleCopy}
-                      onDelete={handleDelete}
-                      onRegenerate={msg.role === "assistant" ? handleRegenerate : undefined}
-                      onRetry={handleRetry}
-                      onTranslate={handleTranslate}
-                      onShare={handleShare}
-                      onCreateBranch={handleCreateBranch}
-                      onSwitchRetryVersion={handleSwitchRetryVersion}
-                    />
-                  </div>
-                ))}
-              </div>
+              {/* v0.4.1: 会话切换/分支创建时的淡入淡出 + 滑动过渡动画 */}
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentSessionId ?? 'no-session'}
+                  ref={contentRef}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                  className="flex flex-col gap-1 py-4"
+                >
+                  {messages.map((msg, i) => (
+                    <div key={msg.id} id={`msg-${msg.id}`}>
+                      <LuzzyChatMessage
+                        message={msg}
+                        avatarUrl={currentCharacter.avatar}
+                        avatarName={currentCharacter.name}
+                        isLast={i === messages.length - 1}
+                        isGenerating={isGenerating}
+                        onCopy={handleCopy}
+                        onDelete={handleDelete}
+                        onRegenerate={msg.role === "assistant" ? handleRegenerate : undefined}
+                        onRetry={handleRetry}
+                        onTranslate={handleTranslate}
+                        onShare={handleShare}
+                        onCreateBranch={handleCreateBranch}
+                        onSwitchRetryVersion={handleSwitchRetryVersion}
+                      />
+                    </div>
+                  ))}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* API 未配置提示卡片 */}
@@ -528,7 +561,8 @@ export default function ChatPage() {
             <AnimatePresence>
               {!isAtBottom && (
                 <motion.div
-                  className="absolute bottom-24 right-4 z-30"
+                  className="absolute right-4 z-30"
+                  style={{ bottom: "calc(var(--chat-input-height, 108px) + 16px)" }}
                   initial={{ opacity: 0, y: 10, scale: 0.8 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.8 }}
@@ -553,7 +587,7 @@ export default function ChatPage() {
         {/* 移动端角色卡选择 Sheet */}
         {isMobile && (
           <Sheet open={showCharacterPicker} onOpenChange={setShowCharacterPicker}>
-            <SheetContent side="left" className="w-80 p-0">
+            <SheetContent side="left" className="w-80 overflow-hidden p-0">
               <SheetHeader>
                 <SheetTitle>选择角色卡</SheetTitle>
               </SheetHeader>

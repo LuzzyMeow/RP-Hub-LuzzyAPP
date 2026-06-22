@@ -25,6 +25,7 @@ import type {
   ApiSettings,
   AgentStep,
   MemoryRecall,
+  ToolCall,
 } from "~/types/luzzy";
 import {
   buildContext,
@@ -243,10 +244,12 @@ export const createChatSlice: StateCreator<
 
       const presets = presetsData ?? getDefaultPresets();
       // v0.3.2: 按角色过滤世界书条目（仅加载当前角色关联的 + 全局无 bookId 的）
-      const currentCharacterId = currentCharacter?.uuid;
-      const worldInfoEntries = currentCharacterId
-        ? (worldInfoData ?? []).filter(e => e.bookId === currentCharacterId || !e.bookId)
-        : (worldInfoData ?? []);
+      // v0.4.1: 改用 extensions.worldInfoId 过滤,使手动创建的世界书也能生效
+      // 导入角色卡时 worldInfoId 设为 characterUuid,条目 bookId 也是 characterUuid,自然匹配
+      const worldInfoId = currentCharacter?.extensions?.worldInfoId as string | undefined;
+      const worldInfoEntries = worldInfoId
+        ? (worldInfoData ?? []).filter(e => e.bookId === worldInfoId || !e.bookId)
+        : (worldInfoData ?? []).filter(e => !e.bookId);
       const globalMemory = globalMemoryData ?? null;
       // v0.3.0: 优先使用新的 regexGroups；若不存在但有旧 regexScripts，则迁移
       let regexGroups: RegexScriptGroup[] = regexGroupsData ?? [];
@@ -277,10 +280,17 @@ export const createChatSlice: StateCreator<
       let lastAppliedSkillIds: string[] = [];
 
       // 2. 定义 API 调用辅助函数（供初始调用和工具调用循环复用）
+      // v0.4.1: 两次独立 API 请求架构
+      // - phase="cot": 第一次请求,仅输出 CoT 思考内容,流式更新思考卡片
+      // - phase="main": 第二次请求,基于 CoT 输出正文,流式更新正文气泡
+      // KV 缓存保护: 两次请求的 system_prompt + history + current_user_msg 前缀完全一致,
+      // 第二次仅在 messages 末尾追加 assistant(CoT) + user(指令),缓存自然命中
       const callApiAndUpdate = async (
         msgId: string,
         contextMsgs: ChatMessage[],
-      ): Promise<{ content: string; reasoning: string }> => {
+        phase: "cot" | "main" = "cot",
+        cotContent?: string,
+      ): Promise<{ content: string; reasoning: string; cot: string }> => {
         // 构建 API 上下文
         const { apiMessages: rawApiMessages, appliedSkillIds: ctxAppliedSkillIds } = await buildContext({
           messages: contextMsgs,
@@ -305,7 +315,7 @@ export const createChatSlice: StateCreator<
 
         // 应用正则脚本处理（系统消息跳过）
         // v0.3.0: 使用新的 RegexScriptGroup[] 结构，scope/timing 过滤
-        const apiMessages = rawApiMessages.map((msg) => {
+        let apiMessages = rawApiMessages.map((msg) => {
           if (msg.role === "system") return msg;
           const scope = msg.role === "user" ? "user" : "character";
           return {
@@ -319,6 +329,22 @@ export const createChatSlice: StateCreator<
             ),
           };
         });
+
+        // v0.4.1: phase="main" 时,在 messages 末尾追加 assistant(CoT) + user(指令)
+        // 关键: 不修改 system_prompt 和已有 messages,仅在末尾追加,确保 KV 缓存命中
+        if (phase === "main" && cotContent) {
+          apiMessages = [
+            ...apiMessages,
+            {
+              role: "assistant" as const,
+              content: cotContent,
+            },
+            {
+              role: "user" as const,
+              content: "基于以上思考过程,现在请直接输出正文回复。不要重复思考内容,不要使用 <cot> 或 <think> 标签,直接输出正文本身。",
+            },
+          ];
+        }
 
         // 多供应商路由：根据模型名前缀解析对应的供应商 URL/Key
         const chatApiUrl = getApiUrlForModel(
@@ -339,12 +365,12 @@ export const createChatSlice: StateCreator<
         if (!chatApiKey?.trim()) {
           toast.error("未配置 API Key，请前往设置页配置");
           set({ isGenerating: false });
-          return { content: "", reasoning: "" };
+          return { content: "", reasoning: "", cot: "" };
         }
         if (!chatApiUrl?.trim()) {
           toast.error("未配置 API URL，请前往设置页配置");
           set({ isGenerating: false });
-          return { content: "", reasoning: "" };
+          return { content: "", reasoning: "", cot: "" };
         }
 
         // 调试日志：打印多供应商路由结果
@@ -481,26 +507,49 @@ export const createChatSlice: StateCreator<
 
               // v0.3.6: updateMessage 节流（最少 60ms 间隔），避免高频更新导致 UI 卡顿
               // v0.3.7: 间隔从 60ms 降至 30ms，提升流式输出流畅度（约 33fps）
+              // v0.4.1: 降至 16ms(约 60fps),实现逐字流式输出
               const now = Date.now();
-              if (now - lastUpdateTick >= 30 || hasClosingTag) {
+              if (now - lastUpdateTick >= 16 || hasClosingTag) {
                 lastUpdateTick = now;
                 // 实时 Token 统计估算（4 字符 ≈ 1 token）
                 const elapsedMs = now - requestStartTime;
                 const estimatedTokens = Math.ceil(accumulatedContent.length / 4);
                 const tokPerSec = elapsedMs > 0 ? (estimatedTokens / (elapsedMs / 1000)) : 0;
 
-                get().updateMessage(msgId, {
-                  content: cotResult.main,
-                  cot: finalCot,
-                  loading: false,
-                  tokenUsage: {
-                    promptTokens: 0,
-                    completionTokens: estimatedTokens,
-                    responseTimeMs: elapsedMs,
-                    tokPerSec: Math.round(tokPerSec * 10) / 10,
-                  },
-                  agentSteps: [...agentSteps],
-                });
+                // v0.4.1: 根据 phase 控制更新行为
+                if (phase === "cot") {
+                  // CoT 阶段: 仅更新思考卡片(cot),不更新正文(content)
+                  get().updateMessage(msgId, {
+                    cot: finalCot,
+                    loading: false,
+                    tokenUsage: {
+                      promptTokens: 0,
+                      completionTokens: estimatedTokens,
+                      responseTimeMs: elapsedMs,
+                      tokPerSec: Math.round(tokPerSec * 10) / 10,
+                    },
+                    agentSteps: [...agentSteps],
+                  });
+                } else {
+                  // 正文阶段: 更新正文气泡(content),原生思考追加到 cot 的"头脑风暴"节点
+                  const existingMsg = get().messages.find((m) => m.id === msgId);
+                  const existingCot = existingMsg?.cot ?? "";
+                  const updatedCot = accumulatedReasoning
+                    ? (existingCot ? existingCot + "\n\n" + accumulatedReasoning : accumulatedReasoning)
+                    : existingCot;
+                  get().updateMessage(msgId, {
+                    content: cotResult.main || accumulatedContent,
+                    cot: updatedCot,
+                    loading: false,
+                    tokenUsage: {
+                      promptTokens: 0,
+                      completionTokens: estimatedTokens,
+                      responseTimeMs: elapsedMs,
+                      tokPerSec: Math.round(tokPerSec * 10) / 10,
+                    },
+                    agentSteps: [...agentSteps],
+                  });
+                }
               }
             },
           });
@@ -539,12 +588,28 @@ export const createChatSlice: StateCreator<
             });
           }
 
-          get().updateMessage(msgId, {
-            content: cotResult.main,
-            cot: finalCot,
-            loading: false,
-            agentSteps: agentSteps.length > 0 ? [...agentSteps] : undefined,
-          });
+          // v0.4.1: 根据 phase 控制更新行为
+          if (phase === "cot") {
+            // CoT 阶段: 仅更新思考卡片
+            get().updateMessage(msgId, {
+              cot: finalCot,
+              loading: false,
+              agentSteps: agentSteps.length > 0 ? [...agentSteps] : undefined,
+            });
+          } else {
+            // 正文阶段: 更新正文气泡,原生思考追加到 cot
+            const existingMsg = get().messages.find((m) => m.id === msgId);
+            const existingCot = existingMsg?.cot ?? "";
+            const updatedCot = accumulatedReasoning
+              ? (existingCot ? existingCot + "\n\n" + accumulatedReasoning : accumulatedReasoning)
+              : existingCot;
+            get().updateMessage(msgId, {
+              content: cotResult.main || accumulatedContent,
+              cot: updatedCot,
+              loading: false,
+              agentSteps: agentSteps.length > 0 ? [...agentSteps] : undefined,
+            });
+          }
         }
 
         // 流式结束后，用精确的 usage 替换估算值
@@ -560,17 +625,32 @@ export const createChatSlice: StateCreator<
         // 修复 BUG：流式中 updateMessage 30ms 节流可能错过最后一个 chunk，
         // 导致 message.content 停留在中间态（例如未闭合 <think> 被吞），气泡空白
         // 此处用 useCache=true 走完成态缓存，确保最终内容正确写回 message
+        // v0.4.1: 根据 phase 控制最终更新行为
         if (get().stream) {
           const finalCotResult = parseCot(accumulatedContent, true);
           const finalCotCombined = (
             accumulatedReasoning +
             (finalCotResult.cot ? "\n" + finalCotResult.cot : "")
           ).trim();
-          get().updateMessage(msgId, {
-            content: finalCotResult.main,
-            cot: finalCotCombined,
-            loading: false,
-          });
+          if (phase === "cot") {
+            // CoT 阶段: 仅更新思考卡片
+            get().updateMessage(msgId, {
+              cot: finalCotCombined,
+              loading: false,
+            });
+          } else {
+            // 正文阶段: 更新正文气泡,原生思考追加到 cot
+            const existingMsg = get().messages.find((m) => m.id === msgId);
+            const existingCot = existingMsg?.cot ?? "";
+            const updatedCot = accumulatedReasoning
+              ? (existingCot ? existingCot + "\n\n" + accumulatedReasoning : accumulatedReasoning)
+              : existingCot;
+            get().updateMessage(msgId, {
+              content: finalCotResult.main || accumulatedContent,
+              cot: updatedCot,
+              loading: false,
+            });
+          }
         }
 
         if (lastUsage) {
@@ -617,7 +697,13 @@ export const createChatSlice: StateCreator<
           });
         }
 
-        return { content: accumulatedContent, reasoning: accumulatedReasoning };
+        // v0.4.1: 返回 cot 字段,供第二次请求使用
+        const finalCotResult = parseCot(accumulatedContent, true);
+        const finalCotCombined = (
+          accumulatedReasoning +
+          (finalCotResult.cot ? "\n" + finalCotResult.cot : "")
+        ).trim();
+        return { content: accumulatedContent, reasoning: accumulatedReasoning, cot: finalCotCombined };
       };
 
       // 3. 初始 API 调用
@@ -635,6 +721,7 @@ export const createChatSlice: StateCreator<
       // v0.3.6 C4: force 模式预执行所有已启用工具
       // 在初始 API 调用前，主动执行所有已启用的非 vector-memory 工具
       // 将结果作为独立 user 消息注入上下文末尾，不破坏 KV 缓存命中率
+      // v0.4.1: 将预执行结果添加到 agentSteps 和 toolCalls,作为独立二级思考卡片显示
       if (toolGlobalSettings.mode === "force" && activeTools.length > 0) {
         const characterUuid = currentCharacter?.uuid ?? null;
         const filteredTools = filterToolsForCharacter(activeTools, characterUuid);
@@ -649,6 +736,8 @@ export const createChatSlice: StateCreator<
           const defaultQuery = latestUserMsg?.content || "";
 
           const forceResults: string[] = [];
+          const forceToolCalls: ToolCall[] = [];
+          const forceAgentSteps: AgentStep[] = [];
           for (const tool of enabledTools) {
             if (abortController?.signal.aborted) break;
             try {
@@ -659,6 +748,15 @@ export const createChatSlice: StateCreator<
                 query: defaultQuery,
                 raw: "",
                 reason: "force mode pre-execution",
+              };
+              const forceStepId = uuidv4();
+              const forceCallStep: AgentStep = {
+                id: forceStepId,
+                type: "tool_call",
+                title: tool.name,
+                content: defaultQuery,
+                status: "running",
+                startedAt: Date.now(),
               };
               const result = await executeActiveToolCall(toolCall, {
                 messages: get().messages,
@@ -674,11 +772,53 @@ export const createChatSlice: StateCreator<
                   `<tool_result tool="${tool.name}" mode="force">\n${result}\n</tool_result>`,
                 );
               }
+              // 标记步骤完成,添加结果步骤
+              forceCallStep.status = "completed";
+              forceCallStep.endedAt = Date.now();
+              const forceResultStep: AgentStep = {
+                id: uuidv4(),
+                type: "tool_result",
+                title: tool.name,
+                content: result || "(空结果)",
+                status: "completed",
+                startedAt: forceCallStep.startedAt,
+                endedAt: Date.now(),
+              };
+              forceAgentSteps.push(forceCallStep, forceResultStep);
+              forceToolCalls.push({
+                id: uuidv4(),
+                toolName: tool.name,
+                callLabel: tool.callName || tool.name,
+                query: defaultQuery,
+                reason: "force mode pre-execution",
+                status: "completed" as const,
+                result: result || "(空结果)",
+              });
             } catch (e) {
               console.warn(
                 `[ChatSlice] force 模式预执行工具 ${tool.name} 失败:`,
                 e,
               );
+              // 记录错误步骤
+              const errorStep: AgentStep = {
+                id: uuidv4(),
+                type: "tool_call",
+                title: tool.name,
+                content: e instanceof Error ? e.message : String(e),
+                status: "error",
+                startedAt: Date.now(),
+                endedAt: Date.now(),
+              };
+              forceAgentSteps.push(errorStep);
+              forceToolCalls.push({
+                id: uuidv4(),
+                toolName: tool.name,
+                callLabel: tool.callName || tool.name,
+                query: defaultQuery,
+                reason: "force mode pre-execution",
+                status: "error" as const,
+                error: e instanceof Error ? e.message : String(e),
+              });
             }
           }
 
@@ -689,6 +829,14 @@ export const createChatSlice: StateCreator<
               role: "user",
               content: `<force_tool_results>\n${forceResults.join("\n\n")}\n</force_tool_results>`,
               createdAt: Date.now(),
+            });
+          }
+
+          // v0.4.1: 将 force 模式的工具调用结果更新到消息,作为二级思考卡片显示
+          if (forceToolCalls.length > 0) {
+            get().updateMessage(assistantMessageId, {
+              toolCalls: forceToolCalls,
+              agentSteps: forceAgentSteps,
             });
           }
         }
@@ -750,16 +898,43 @@ export const createChatSlice: StateCreator<
         }
       }
 
-      const { content: accumulatedContent, reasoning: accumulatedReasoning } =
-        await callApiAndUpdate(assistantMessageId, contextMessages);
+      // v0.4.1: 两次独立 API 请求架构
+      // 第一次请求: 输出 CoT 思考内容(放入头脑风暴卡片 + 二级卡片)
+      // 第二次请求: 基于 CoT 输出正文(正文气泡 + 头脑风暴节点)
+      // KV 缓存保护: 两次请求前缀完全一致,第二次仅在 messages 末尾追加
+      const { content: cotRawContent, reasoning: cotReasoning, cot: cotContent } =
+        await callApiAndUpdate(assistantMessageId, contextMessages, "cot");
 
-      // 7. 检查空响应
-      if (!accumulatedContent.trim() && !accumulatedReasoning.trim()) {
+      // 检查第一次请求(CoT)是否为空响应
+      if (!cotRawContent.trim() && !cotReasoning.trim() && !cotContent.trim()) {
         get().updateMessage(assistantMessageId, {
           loading: false,
-          error: "API 返回空响应",
+          error: "API 返回空响应(CoT 阶段)",
         });
         return;
+      }
+
+      // 检查是否已被用户取消
+      if (abortController?.signal.aborted) return;
+
+      // 第二次请求: 基于 CoT 输出正文
+      const { content: accumulatedContent, reasoning: accumulatedReasoning } =
+        await callApiAndUpdate(assistantMessageId, contextMessages, "main", cotContent);
+
+      // 7. 检查空响应(正文阶段)
+      if (!accumulatedContent.trim() && !accumulatedReasoning.trim()) {
+        // 正文为空但 CoT 有内容,保留 CoT 并提示
+        if (cotContent.trim()) {
+          get().updateMessage(assistantMessageId, {
+            loading: false,
+          });
+        } else {
+          get().updateMessage(assistantMessageId, {
+            loading: false,
+            error: "API 返回空响应",
+          });
+          return;
+        }
       }
 
       // 8. 记录生成耗时
@@ -880,14 +1055,16 @@ export const createChatSlice: StateCreator<
             };
             get().addMessage(continuationMessage);
 
-            // 调用 API 进行续写
+            // 调用 API 进行续写(工具调用续写属正文阶段,复用已有 CoT 上下文以保持 KV 缓存前缀一致)
             const newContextMessages = get().messages.filter(
               (m) => m.id !== continuationMessage.id,
             );
-            const { content: newContent, reasoning: newReasoning } =
+            const { content: newContent, reasoning: newReasoning, cot: newCot } =
               await callApiAndUpdate(
                 continuationMessage.id,
                 newContextMessages,
+                "main",
+                cotContent,
               );
 
             // 检查空响应

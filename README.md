@@ -8,7 +8,7 @@
 > 
 > *Every conversation feels like opening a fresh role-playing novel.*
 
-[![Version](https://img.shields.io/badge/version-v0.4.0-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.4.1-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
@@ -114,7 +114,7 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-📦 **输出路径**: `android/app/build/outputs/apk/debug/LUZZY-v0.3.8-debug.apk`
+📦 **输出路径**: `android/app/build/outputs/apk/debug/LUZZY-v0.4.1-debug.apk`
 
 ---
 
@@ -143,11 +143,11 @@ RP-Hub/
 
 ## 📰 最新动态 · What's New
 
-### v0.4.0
+### v0.4.1
 
-修复思考卡片严重 BUG（正文空白 + 两层结构缺失）、思考深度无法应用、模型显示名称不生效、全屏输入同步滚动与换行符检测、弹窗按钮重叠、关于页超出屏幕等问题，并优化流式输出性能。
+修复开场白不显示、流式输出正文空白、会话导出失败、世界书导入/滑动/导出 BUG、角色卡内 UI 模板/正则无法导入、导入角色卡未自动启用世界书等问题。新增两次独立 API 请求架构（CoT + 正文，KV 缓存保护）、会话分支动画、高亮颜色预览优化、日志记录增强等功能。
 
-> Fixes critical thinking card bugs (empty content + missing two-layer structure), thinking depth not applying, model display name not working, fullscreen editor sync scroll and newline detection, dialog button overlap, and about page overflow. Also optimizes streaming output performance.
+> Fixes opening message not displaying, streaming output empty content, session export failure, world info import/slide/export bugs, UI template/regex import from character card, and auto-enable world info on character card import. Adds two independent API request architecture (CoT + main content, KV cache protection), session branch animation, highlight color preview optimization, and log recording enhancement.
 
 [查看完整更新日志 · See full changelog →](./CHANGELOG.md)
 

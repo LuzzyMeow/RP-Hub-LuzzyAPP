@@ -75,6 +75,8 @@ import {
   fadeSlide,
 } from "~/lib/motion-presets";
 import { toast } from "sonner";
+// v0.4.1: 导入 isNativePlatform 用于世界书导出原生平台 fallback
+import { isNativePlatform } from "~/services/apiClient";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "世界书 - LUZZY" }];
@@ -474,7 +476,7 @@ export default function WorldInfoPage() {
 
   /** 导出世界书为 SillyTavern 兼容 JSON */
   const handleExportBook = React.useCallback(
-    (group: WorldBookGroup) => {
+    async (group: WorldBookGroup) => {
       const entriesObj: Record<string, unknown> = {};
       group.entries.forEach((e, i) => {
         entriesObj[String(i)] = {
@@ -503,13 +505,57 @@ export default function WorldInfoPage() {
       const blob = new Blob([JSON.stringify(exportData, null, 2)], {
         type: "application/json",
       });
+      const fileName = `${group.bookName || "worldbook"}.json`;
+
+      // v0.4.1: 原生平台优先使用 Filesystem 插件,失败时降级到 Web 下载
+      if (isNativePlatform()) {
+        try {
+          const { Filesystem, Directory } = await import('@capacitor/filesystem');
+          const arrayBuffer = await blob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          let binary = '';
+          for (let i = 0; i < uint8Array.length; i++) {
+            binary += String.fromCharCode(uint8Array[i]);
+          }
+          const base64Data = btoa(binary);
+          // 确保 LUZZY 目录存在
+          try {
+            await Filesystem.mkdir({
+              path: 'LUZZY',
+              directory: Directory.Documents,
+              recursive: true,
+            });
+          } catch {
+            // 目录已存在,忽略
+          }
+          await Filesystem.writeFile({
+            path: `LUZZY/${fileName}`,
+            data: base64Data,
+            directory: Directory.Documents,
+            recursive: true,
+          });
+          const uriResult = await Filesystem.getUri({
+            path: `LUZZY/${fileName}`,
+            directory: Directory.Documents,
+          });
+          toast.success(`已导出到：${uriResult.uri}`);
+          return;
+        } catch (err) {
+          console.error("[WorldInfo] 原生导出失败,降级到 Web 下载:", err);
+          // fall through 到 Web 下载
+        }
+      }
+
+      // Web 平台或原生降级:浏览器下载
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${group.bookName || "worldbook"}.json`;
+      a.download = fileName;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success("已导出");
+      toast.success(`已导出：${fileName}`);
     },
     [],
   );
@@ -723,7 +769,8 @@ export default function WorldInfoPage() {
                                   此世界书暂无条目
                                 </div>
                               ) : (
-                                <div className="divide-y divide-border/20">
+                                /* v0.4.1: 条目较多时支持滚动,避免撑开页面导致无法滑动 */
+                                <div className="max-h-[50vh] divide-y divide-border/20 overflow-y-auto">
                                   <AnimatePresence mode="popLayout">
                                     {group.entries.map((e, ei) => (
                                       <motion.div

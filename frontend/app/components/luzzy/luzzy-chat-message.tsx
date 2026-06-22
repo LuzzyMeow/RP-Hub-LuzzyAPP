@@ -563,11 +563,6 @@ export function LuzzyChatMessage({
             isUser ? "flex-row-reverse" : "flex-row",
           )}
         >
-          {/* 生成耗时 */}
-          {message.generationTime && (
-            <span className="mr-1">{(message.generationTime / 1000).toFixed(1)}s</span>
-          )}
-
           {/* 附着操作按钮组：复制/重试/翻译/更多 */}
           <ActionButton
             icon={IconCopyEdit}

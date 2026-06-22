@@ -1,6 +1,6 @@
 {
   "name": "luzzy",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "LUZZY - AI 角色扮演与 TRPG 对话应用",
   "main": "index.js",
   "scripts": {

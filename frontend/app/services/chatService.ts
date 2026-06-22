@@ -144,7 +144,8 @@ export interface ExtractMemoryParams {
 /** 默认用户档案（未配置用户信息时使用） */
 export const DEFAULT_USER: UserProfile = {
   uuid: 'user',
-  name: 'User',
+  // v0.4.1: 默认用户名保持为空,UI 显示时用占位符 "未设置"
+  name: '',
   description: '',
   person: 'first',
 };

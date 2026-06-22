@@ -24,10 +24,13 @@ import {
   IconClose,
   IconInfo,
   IconExpand,
+  IconImport,
 } from "~/components/luzzy/luzzy-icons";
 
 import type { UiTemplate } from "~/types/luzzy";
 import { getItem, setItem } from "~/services/storage";
+// v0.4.1: 导入角色卡解析工具,支持从 PNG 角色卡导入 UI 模板
+import { parsePngCharacterCard, extractUiTemplatesFromCard } from "~/services/characterCardImport";
 import { useAppStore } from "~/stores";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { LuzzyFullscreenEditor } from "~/components/luzzy/luzzy-fullscreen-editor";
@@ -111,6 +114,8 @@ export default function UiTemplatePage() {
   );
   const [viewing, setViewing] = React.useState<UiTemplate | null>(null);
   const [fullscreenOpen, setFullscreenOpen] = React.useState(false);
+  // v0.4.1: 从角色卡导入 UI 模板
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   /** 页面加载时从 storage 读取 */
   React.useEffect(() => {
@@ -234,13 +239,57 @@ export default function UiTemplatePage() {
     [updateTemplates],
   );
 
+  /** v0.4.1: 从 PNG 角色卡导入 UI 模板 */
+  const handleImportFromCard = React.useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const cardData = await parsePngCharacterCard(file);
+        // 使用临时 UUID 关联角色卡(若用户希望绑定到具体角色,可在编辑界面修改)
+        const tempUuid = crypto.randomUUID();
+        const imported = extractUiTemplatesFromCard(cardData, tempUuid);
+        if (imported.length === 0) {
+          toast.warning("该角色卡中未检测到 UI 模板");
+          return;
+        }
+        updateTemplates((prev) => [...prev, ...imported]);
+        toast.success(`已导入 ${imported.length} 个 UI 模板`);
+      } catch (err) {
+        toast.error("导入失败：" + (err as Error).message);
+      } finally {
+        e.target.value = "";
+      }
+    },
+    [updateTemplates],
+  );
+
   return (
     <LuzzyLayout
       title="UI模板"
       actions={
-        <Button size="icon" onClick={handleNew} {...pressable}>
-          <IconPlus className="size-4" />
-        </Button>
+        <>
+          {/* v0.4.1: 从角色卡导入 UI 模板 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            title="从角色卡导入"
+            {...pressableSubtle}
+          >
+            <IconImport className="size-4" />
+          </Button>
+          <Button size="icon" onClick={handleNew} {...pressable}>
+            <IconPlus className="size-4" />
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".png"
+            className="hidden"
+            onChange={handleImportFromCard}
+          />
+        </>
       }
     >
       <div className="flex h-full flex-col gap-3 p-4">

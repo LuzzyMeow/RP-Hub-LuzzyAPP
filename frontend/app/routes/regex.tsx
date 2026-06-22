@@ -19,6 +19,7 @@ import {
   IconPlay,
   IconWand,
   IconCopyEdit,
+  IconImport,
 } from "~/components/luzzy/luzzy-icons";
 
 import type {
@@ -29,6 +30,8 @@ import type {
   RegexParamReplace,
 } from "~/types/luzzy";
 import { getItem, setItem } from "~/services/storage";
+// v0.4.1: 导入角色卡解析工具,支持从 PNG 角色卡导入正则脚本
+import { parsePngCharacterCard, extractRegexScriptsFromCard } from "~/services/characterCardImport";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 import { Button } from "~/components/ui/button";
@@ -211,6 +214,8 @@ export default function RegexPage() {
   const [testText, setTestText] = React.useState("");
   const [showRegexHelper, setShowRegexHelper] = React.useState(false);
   const confirm = useConfirm();
+  // v0.4.1: 从角色卡导入正则脚本
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   /** 页面加载时从 storage 读取 */
   React.useEffect(() => {
@@ -415,13 +420,58 @@ export default function RegexPage() {
     );
   }, [editingEntry, testText]);
 
+  /** v0.4.1: 从 PNG 角色卡导入正则脚本 */
+  const handleImportFromCard = React.useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      try {
+        const cardData = await parsePngCharacterCard(file);
+        // 使用临时 UUID 关联角色卡
+        const tempUuid = crypto.randomUUID();
+        const imported = extractRegexScriptsFromCard(cardData, tempUuid);
+        if (imported.length === 0) {
+          toast.warning("该角色卡中未检测到正则脚本");
+          return;
+        }
+        const next = [...groups, ...imported];
+        setGroups(next);
+        await persist(next);
+        toast.success(`已导入 ${imported.length} 个正则组`);
+      } catch (err) {
+        toast.error("导入失败：" + (err as Error).message);
+      } finally {
+        e.target.value = "";
+      }
+    },
+    [groups, persist],
+  );
+
   return (
     <LuzzyLayout
       title="正则脚本"
       actions={
-        <Button size="icon" onClick={handleNewGroup}>
-          <IconPlus className="size-4" />
-        </Button>
+        <>
+          {/* v0.4.1: 从角色卡导入正则脚本 */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            title="从角色卡导入"
+          >
+            <IconImport className="size-4" />
+          </Button>
+          <Button size="icon" onClick={handleNewGroup}>
+            <IconPlus className="size-4" />
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".png"
+            className="hidden"
+            onChange={handleImportFromCard}
+          />
+        </>
       }
     >
       <div className="flex h-full flex-col gap-3 p-4">
