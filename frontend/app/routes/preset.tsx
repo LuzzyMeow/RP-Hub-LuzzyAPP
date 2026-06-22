@@ -497,7 +497,7 @@ export default function PresetPage() {
                 ) : (
                   <div className="grid gap-3">
                     <AnimatePresence mode="popLayout">
-                      {customPresets.map((p, i) => renderPresetCard(p, i))}
+                      {customPresets.filter(p => p.name !== LUZZY_PRESET_NAME).map((p, i) => renderPresetCard(p, i))}
                     </AnimatePresence>
                   </div>
                 )}

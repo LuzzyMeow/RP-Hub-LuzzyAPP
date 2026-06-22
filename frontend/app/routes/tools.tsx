@@ -1409,59 +1409,7 @@ function BuiltinToolsTab() {
     <div className="h-full p-4">
       <ScrollArea className="h-full w-full">
         <div className="min-w-0 space-y-4 pb-4">
-          {/* 全局模式设置 */}
-          <motion.div {...springEnter}>
-            <Card className="gap-3 p-4">
-              <div className="flex items-center gap-2">
-                <IconToolKit className="size-5 text-primary" />
-                <h3 className="font-medium">工具全局模式</h3>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                控制工具调用的整体策略
-              </p>
-              <div className="flex flex-col gap-2">
-                {(Object.keys(GLOBAL_MODE_LABELS) as ToolGlobalMode[]).map(
-                  (mode) => {
-                    const isActive = toolGlobalSettings.mode === mode;
-                    return (
-                      <motion.button
-                        key={mode}
-                        onClick={() => setToolGlobalMode(mode)}
-                        className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-all ${
-                          isActive
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                        {...pressableSubtle}
-                      >
-                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-current/20">
-                          {isActive ? (
-                            <motion.span
-                              initial={{ scale: 0 }}
-                              animate={{ scale: 1 }}
-                              transition={{ type: "spring", stiffness: 500, damping: 25 }}
-                            >
-                              <IconCheck className="size-4 text-primary" />
-                            </motion.span>
-                          ) : (
-                            <span className="size-2 rounded-full bg-muted-foreground/40" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium">
-                            {GLOBAL_MODE_LABELS[mode]}
-                          </span>
-                          <p className="mt-0.5 text-xs text-muted-foreground">
-                            {GLOBAL_MODE_DESCRIPTIONS[mode]}
-                          </p>
-                        </div>
-                      </motion.button>
-                    );
-                  },
-                )}
-              </div>
-            </Card>
-          </motion.div>
+          {/* v0.5.1: 工具全局模式已废弃，默认所有已启用工具在请求1对AI可见 */}
 
           {/* 内置工具列表 */}
           {builtinToolConfigs.map((config, i) => {

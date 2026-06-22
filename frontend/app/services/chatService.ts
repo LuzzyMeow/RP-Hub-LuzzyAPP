@@ -83,6 +83,8 @@ export interface BuildContextParams {
   builtinToolConfigs?: BuiltinToolConfig[];
   /** v0.4.6: 用户工具（用于注入工具描述到 system prompt） */
   activeTools?: ActiveTool[];
+  /** v0.5.1: 请求阶段 (1=工具决策, 2=CoT, 3=正文) */
+  phase?: 1 | 2 | 3;
 }
 
 /** buildContext 返回值 */
@@ -145,6 +147,25 @@ const COT_OUTPUT_PROTOCOL = `<cot_output_protocol>
 工具调用标签必须独占一行，且位于 </cot> 标签之前。
 模型可调用工具列表将在系统提示末尾"可用工具"部分列出（若无可省略）。
 </cot_output_protocol>`;
+
+/**
+ * v0.5.1: 三请求架构 — 请求 1 工具决策阶段的内部提示词
+ *
+ * 仅注入 phase=1 的系统提示。引导模型根据上下文判断是否调用工具。
+ * 不含任何角色扮演设定、文风约束或 CoT 框架。
+ */
+const TOOL_DECISION_PROMPT = `<tool_decision_phase>
+【本阶段唯一任务 — 工具决策】
+根据对话上下文判断是否需要调用外部工具获取信息（如记忆检索、世界书搜索、联网搜索等）。
+
+如果需要调用工具，严格按以下格式输出（多个工具用竖线 | 分隔）：
+<tool_calls>工具名:查询关键词|工具名2:查询关键词2</tool_calls>
+
+如果不需要任何工具，仅回复一个词：NO_TOOLS
+
+禁止输出任何思考过程、角色扮演内容、正文或解释。
+可用工具列表见下方 <available_tools> 部分。
+</tool_decision_phase>`;
 
 /** extractMemory 参数 */
 export interface ExtractMemoryParams {
@@ -501,6 +522,7 @@ export const buildContext = async (
     memorySettings,
     sessionId,
     searchGlobalMemory: _searchGlobalMemory = false,
+    phase = 2, // v0.5.1: 默认 phase=2 (CoT)，兼容旧调用
   } = params;
 
   // 1. 过滤启用的世界书条目
@@ -517,6 +539,8 @@ export const buildContext = async (
   const systemPromptParts: string[] = [];
 
   // 3.1 预设内容（保持 NSFW 预设内容完整）
+  // v0.5.1: phase=1（工具决策）时跳过角色扮演相关段落
+  if (phase !== 1) {
   // v0.4.1-fix: 非鹿溪角色卡时,仅注入鹿溪预设的 CoT 框架部分,不注入身份锚定
   // 避免鹿溪预设的"身份锚定"覆盖其他角色卡的设定
   // CoT 框架部分从 "## 角色扮演通用 CoT 推理框架" 开始,到预设末尾
@@ -571,6 +595,7 @@ export const buildContext = async (
     }
     systemPromptParts.push(charParts.join('\n\n'));
   }
+  } // v0.5.1: phase !== 1 guard — 跳过角色预设/世界书/文风/角色定义
 
   // 3.5 用户信息
   systemPromptParts.push(
@@ -621,10 +646,14 @@ export const buildContext = async (
   //   搜索会话向量分片 → agentSteps（UI 可见）→ 注入 contextMessages
   //   此处不再重复搜索，避免双倍嵌入 API 消耗
 
-  // 3.x CoT 输出协议指令（v0.3.6 新增）
-  // 独立追加，不修改 presetContent.ts 中的 NSFW 预设内容
-  // 明确要求模型将思考链包裹在 <cot> 标签内，按 Step 顺序输出
-  systemPromptParts.push(COT_OUTPUT_PROTOCOL);
+  // 3.x 输出协议指令
+  // v0.5.1: phase 感知 — 1=工具决策协议, 2=CoT 协议, 3=无协议
+  if (phase === 1) {
+    systemPromptParts.push(TOOL_DECISION_PROMPT);
+  } else if (phase === 2) {
+    systemPromptParts.push(COT_OUTPUT_PROTOCOL);
+  }
+  // phase=3 不注入任何输出协议（末尾 user 消息已明确指令）
 
   // v0.4.3: 注入内置工具描述，提升模型主动调用工具的概率
   // v0.4.6: 同时注入用户工具描述，统一标签格式

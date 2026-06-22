@@ -469,49 +469,81 @@ export default function ChatPage() {
     <>
       <LuzzyLayout
         title={currentCharacter.name}
-        headerClassName="border-b border-border/15 bg-gradient-to-b from-background/85 via-background/55 to-transparent"
+        headerClassName="border-b border-border bg-background"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {/* v0.3.5: 快捷切换角色 */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowCharacterPicker(true)}
-              title="切换角色"
-              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.05 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
             >
-              <IconUserGroup className="size-5" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowCharacterPicker(true)}
+                title="切换角色"
+                className="size-9 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <IconUserGroup className="size-5" />
+              </Button>
+            </motion.div>
             {/* 新建会话 */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleCreateSession}
-              title="新建会话"
-              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.1 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
             >
-              <IconPlus className="size-5" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleCreateSession}
+                title="新建会话"
+                className="size-9 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <IconPlus className="size-5" />
+              </Button>
+            </motion.div>
             {/* 当前会话列表 */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowSessionList(true)}
-              title="当前会话列表"
-              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.15 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
             >
-              <IconMenu className="size-5" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowSessionList(true)}
+                title="当前会话列表"
+                className="size-9 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <IconMenu className="size-5" />
+              </Button>
+            </motion.div>
             {/* 所有会话列表 */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowAllSessions(true)}
-              title="所有会话列表"
-              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.2 }}
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
             >
-              <IconGrid className="size-5" />
-            </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowAllSessions(true)}
+                title="所有会话列表"
+                className="size-9 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              >
+                <IconGrid className="size-5" />
+              </Button>
+            </motion.div>
           </div>
         }
       >

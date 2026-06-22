@@ -398,6 +398,8 @@ export const createChatSlice: StateCreator<
           }
           return (st.user?.name?.trim() || st.user?.description?.trim()) ? st.user : DEFAULT_USER;
         })();
+        // v0.5.1: phase 数字映射，传入 buildContext 控制系统提示构建
+        const phaseNumber = phase === "tool" ? 1 : phase === "cot" ? 2 : 3;
         const { apiMessages: rawApiMessages, appliedSkillIds: ctxAppliedSkillIds } = await buildContext({
           messages: contextMsgs,
           character: currentCharacter,
@@ -414,6 +416,7 @@ export const createChatSlice: StateCreator<
           searchGlobalMemory,
           builtinToolConfigs, // v0.4.3: 传入内置工具配置，注入工具描述到 system prompt
           activeTools, // v0.4.6: 传入用户工具，统一注入工具描述
+          phase: phaseNumber, // v0.5.1: 控制系统提示段落（1=工具决策, 2=CoT, 3=正文）
         });
 
         // v0.4.3: 日志记录上下文构建完成
@@ -558,9 +561,8 @@ export const createChatSlice: StateCreator<
         // 避免第二次请求(callApiAndUpdate)覆盖第一次请求已写入的 force 预执行/记忆召回步骤
         const existingMsg = get().messages.find(m => m.id === msgId);
         const agentSteps: AgentStep[] = existingMsg?.agentSteps ? [...existingMsg.agentSteps] : [];
-        // v0.4.6: 继承已有消息的 thinking 状态，避免请求2重复添加 thinking step
-        const hasExistingThinking = agentSteps.some(s => s.type === "thinking");
-        let thinkingStepAdded = hasExistingThinking;
+        // v0.5.1: 三阶段 thinking 节点标题映射（phase 感知，不再合并覆盖）
+        const THINKING_TITLES: Record<string, string> = { tool: "工具决策分析", cot: "深度推理", main: "组织回复" };
         // v0.4.4: 累积原生 tool_calls（流式增量合并）
         const accumulatedToolCalls: Array<{
           id: string;
@@ -591,23 +593,22 @@ export const createChatSlice: StateCreator<
               if (chunk.reasoningContent) {
                 accumulatedReasoning += chunk.reasoningContent;
                 set({ isThinking: true });
-                // 首次出现推理内容时添加思考步骤
-                if (!thinkingStepAdded) {
-                  thinkingStepAdded = true;
+                // v0.5.1: 阶段感知的 thinking 节点——首次推理内容时创建
+                const existingPhaseThinking = agentSteps.find(
+                  (s) => s.type === "thinking" && s.phase === phaseNumber
+                );
+                if (!existingPhaseThinking) {
                   agentSteps.push({
                     id: uuidv4(),
                     type: "thinking",
-                    title: "模型思考",
+                    title: THINKING_TITLES[phase] || "模型思考",
                     content: accumulatedReasoning,
                     status: "running",
                     startedAt: Date.now(),
+                    phase: phaseNumber,
                   });
                 } else {
-                  // 更新已有思考步骤的内容
-                  const thinkingStep = agentSteps.find((s) => s.type === "thinking");
-                  if (thinkingStep) {
-                    thinkingStep.content = accumulatedReasoning;
-                  }
+                  existingPhaseThinking.content = accumulatedReasoning;
                 }
               }
 
@@ -662,8 +663,8 @@ export const createChatSlice: StateCreator<
                 hasClosingTag;
 
               if (shouldParse) {
-                // v0.4.6: 流式过程中不提取未闭合标签内容，仅依赖已闭合的 <cot>...</cot> 块
-                lastCotResult = parseCot(accumulatedContent, false, false);
+                // v0.5.1: 流式过程中允许未闭合标签内容，cot 随 chunk 增量显示
+                lastCotResult = parseCot(accumulatedContent, false, true);
                 lastParseLength = accumulatedContent.length;
               }
               const cotResult = lastCotResult!;
@@ -672,23 +673,23 @@ export const createChatSlice: StateCreator<
                 (cotResult.cot ? "\n" + cotResult.cot : "")
               ).trim();
 
-              // v0.4.0: 统一思考步骤添加逻辑
-              // 若 finalCot 非空（含原生思考或 CoT 标签内容），确保 thinking 步骤存在且内容为 finalCot
-              // 这样 CotCard 显示 message.cot，LuzzyAgentSteps 作为备份（当 message.cot 为空时）
-              if (finalCot && !thinkingStepAdded) {
-                thinkingStepAdded = true;
-                agentSteps.push({
-                  id: uuidv4(),
-                  type: "thinking",
-                  title: "模型思考",
-                  content: finalCot,
-                  status: "running",
-                  startedAt: Date.now(),
-                });
-              } else if (finalCot && thinkingStepAdded) {
-                const thinkingStep = agentSteps.find((s) => s.type === "thinking");
-                if (thinkingStep) {
-                  thinkingStep.content = finalCot;
+              // v0.5.1: 三阶段 thinking 节点独立——按 phase 匹配，不再覆盖不同阶段的思考内容
+              if (finalCot) {
+                const existingPhaseThinking = agentSteps.find(
+                  (s) => s.type === "thinking" && s.phase === phaseNumber
+                );
+                if (!existingPhaseThinking) {
+                  agentSteps.push({
+                    id: uuidv4(),
+                    type: "thinking",
+                    title: THINKING_TITLES[phase] || "模型思考",
+                    content: finalCot,
+                    status: "running",
+                    startedAt: Date.now(),
+                    phase: phaseNumber,
+                  });
+                } else {
+                  existingPhaseThinking.content = finalCot;
                 }
               }
 

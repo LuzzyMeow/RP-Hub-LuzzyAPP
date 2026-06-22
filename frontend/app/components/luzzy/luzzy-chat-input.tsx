@@ -215,27 +215,38 @@ export function LuzzyChatInput({
 
   return (
     <>
-      <div
+      <motion.div
         ref={containerRef}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: "spring", stiffness: 260, damping: 24 }}
         className={cn(
-          "border-t border-border/15 bg-gradient-to-t from-background/85 via-background/55 to-transparent backdrop-blur-xl backdrop-saturate-150",
+          "border-t border-border bg-background",
           className,
         )}
-        style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+        style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
       >
-        {/* 第一排：全屏编辑按钮 + 文本输入框 + 发送按钮 */}
-        <div className="flex items-end gap-3 px-3 pt-3">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setShowFullscreen(true)}
-            disabled={disabled}
-            title="全屏编辑"
-            className="size-10 shrink-0 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
-            {...pressableSubtle}
+        {/* 输入框 + 发送按钮 */}
+        <div className="flex items-end gap-2 px-3 pt-2">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.05 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
           >
-            <IconExpand className="size-5" />
-          </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowFullscreen(true)}
+              disabled={disabled}
+              title="全屏编辑"
+              className="size-10 shrink-0 rounded-xl text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            >
+              <IconExpand className="size-5" />
+            </Button>
+          </motion.div>
+
           <Textarea
             ref={textareaRef}
             value={value}
@@ -244,38 +255,58 @@ export function LuzzyChatInput({
             placeholder={placeholder}
             disabled={disabled}
             rows={1}
-            className="min-h-[44px] max-h-[200px] flex-1 resize-none rounded-2xl border-border/20 bg-background/50 px-4 py-2.5 backdrop-blur-sm"
+            className="min-h-[44px] max-h-[200px] flex-1 resize-none rounded-xl border border-input bg-background px-4 py-2.5 text-sm focus-visible:ring-1 focus-visible:ring-ring"
           />
-          <Button
-            size="icon"
-            onClick={handleSendClick}
-            disabled={!isGenerating && (disabled || !value.trim())}
-            className="size-10 shrink-0 rounded-full border border-primary/20 bg-primary/10 text-primary backdrop-blur-sm hover:bg-primary/20"
-            {...pressable}
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.1 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
           >
-            {isGenerating ? (
-              <IconStop className="size-5" />
-            ) : (
-              <IconSend className="size-5" />
-            )}
-          </Button>
+            <Button
+              size="icon"
+              onClick={handleSendClick}
+              disabled={!isGenerating && (disabled || !value.trim())}
+              className="size-10 shrink-0 rounded-xl"
+            >
+              {isGenerating ? (
+                <IconStop className="size-5" />
+              ) : (
+                <IconSend className="size-5" />
+              )}
+            </Button>
+          </motion.div>
         </div>
 
-        {/* 第二排：功能按钮行 */}
-        <div className="flex items-center justify-between gap-2 px-3 pt-2">
-          {/* 左侧：模型 + 思考深度 */}
-          <div className="flex shrink-0 items-center gap-2">
+        {/* 工具栏 */}
+        <div className="flex items-center gap-1 px-3 pt-1.5">
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.15 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+          >
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowModelPicker(true)}
               disabled={disabled}
               title="切换模型"
-              className="size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
-              {...pressableSubtle}
+              className="size-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
-              <IconToolKit className="size-5" />
+              <IconToolKit className="size-4" />
             </Button>
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.2 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+          >
             <Button
               variant="ghost"
               size="icon"
@@ -283,44 +314,46 @@ export function LuzzyChatInput({
               disabled={disabled || thinkingDepthLockedByJson}
               title={thinkingDepthLockedByJson ? "思考深度已在请求体内设置" : "思考深度"}
               className={cn(
-                "size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60",
+                "size-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 thinkingDepthLockedByJson && "opacity-40",
               )}
-              {...pressableSubtle}
             >
-              <IconLight className="size-5" />
+              <IconLight className="size-4" />
             </Button>
-          </div>
-
-          {/* 中间：状态指示器 */}
-          <div className="flex min-w-0 flex-1 items-center justify-center px-2">
-            <div className="flex max-w-full items-center gap-2 rounded-full border border-border/10 bg-background/40 px-3 py-1.5 text-xs text-muted-foreground/70 backdrop-blur-sm">
-              <span className="truncate">{displayModelName}</span>
-              {enableThinking && (
-                <>
-                  <span className="text-muted-foreground/40">·</span>
-                  <span className="shrink-0">思考: {THINKING_DEPTH_OPTIONS.find((o) => o.value === currentThinkingDepth)?.label}</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* 右侧：加号 */}
-          <div className="flex shrink-0 items-center gap-2">
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.25 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+          >
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowPlusMenu(true)}
               disabled={disabled || isGenerating}
               title="更多"
-              className="size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
-              {...pressableSubtle}
+              className="size-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
-              <IconPlus className="size-5" />
+              <IconPlus className="size-4" />
             </Button>
+          </motion.div>
+
+          {/* 右侧模型状态 */}
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground/60">
+            <span className="truncate">{displayModelName}</span>
+            {enableThinking && (
+              <>
+                <span className="shrink-0 text-muted-foreground/30">·</span>
+                <span className="shrink-0">
+                  {THINKING_DEPTH_OPTIONS.find((o) => o.value === currentThinkingDepth)?.label}
+                </span>
+              </>
+            )}
           </div>
         </div>
-      </div>
+      </motion.div>
 
       {/* 全屏编辑器 */}
       <LuzzyFullscreenEditor
