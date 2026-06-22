@@ -753,10 +753,10 @@ export default function SettingsPage() {
                           className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-md border px-3 py-2"
                         >
                           <div className="flex min-w-0 items-center gap-2">
-                            <span className="min-w-0 truncate text-sm font-medium">
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium">
                               {p.displayName ?? p.name}
                             </span>
-                            <span className="min-w-0 truncate text-xs text-muted-foreground">
+                            <span className="min-w-0 max-w-[40%] shrink-0 truncate text-xs text-muted-foreground">
                               {p.apiUrl}
                             </span>
                           </div>

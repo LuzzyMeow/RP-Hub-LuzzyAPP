@@ -653,6 +653,8 @@ export type BuiltinToolType =
   | 'vector-memory'
   | 'keyword-search'
   | 'memory-recall'
+  | 'world-recall'  // v0.4.3 新增:世界书召回（嵌入模型）
+  | 'world-search'  // v0.4.3 新增:世界书检索（关键词）
   | 'anysearch';
 
 /** 内置工具配置 */

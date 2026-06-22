@@ -339,13 +339,14 @@ function SessionSwipeItem({
         style={{ x }}
         onDragEnd={(_, info) => {
           if (info.offset.x < -80) {
-            animate(x, -500, {
-              duration: 0.2,
+            // v0.4.3: 先回弹到原位,再触发 onDelete,避免会话保持左滑状态
+            animate(x, 0, {
+              duration: 0.3,
               onComplete: () => onDelete(session.id),
             });
           } else if (info.offset.x > 80) {
-            animate(x, 0, { duration: 0.3 });
-            onShare(session.id);
+            // v0.4.3: 先回弹再触发分享
+            animate(x, 0, { duration: 0.3, onComplete: () => onShare(session.id) });
           } else {
             // v0.3.5: 确保未触发删除/分享时回弹到原位，避免删除状态保持
             animate(x, 0, { duration: 0.3 });

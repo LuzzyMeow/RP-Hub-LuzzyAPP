@@ -28,15 +28,11 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconLight,
-  IconToolKit,
-  IconCheck,
-  IconExclamation,
-  IconClock,
   IconArrowDown,
   IconArrowUp,
 } from "~/components/luzzy/luzzy-icons";
 
-import type { ChatMessage, ToolCall, MemoryRecall } from "~/types/luzzy";
+import type { ChatMessage, MemoryRecall } from "~/types/luzzy";
 import { cn } from "~/lib/utils";
 import { copyTextToClipboard } from "~/lib/clipboard";
 import { toast } from "sonner";
@@ -92,80 +88,6 @@ interface LuzzyChatMessageProps {
   retryCurrentIndex?: number;
 }
 
-/** 工具调用状态图标 */
-function ToolCallStatusIcon({ status }: { status: ToolCall["status"] }) {
-  switch (status) {
-    case "completed":
-      return <IconCheck className="size-3.5 text-green-500" />;
-    case "error":
-      return <IconExclamation className="size-3.5 text-destructive" />;
-    case "running":
-    case "receiving":
-    case "queued":
-    case "continuing":
-      return <IconRefresh className="size-3.5 animate-spin text-blue-500" />;
-    default:
-      return <IconClock className="size-3.5 text-muted-foreground" />;
-  }
-}
-
-/** 工具调用卡片 */
-function ToolCallCard({ toolCall }: { toolCall: ToolCall }) {
-  const [expanded, setExpanded] = React.useState(false);
-
-  return (
-    <div className="rounded-md border border-muted bg-muted/30 text-sm">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
-        onClick={() => setExpanded(!expanded)}
-      >
-        <IconToolKit className="size-3.5 text-muted-foreground" />
-        <span className="font-medium">{toolCall.toolName}</span>
-        {toolCall.mcpSubToolName && (
-          <span className="text-xs text-muted-foreground">
-            / {toolCall.mcpSubToolName}
-          </span>
-        )}
-        <span className="ml-auto flex items-center gap-1.5">
-          <ToolCallStatusIcon status={toolCall.status} />
-          <span className="text-xs text-muted-foreground">{toolCall.status}</span>
-        </span>
-      </button>
-      {expanded && (
-        <div className="space-y-2 border-t border-muted px-3 py-2">
-          {toolCall.reason && (
-            <div>
-              <span className="text-xs font-medium text-muted-foreground">原因：</span>
-              <p className="text-xs text-muted-foreground">{toolCall.reason}</p>
-            </div>
-          )}
-          <div>
-            <span className="text-xs font-medium text-muted-foreground">查询：</span>
-            <code className="block rounded bg-background/50 p-1.5 text-xs">
-              {toolCall.query}
-            </code>
-          </div>
-          {toolCall.result && (
-            <div>
-              <span className="text-xs font-medium text-muted-foreground">结果：</span>
-              <pre className="max-h-40 overflow-auto rounded bg-background/50 p-1.5 text-xs whitespace-pre-wrap">
-                {toolCall.result}
-              </pre>
-            </div>
-          )}
-          {toolCall.error && (
-            <div>
-              <span className="text-xs font-medium text-destructive">错误：</span>
-              <p className="text-xs text-destructive">{toolCall.error}</p>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** 记忆召回折叠区 */
 function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
   const [expanded, setExpanded] = React.useState(false);
@@ -207,21 +129,11 @@ function CotCard({
   cot: string;
   isGenerating: boolean;
 }) {
-  // 生成中默认展开，生成结束默认收起
-  const [expanded, setExpanded] = React.useState(isGenerating);
-  // 用户手动切换标记
-  const [userToggled, setUserToggled] = React.useState(false);
-
-  // 生成状态变化时自动调整（仅当用户未手动操作过）
-  React.useEffect(() => {
-    if (!userToggled) {
-      setExpanded(isGenerating);
-    }
-  }, [isGenerating, userToggled]);
+  // v0.4.3: 生成中默认展开,生成完成后保持展开(仅用户手动点击才收起)
+  const [expanded, setExpanded] = React.useState(true);
 
   /** 用户点击切换 */
   const handleToggle = () => {
-    setUserToggled(true);
     setExpanded((prev) => !prev);
   };
 
@@ -486,13 +398,13 @@ export function LuzzyChatMessage({
           <CotCard cot={message.cot} isGenerating={Boolean(isGenerating && isLast)} />
         )}
 
-        {/* 工具调用 */}
-        {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
-          <div className="flex w-full flex-col gap-1.5">
-            {message.toolCalls.map((tc) => (
-              <ToolCallCard key={tc.id} toolCall={tc} />
-            ))}
-          </div>
+        {/* v0.4.3: 工具调用步骤合并到 CotCard 下方纵列(与思考卡片排成一列) */}
+        {!isUser && message.agentSteps && message.agentSteps.length > 0 && (
+          <LuzzyAgentSteps
+            steps={message.agentSteps.filter(
+              (s) => !(s.type === "thinking" && message.cot)
+            )}
+          />
         )}
 
         {/* 记忆召回 */}
@@ -518,7 +430,8 @@ export function LuzzyChatMessage({
           {isLoading ? (
             <TypingIndicator />
           ) : message.content ? (
-            <Markdown content={message.content} isAnimating={false} />
+            // v0.4.3: isAnimating 动态化,生成中且为最后一条消息时启用流式动画
+            <Markdown content={message.content} isAnimating={isGenerating && isLast && !message.content?.endsWith("*-- 生成已中止 --*")} />
           ) : isGenerating && isLast && message.cot ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <IconRefresh className="size-3 animate-spin" />
@@ -588,17 +501,6 @@ export function LuzzyChatMessage({
             onClick={handleMore}
           />
         </div>
-
-        {/* Agent 执行步骤卡片（v0.3.0 新增，仅 Agent 消息显示） */}
-        {/* v0.4.0: 当 message.cot 存在时，过滤掉 thinking 步骤（由 CotCard + LuzzyThinkingTimeline 渲染）；
-            当 message.cot 为空时，保留 thinking 步骤作为备份显示（避免思考内容完全消失） */}
-        {!isUser && message.agentSteps && message.agentSteps.length > 0 && (
-          <LuzzyAgentSteps
-            steps={message.agentSteps.filter(
-              (s) => !(s.type === "thinking" && message.cot)
-            )}
-          />
-        )}
 
         {/* Token 使用统计行（v0.3.0 新增，仅 Agent 消息显示） */}
         {!isUser && message.tokenUsage && (

@@ -508,6 +508,7 @@ export default function WorldInfoPage() {
       const fileName = `${group.bookName || "worldbook"}.json`;
 
       // v0.4.1: 原生平台优先使用 Filesystem 插件,失败时降级到 Web 下载
+      // v0.4.3: 原生平台写入临时文件后唤起系统分享面板,不再静默保存
       if (isNativePlatform()) {
         try {
           const { Filesystem, Directory } = await import('@capacitor/filesystem');
@@ -538,7 +539,14 @@ export default function WorldInfoPage() {
             path: `LUZZY/${fileName}`,
             directory: Directory.Documents,
           });
-          toast.success(`已导出到：${uriResult.uri}`);
+          // v0.4.3: 唤起系统分享面板
+          const { Share } = await import('@capacitor/share');
+          await Share.share({
+            title: group.bookName || '世界书',
+            url: uriResult.uri,
+            dialogTitle: '导出世界书',
+          });
+          toast.success('已唤起分享');
           return;
         } catch (err) {
           console.error("[WorldInfo] 原生导出失败,降级到 Web 下载:", err);

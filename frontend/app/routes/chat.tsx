@@ -180,11 +180,15 @@ export default function ChatPage() {
         switchSession(charSessions[0].id);
         setMessages(charSessions[0].messages);
       } else {
-        await loadChatHistory(uuid);
+        // v0.4.3: 首次启用角色卡,自动新建会话并注入开场白(修复开场白失效)
+        const newSessionId = createSession(uuid, char.name, char.firstMessage);
+        const newSession = useAppStore.getState().sessions.find((s) => s.id === newSessionId);
+        setMessages(newSession?.messages ?? []);
+        void saveSessions();
       }
       setShowCharacterPicker(false);
     },
-    [characters, sessions, setCurrentCharacterUuid, setCurrentCharacter, switchSession, setMessages, loadChatHistory],
+    [characters, sessions, setCurrentCharacterUuid, setCurrentCharacter, switchSession, setMessages, createSession, saveSessions],
   );
 
   /** 发送消息 */
@@ -279,11 +283,21 @@ export default function ChatPage() {
     (id: string) => {
       logger.info("user", `删除会话: ${id}`);
       deleteSession(id);
-      // 若删除的是当前会话，清空消息或切换到第一个剩余会话
+      // 若删除的是当前会话,优先跳转到同角色的其他会话,无则新建会话(注入开场白)
       if (id === currentSessionId) {
-        const remaining = sessions.filter((s) => s.id !== id);
-        if (remaining.length > 0) {
-          handleSwitchSession(remaining[0].id);
+        const currentCharId = useAppStore.getState().currentCharacterUuid;
+        const currentChar = useAppStore.getState().currentCharacter;
+        // v0.4.3: 按角色过滤剩余会话,避免跳转到默认角色鹿溪
+        const sameCharSessions = sessions
+          .filter((s) => s.id !== id && s.characterId === currentCharId)
+          .sort((a, b) => b.updatedAt - a.updatedAt);
+        if (sameCharSessions.length > 0) {
+          handleSwitchSession(sameCharSessions[0].id);
+        } else if (currentChar) {
+          // 无同角色会话,新建会话注入开场白
+          const newSessionId = createSession(currentChar.uuid, currentChar.name, currentChar.firstMessage);
+          const newSession = useAppStore.getState().sessions.find((s) => s.id === newSessionId);
+          setMessages(newSession?.messages ?? []);
         } else {
           setMessages([]);
         }
@@ -291,7 +305,7 @@ export default function ChatPage() {
       void saveSessions();
       toast.success("已删除会话");
     },
-    [deleteSession, currentSessionId, sessions, handleSwitchSession, setMessages, saveSessions],
+    [deleteSession, currentSessionId, sessions, handleSwitchSession, setMessages, saveSessions, createSession],
   );
 
   /** 重命名会话 */

@@ -19,8 +19,9 @@ import "streamdown/styles.css";
 const INLINE_LATEX_REGEX = /\\\((.+?)\\\)/g;
 const BLOCK_LATEX_REGEX = /\\\[(.+?)\\\]/gs;
 const CODE_BLOCK_REGEX = /```[\s\S]*?```|`[^`\n]*`/g;
-// v0.3.7: 中文引号高亮正则（"..." 形式）
-const QUOTE_HIGHLIGHT_REGEX = /\u201C([^\u201D]+)\u201D/g;
+// v0.4.3: 扩展高亮支持多种括号:"" "" 「」 【】 〔〕 『』 {} [] ()
+// 统一正则匹配所有括号对,左括号和右括号分别捕获
+const QUOTE_HIGHLIGHT_REGEX = /([\u201C\u300C\u3010\u3014\u300E{[("])([^\u201D\u300D\u3011\u3015\u300F}\])"]+?)([\u201D\u300D\u3011\u3015\u300F}\])"])/g;
 
 // Preprocess markdown content
 function preProcess(content: string): string {
@@ -56,15 +57,16 @@ function preProcess(content: string): string {
     return `$$${group1}$$`;
   });
 
-  // v0.3.7: 中文引号高亮，将 "..." 替换为 <span class="luzzy-highlight">...</span>
+  // v0.4.3: 多括号高亮，将 "..." 「...」 {...} [...] (...) 等替换为 <span class="luzzy-highlight">...</span>
   // 颜色由 CSS 变量 --luzzy-highlight-color 控制，未设置时使用 inherit（无高亮效果）
+  // 新正则有 3 个捕获组：左括号、内容、右括号
   result = result.replace(
     new RegExp(QUOTE_HIGHLIGHT_REGEX.source, "g"),
-    (match, group1, offset) => {
+    (match, leftBracket, content, rightBracket, offset) => {
       if (isInCodeBlock(offset)) {
         return match;
       }
-      return `\u201C<span class="luzzy-highlight">${group1}</span>\u201D`;
+      return `${leftBracket}<span class="luzzy-highlight">${content}</span>${rightBracket}`;
     },
   );
 

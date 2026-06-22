@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.4.3
+
+### 🐛 Bug 修复
+
+- **工具调用概率低（重点任务）**：`chatService.ts` 新增 `buildToolDescriptions` 函数,将已启用工具的描述注入 system prompt 末尾(在 COT_OUTPUT_PROTOCOL 之后),提升模型主动调用工具的概率。工具描述采用 `<available_tools>` 标签包裹,列出 callLabel 和 description,模型按 `<callLabel:query>` 格式输出工具调用。工具描述追加到 system prompt 末尾,不破坏前缀(KV 缓存友好)
+- **高亮显示仅支持中文弯引号（重点任务）**：`markdown.tsx` `QUOTE_HIGHLIGHT_REGEX` 扩展支持多种括号:`“”` `""` `「」` `【】` `〔〕` `『』` `{}` `[]` `()`。替换逻辑使用 3 个捕获组(左括号、内容、右括号),保留原括号字符并高亮内容
+- **供应商显示比例失衡**：`settings.tsx` 自定义供应商列表中,供应商名称改为 `flex-1 truncate`(占大部分空间),URL 改为 `max-w-[40%] shrink-0 truncate`(限制宽度并截断),让用户更容易看到供应商名字
+
+### ✨ 新增功能
+
+- **世界书召回工具（重点任务）**：新增内置工具 `world-recall`,使用嵌入模型在当前角色卡绑定的世界书中语义检索匹配内容。需配置嵌入模型,默认关闭。工具执行流程:获取最新 user 消息作为 query → 调用 getEmbedding 获取 query 向量 → 遍历世界书条目获取内容向量 → 用 cosineSimilarity 计算相似度 → 返回 Top-K 条目 → 注入 contextMessages 作为 `<world_recall_result>` user 消息 → 添加 agentSteps/toolCalls 二级思考卡片
+- **世界书检索工具（重点任务）**：新增内置工具 `world-search`,在当前角色卡启用的世界书中按关键词搜索匹配内容,无需嵌入模型。默认开启。工具执行流程:获取最新 user 消息作为 query → 分词后匹配 entry.keys 和 entry.content → keys 匹配 score+=2,content 匹配 score+=1 → 返回 Top-K 条目 → 注入 contextMessages 作为 `<world_search_result>` user 消息 → 添加 agentSteps/toolCalls 二级思考卡片
+
+### 🚀 功能增强
+
+- **日志系统增强（重点任务）**：`chat-slice.ts` 新增 13 处 logger 调用,覆盖 api/chat/tool/memory/world 五个类别:
+  - `api` 类别:API 请求阶段1(CoT)、API 响应阶段1、API 请求阶段2(正文)、API 响应阶段2、上下文构建完成
+  - `chat` 类别:消息发送、消息接收完成
+  - `tool` 类别:关键词检索工具启动
+  - `memory` 类别:记忆召回工具启动、向量记忆检索工具启动、ACE 记忆注入
+  - `world` 类别:世界书加载、世界书召回工具启动、世界书检索工具启动
+- **工具描述注入 system prompt**：`chatService.ts` `BuildContextParams` 接口新增 `builtinToolConfigs` 字段,`buildContext` 函数在 `COT_OUTPUT_PROTOCOL` 之后调用 `buildToolDescriptions` 注入工具描述,提升模型主动调用工具的概率
+- **版本号升级**：v0.4.2 → v0.4.3(package.json + frontend/package.json + build.gradle versionCode 21 + about.tsx + README.md 徽章)
+
 ## v0.4.2
 
 ### 🐛 Bug 修复

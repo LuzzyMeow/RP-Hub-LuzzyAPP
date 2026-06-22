@@ -532,8 +532,9 @@ export default function CharactersPage() {
         );
 
         // 4. 根据运行环境选择保存方式
+        // v0.4.3: 原生平台写入临时文件后唤起系统分享面板,不再静默保存到相册
         if (Capacitor.isNativePlatform()) {
-          // Android: 使用 Capacitor Filesystem 写入相册目录
+          // Android: 使用 Capacitor Filesystem 写入临时文件,然后唤起分享
           const base64Data = await blobToBase64(pngBlob);
           const fileName = `${c.name || "character"}.png`;
           await Filesystem.writeFile({
@@ -542,7 +543,18 @@ export default function CharactersPage() {
             directory: Directory.External,
             recursive: true,
           });
-          toast.success(`已保存到相册 Pictures/LUZZY/${fileName}`);
+          const uriResult = await Filesystem.getUri({
+            path: `Pictures/LUZZY/${fileName}`,
+            directory: Directory.External,
+          });
+          // v0.4.3: 唤起系统分享面板
+          const { Share } = await import('@capacitor/share');
+          await Share.share({
+            title: c.name || '角色卡',
+            url: uriResult.uri,
+            dialogTitle: '导出角色卡',
+          });
+          toast.success('已唤起分享');
         } else {
           // Web: 回退到 <a download> 下载
           const url = URL.createObjectURL(pngBlob);

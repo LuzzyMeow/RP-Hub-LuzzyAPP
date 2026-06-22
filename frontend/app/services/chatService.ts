@@ -22,6 +22,8 @@ import type {
   RegexScope,
   RegexTiming,
   VectorMemoryShard,
+  BuiltinToolConfig,
+  BuiltinToolType,
 } from '~/types/luzzy';
 import { parseCot } from '~/services/markdownService';
 import {
@@ -37,6 +39,7 @@ import {
   getActiveSkills,
   renderSkillbookForInjection,
 } from '~/services/aceSkillbookService';
+import { logger } from '~/services/logger';
 
 // ============================================================================
 // 类型定义
@@ -68,6 +71,8 @@ export interface BuildContextParams {
   sessionId?: string;
   /** 是否在向量记忆召回时同步检索全局记忆（v0.3.0 新增） */
   searchGlobalMemory?: boolean;
+  /** v0.4.3: 内置工具配置（用于注入工具描述到 system prompt） */
+  builtinToolConfigs?: BuiltinToolConfig[];
 }
 
 /** buildContext 返回值 */
@@ -122,6 +127,13 @@ const COT_OUTPUT_PROTOCOL = `<cot_output_protocol>
 - 必须输出完整的所有 Step，不得跳过、合并或缩写
 - <cot> 开始标签和 </cot> 结束标签都必须出现，否则正文无法正常显示
 - 每个 Step 的标题必须与预设中的 Step 标题完全一致
+
+【工具调用协议 - 可选】
+在思考链输出过程中，若需要调用工具获取信息（如记忆、世界书、联网搜索等），在对应 Step 内输出以下格式的工具调用标签：
+<callLabel:query>
+其中 callLabel 为工具调用标签（见系统提示末尾"可用工具"列表），query 为查询内容。
+工具调用标签必须独占一行，且位于 </cot> 标签之前。
+模型可调用工具列表将在系统提示末尾"可用工具"部分列出（若无可省略）。
 </cot_output_protocol>`;
 
 /** extractMemory 参数 */
@@ -136,6 +148,47 @@ export interface ExtractMemoryParams {
   apiProviderKeys: Record<string, string>;
   /** 当前会话 ID（提供时记忆分片保存到会话级键） */
   sessionId?: string;
+}
+
+// ============================================================================
+// 内置工具描述（v0.4.3 新增）
+// ============================================================================
+/**
+ * 内置工具元信息：callLabel 为工具调用标签，description 为工具描述
+ *
+ * 用于在 system prompt 末尾注入工具描述，提升模型主动调用工具的概率
+ */
+const BUILTIN_TOOL_INFO: Record<BuiltinToolType, { callLabel: string; description: string }> = {
+  'memory-recall': { callLabel: 'memory-recall', description: '召回历史记忆，按相关度排序返回' },
+  'vector-memory': { callLabel: 'vector-memory', description: '使用嵌入模型在向量记忆分片中语义检索' },
+  'keyword-search': { callLabel: 'keyword-search', description: '在聊天消息中按关键词搜索匹配内容' },
+  'world-recall': { callLabel: 'world-recall', description: '基于嵌入模型召回当前角色卡绑定的世界书内容' },
+  'world-search': { callLabel: 'world-search', description: '在世界书中按关键词检索（无需嵌入模型）' },
+  'anysearch': { callLabel: 'anysearch', description: '联网搜索外部信息，获取实时数据' },
+};
+
+/**
+ * 构建工具描述文本，注入 system prompt 末尾
+ *
+ * v0.4.3: 提升模型主动调用工具的概率
+ * 仅注入已启用的工具，避免无效信息干扰
+ */
+function buildToolDescriptions(configs: BuiltinToolConfig[] | undefined): string {
+  if (!configs || configs.length === 0) return '';
+  const enabledTools = configs.filter((c) => c.enabled);
+  if (enabledTools.length === 0) return '';
+  const lines: string[] = [
+    '<available_tools>',
+    '可用工具列表（在思考链 Step 内使用 <callLabel:query> 格式调用）：',
+  ];
+  for (const c of enabledTools) {
+    const info = BUILTIN_TOOL_INFO[c.type];
+    if (info) {
+      lines.push(`- ${info.callLabel}: ${info.description}（返回 ${c.resultCount} 条结果）`);
+    }
+  }
+  lines.push('</available_tools>');
+  return lines.join('\n');
 }
 
 // ============================================================================
@@ -424,9 +477,12 @@ export const buildContext = async (
     if (activeSkills.length > 0) {
       aceMemoryText = renderSkillbookForInjection(skillbook);
       aceActiveSkillIds = activeSkills.map((s) => s.id);
+      // v0.4.3: 日志记录 ACE 记忆注入
+      logger.info("memory", `ACE 记忆注入（active策略=${activeSkills.length}）`);
     }
   } catch {
     // Skillbook 加载失败不阻塞主流程
+    logger.warn("memory", "ACE Skillbook 加载失败");
   }
 
   if (aceMemoryText) {
@@ -517,6 +573,13 @@ export const buildContext = async (
   // 独立追加，不修改 presetContent.ts 中的 NSFW 预设内容
   // 明确要求模型将思考链包裹在 <cot> 标签内，按 Step 顺序输出
   systemPromptParts.push(COT_OUTPUT_PROTOCOL);
+
+  // v0.4.3: 注入内置工具描述，提升模型主动调用工具的概率
+  // 工具描述追加到 system prompt 末尾，不破坏前缀（KV 缓存友好）
+  const toolDescriptions = buildToolDescriptions(params.builtinToolConfigs);
+  if (toolDescriptions) {
+    systemPromptParts.push(toolDescriptions);
+  }
 
   const systemPrompt = systemPromptParts.join('\n\n');
 

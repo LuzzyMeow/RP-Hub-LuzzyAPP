@@ -55,10 +55,11 @@ import {
   executeActiveToolCall,
   filterToolsForCharacter,
 } from "~/services/toolService";
-import { loadVectorMemoryShards, searchLongTermMemory, searchVectorMemory } from "~/services/memoryService";
+import { loadVectorMemoryShards, searchLongTermMemory, searchVectorMemory, getEmbedding, cosineSimilarity } from "~/services/memoryService";
 import { BUILTIN_PRESET_DEFAULTS } from "~/services/presetContent";
 import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
 import type { AppStoreState, ChatSlice } from "~/stores/slices/types";
+import { logger } from "~/services/logger";
 import { toast } from "sonner";
 
 // ============================================================================
@@ -250,6 +251,8 @@ export const createChatSlice: StateCreator<
       const worldInfoEntries = worldInfoId
         ? (worldInfoData ?? []).filter(e => e.bookId === worldInfoId || !e.bookId)
         : (worldInfoData ?? []).filter(e => !e.bookId);
+      // v0.4.3: 日志记录世界书加载
+      logger.info("world", `世界书加载（总条目=${worldInfoData?.length ?? 0}，过滤后=${worldInfoEntries.length}，worldInfoId=${worldInfoId ?? "无"}）`);
       const globalMemory = globalMemoryData ?? null;
       // v0.3.0: 优先使用新的 regexGroups；若不存在但有旧 regexScripts，则迁移
       let regexGroups: RegexScriptGroup[] = regexGroupsData ?? [];
@@ -369,7 +372,11 @@ export const createChatSlice: StateCreator<
           memorySettings,
           sessionId: currentSessionId ?? undefined,
           searchGlobalMemory,
+          builtinToolConfigs, // v0.4.3: 传入内置工具配置，注入工具描述到 system prompt
         });
+
+        // v0.4.3: 日志记录上下文构建完成
+        logger.info("api", `上下文构建完成（消息数=${rawApiMessages.length}，ACE策略=${ctxAppliedSkillIds?.length ?? 0}）`);
 
         // v0.3.0 ACE: 记录本次注入的策略 ID
         if (ctxAppliedSkillIds && ctxAppliedSkillIds.length > 0) {
@@ -527,6 +534,7 @@ export const createChatSlice: StateCreator<
               // 仅在内容长度变化超过阈值、检测到标签闭合、或首次解析时才执行
               // v0.3.7: 阈值从 50 降至 10，提升流式思考卡片实时性
               // v0.4.0: 流式场景禁用 parseCot 缓存（content 持续变化缓存永不命中）
+              // v0.4.3: 阈值从 10 降至 3，实现逐字流式思考卡片
               const lengthDelta = accumulatedContent.length - lastParseLength;
               const closingTags = [
                 '</cot>', '</think>', '</thinking>', '</reasoning>',
@@ -535,7 +543,7 @@ export const createChatSlice: StateCreator<
               const hasClosingTag = closingTags.some((tag) => accumulatedContent.includes(tag));
               const shouldParse =
                 !lastCotResult ||
-                lengthDelta > 10 ||
+                lengthDelta > 3 ||
                 hasClosingTag;
 
               if (shouldParse) {
@@ -902,6 +910,8 @@ export const createChatSlice: StateCreator<
         currentCharacter?.uuid &&
         memorySettings
       ) {
+        // v0.4.3: 日志记录记忆召回工具执行
+        logger.info("memory", `记忆召回工具启动（topK=${memoryRecallConfig.resultCount ?? 8}）`);
         const latestUserMsg = messages.filter((m) => m.role === "user").pop();
         const recallQuery = latestUserMsg?.content || "";
         if (recallQuery.trim()) {
@@ -1034,6 +1044,8 @@ export const createChatSlice: StateCreator<
         memorySettings?.enabled &&
         vectorMemoryShards.length > 0
       ) {
+        // v0.4.3: 日志记录向量记忆检索工具执行
+        logger.info("memory", `向量记忆检索工具启动（shards=${vectorMemoryShards.length}，topK=${vectorMemoryBuiltinConfig.resultCount ?? 8}）`);
         const latestUserMsg = messages.filter((m) => m.role === "user").pop();
         const vectorQuery = latestUserMsg?.content || "";
         if (vectorQuery.trim()) {
@@ -1149,6 +1161,8 @@ export const createChatSlice: StateCreator<
         memorySettings?.enabled &&
         vectorMemoryShards.length > 0
       ) {
+        // v0.4.3: 日志记录关键词检索工具执行
+        logger.info("tool", `关键词检索工具启动（shards=${vectorMemoryShards.length}，topK=${keywordSearchConfig.resultCount ?? 8}）`);
         const latestUserMsg = messages.filter((m) => m.role === "user").pop();
         const keywordQuery = latestUserMsg?.content || "";
         if (keywordQuery.trim()) {
@@ -1253,13 +1267,285 @@ export const createChatSlice: StateCreator<
         }
       }
 
+      // v0.4.3: world-recall 内置工具预执行（基于嵌入模型召回世界书内容）
+      // 数据源为当前角色卡绑定的世界书条目，使用嵌入模型语义检索
+      const worldRecallConfig = builtinToolConfigs.find(
+        (c) => c.type === "world-recall",
+      );
+      if (
+        worldRecallConfig?.enabled &&
+        currentCharacter?.uuid &&
+        memorySettings?.enabled &&
+        worldInfoEntries.length > 0
+      ) {
+        // v0.4.3: 日志记录世界书召回工具执行
+        logger.info("world", `世界书召回工具启动（条目数=${worldInfoEntries.length}，topK=${worldRecallConfig.resultCount ?? 8}）`);
+        const latestUserMsg = messages.filter((m) => m.role === "user").pop();
+        const worldRecallQuery = latestUserMsg?.content || "";
+        if (worldRecallQuery.trim()) {
+          const worldRecallCallStep: AgentStep = {
+            id: uuidv4(),
+            type: "tool_call",
+            title: "世界书召回",
+            content: worldRecallQuery,
+            status: "running",
+            startedAt: Date.now(),
+          };
+          try {
+            const worldRecallTopK = worldRecallConfig.resultCount || 8;
+            // 获取查询向量
+            const queryVector = await getEmbedding(
+              worldRecallQuery,
+              memorySettings,
+              settings,
+              allProviders,
+              get().apiProviderKeys,
+            );
+            // 对每个世界书条目获取嵌入向量并计算相似度
+            const scoredEntries = await Promise.all(
+              worldInfoEntries
+                .filter((e) => e.enabled && e.content.trim())
+                .map(async (entry) => {
+                  try {
+                    const entryVector = await getEmbedding(
+                      entry.content,
+                      memorySettings,
+                      settings,
+                      allProviders,
+                      get().apiProviderKeys,
+                    );
+                    return {
+                      entry,
+                      score: cosineSimilarity(queryVector, entryVector),
+                    };
+                  } catch {
+                    return { entry, score: 0 };
+                  }
+                }),
+            );
+            const topEntries = scoredEntries
+              .filter((item) => Number.isFinite(item.score))
+              .sort((a, b) => b.score - a.score)
+              .slice(0, worldRecallTopK);
+
+            worldRecallCallStep.status = "completed";
+            worldRecallCallStep.endedAt = Date.now();
+            const worldRecallResultText = topEntries.length > 0
+              ? topEntries.map((r) => `[score=${r.score.toFixed(3)}] ${r.entry.content}`).join('\n\n')
+              : "(无匹配世界书内容)";
+            const worldRecallResultStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_result",
+              title: "世界书召回",
+              content: worldRecallResultText,
+              status: "completed",
+              startedAt: worldRecallCallStep.startedAt,
+              endedAt: Date.now(),
+            };
+            const worldRecallToolCall: ToolCall = {
+              id: uuidv4(),
+              toolName: "世界书召回",
+              callLabel: "world-recall",
+              query: worldRecallQuery,
+              reason: "force mode pre-execution (builtin)",
+              status: "completed" as const,
+              result: worldRecallResultText,
+            };
+
+            if (topEntries.length > 0) {
+              const worldRecallText = topEntries
+                .map(
+                  (r, i) =>
+                    `  <world_entry index="${i + 1}" score="${r.score.toFixed(3)}">\n    ${r.entry.content}\n  </world_entry>`,
+                )
+                .join("\n\n");
+              contextMessages.push({
+                id: uuidv4(),
+                role: "user",
+                content: `<world_recall_result>\n${worldRecallText}\n</world_recall_result>`,
+                createdAt: Date.now(),
+              });
+            }
+
+            const existingMsg = get().messages.find((m) => m.id === assistantMessageId);
+            get().updateMessage(assistantMessageId, {
+              toolCalls: [...(existingMsg?.toolCalls ?? []), worldRecallToolCall],
+              agentSteps: [
+                ...(existingMsg?.agentSteps ?? []),
+                worldRecallCallStep,
+                worldRecallResultStep,
+              ],
+            });
+          } catch (e) {
+            console.warn("[ChatSlice] world-recall 预执行失败:", e);
+            worldRecallCallStep.status = "error";
+            worldRecallCallStep.endedAt = Date.now();
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            const errorStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_call",
+              title: "世界书召回",
+              content: errorMsg,
+              status: "error",
+              startedAt: worldRecallCallStep.startedAt,
+              endedAt: Date.now(),
+            };
+            const existingMsg = get().messages.find((m) => m.id === assistantMessageId);
+            get().updateMessage(assistantMessageId, {
+              toolCalls: [
+                ...(existingMsg?.toolCalls ?? []),
+                {
+                  id: uuidv4(),
+                  toolName: "世界书召回",
+                  callLabel: "world-recall",
+                  query: worldRecallQuery,
+                  reason: "force mode pre-execution (builtin)",
+                  status: "error" as const,
+                  error: errorMsg,
+                },
+              ],
+              agentSteps: [...(existingMsg?.agentSteps ?? []), errorStep],
+            });
+          }
+        }
+      }
+
+      // v0.4.3: world-search 内置工具预执行（关键词检索世界书内容，无需嵌入模型）
+      // 数据源为当前角色卡启用的世界书条目，按 keys + content 关键词匹配
+      const worldSearchConfig = builtinToolConfigs.find(
+        (c) => c.type === "world-search",
+      );
+      if (
+        worldSearchConfig?.enabled &&
+        currentCharacter?.uuid &&
+        worldInfoEntries.length > 0
+      ) {
+        // v0.4.3: 日志记录世界书检索工具执行
+        logger.info("world", `世界书检索工具启动（条目数=${worldInfoEntries.length}，topK=${worldSearchConfig.resultCount ?? 8}）`);
+        const latestUserMsg = messages.filter((m) => m.role === "user").pop();
+        const worldSearchQuery = latestUserMsg?.content || "";
+        if (worldSearchQuery.trim()) {
+          const worldSearchCallStep: AgentStep = {
+            id: uuidv4(),
+            type: "tool_call",
+            title: "世界书检索",
+            content: worldSearchQuery,
+            status: "running",
+            startedAt: Date.now(),
+          };
+          try {
+            const worldSearchTopK = worldSearchConfig.resultCount || 8;
+            // 关键词分词（长度 > 1 的词）
+            const queryWords = worldSearchQuery.toLowerCase().split(/\s+/).filter((w) => w.length > 1);
+            // 在世界书条目的 keys 和 content 中按关键词匹配
+            const matchedEntries = worldInfoEntries
+              .filter((e) => e.enabled && e.content.trim())
+              .map((entry) => {
+                const contentLower = entry.content.toLowerCase();
+                const keysLower = (entry.keys ?? []).map((k) => k.toLowerCase());
+                // 计算匹配分数：keys 匹配权重更高
+                let score = 0;
+                for (const w of queryWords) {
+                  if (keysLower.some((k) => k.includes(w))) score += 2;
+                  if (contentLower.includes(w)) score += 1;
+                }
+                return { entry, score };
+              })
+              .filter((item) => item.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, worldSearchTopK);
+
+            worldSearchCallStep.status = "completed";
+            worldSearchCallStep.endedAt = Date.now();
+            const worldSearchResultText = matchedEntries.length > 0
+              ? matchedEntries.map((r) => `[score=${r.score}] ${r.entry.content}`).join('\n\n')
+              : "(无匹配世界书内容)";
+            const worldSearchResultStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_result",
+              title: "世界书检索",
+              content: worldSearchResultText,
+              status: "completed",
+              startedAt: worldSearchCallStep.startedAt,
+              endedAt: Date.now(),
+            };
+            const worldSearchToolCall: ToolCall = {
+              id: uuidv4(),
+              toolName: "世界书检索",
+              callLabel: "world-search",
+              query: worldSearchQuery,
+              reason: "force mode pre-execution (builtin)",
+              status: "completed" as const,
+              result: worldSearchResultText,
+            };
+
+            if (matchedEntries.length > 0) {
+              const worldSearchText = matchedEntries
+                .map(
+                  (r, i) =>
+                    `  <world_entry index="${i + 1}" score="${r.score}">\n    ${r.entry.content}\n  </world_entry>`,
+                )
+                .join("\n\n");
+              contextMessages.push({
+                id: uuidv4(),
+                role: "user",
+                content: `<world_search_result>\n${worldSearchText}\n</world_search_result>`,
+                createdAt: Date.now(),
+              });
+            }
+
+            const existingMsg = get().messages.find((m) => m.id === assistantMessageId);
+            get().updateMessage(assistantMessageId, {
+              toolCalls: [...(existingMsg?.toolCalls ?? []), worldSearchToolCall],
+              agentSteps: [
+                ...(existingMsg?.agentSteps ?? []),
+                worldSearchCallStep,
+                worldSearchResultStep,
+              ],
+            });
+          } catch (e) {
+            console.warn("[ChatSlice] world-search 预执行失败:", e);
+            worldSearchCallStep.status = "error";
+            worldSearchCallStep.endedAt = Date.now();
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            const errorStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_call",
+              title: "世界书检索",
+              content: errorMsg,
+              status: "error",
+              startedAt: worldSearchCallStep.startedAt,
+              endedAt: Date.now(),
+            };
+            const existingMsg = get().messages.find((m) => m.id === assistantMessageId);
+            get().updateMessage(assistantMessageId, {
+              toolCalls: [
+                ...(existingMsg?.toolCalls ?? []),
+                {
+                  id: uuidv4(),
+                  toolName: "世界书检索",
+                  callLabel: "world-search",
+                  query: worldSearchQuery,
+                  reason: "force mode pre-execution (builtin)",
+                  status: "error" as const,
+                  error: errorMsg,
+                },
+              ],
+              agentSteps: [...(existingMsg?.agentSteps ?? []), errorStep],
+            });
+          }
+        }
+      }
+
       // v0.4.1: 两次独立 API 请求架构
       // 第一次请求: 输出 CoT 思考内容(放入头脑风暴卡片 + 二级卡片)
       // 第二次请求: 基于 CoT 输出正文(正文气泡 + 头脑风暴节点)
       // KV 缓存保护: 两次请求前缀完全一致,第二次仅在 messages 末尾追加
       // v0.4.1-fix: 使用 callApiWithRetry 包装,自动处理 429 错误重试
+      logger.info("api", "API 请求阶段1: CoT 思考链生成");
       const { content: cotRawContent, reasoning: cotReasoning, cot: cotContent } =
         await callApiWithRetry(assistantMessageId, contextMessages, "cot");
+      logger.info("api", `API 响应阶段1: CoT 完成（字符数=${cotContent.length}）`);
 
       // 检查第一次请求(CoT)是否为空响应
       if (!cotRawContent.trim() && !cotReasoning.trim() && !cotContent.trim()) {
@@ -1274,8 +1560,11 @@ export const createChatSlice: StateCreator<
       if (abortController?.signal.aborted) return;
 
       // 第二次请求: 基于 CoT 输出正文
+      logger.info("api", "API 请求阶段2: 正文生成");
       const { content: accumulatedContent, reasoning: accumulatedReasoning } =
         await callApiWithRetry(assistantMessageId, contextMessages, "main", cotContent);
+      logger.info("api", `API 响应阶段2: 正文完成（字符数=${accumulatedContent.length}）`);
+      logger.info("chat", `消息接收完成（CoT=${cotContent.length}字符，正文=${accumulatedContent.length}字符）`);
 
       // 7. 检查空响应(正文阶段)
       if (!accumulatedContent.trim() && !accumulatedReasoning.trim()) {
@@ -1639,6 +1928,9 @@ export const createChatSlice: StateCreator<
       if (!get().currentCharacter) return;
       const trimmed = content.trim();
       if (!trimmed || get().isGenerating) return;
+
+      // v0.4.3: 日志记录消息发送
+      logger.info("chat", `发送消息（字符数=${trimmed.length}，角色=${get().currentCharacter?.name ?? "未知"}）`);
 
       // 1. 添加用户消息
       const userMessage: ChatMessage = {
@@ -2013,38 +2305,42 @@ export const createChatSlice: StateCreator<
     /**
      * 分享消息
      *
-     * 优先使用 Web Share API，不可用时回退到剪贴板复制。
+     * v0.4.3: 改用 @capacitor/share 在原生平台唤起分享面板,Web 环境回退到 Web Share API 或剪贴板
      */
     shareMessage: async (messageId) => {
       const message = get().messages.find((m) => m.id === messageId);
       if (!message) return;
 
       const text = message.content;
-      const shareData = {
-        title: "LUZZY 消息",
-        text,
-      };
-
-      if (
-        typeof navigator !== "undefined" &&
-        typeof navigator.share === "function"
-      ) {
-        try {
-          await navigator.share(shareData);
-        } catch (e) {
-          // 用户取消分享不视为错误
-          if (e instanceof DOMException && e.name === "AbortError") return;
-          console.error("[ChatSlice] 分享失败:", e);
-        }
-      } else if (
-        typeof navigator !== "undefined" &&
-        navigator.clipboard
-      ) {
-        try {
+      try {
+        const { Capacitor } = await import('@capacitor/core');
+        if (Capacitor.isNativePlatform()) {
+          // v0.4.3: 原生平台使用 @capacitor/share 唤起系统分享面板
+          const { Share } = await import('@capacitor/share');
+          await Share.share({
+            title: 'LUZZY 消息',
+            text,
+            dialogTitle: '分享消息',
+          });
+        } else if (
+          typeof navigator !== "undefined" &&
+          typeof navigator.share === "function"
+        ) {
+          // Web 环境支持 Web Share API
+          await navigator.share({ title: 'LUZZY 消息', text });
+        } else if (
+          typeof navigator !== "undefined" &&
+          navigator.clipboard
+        ) {
+          // 回退到剪贴板
           await navigator.clipboard.writeText(text);
-        } catch (e) {
-          console.error("[ChatSlice] 复制到剪贴板失败:", e);
+          const { toast } = await import('sonner');
+          toast.success('已复制到剪贴板');
         }
+      } catch (e) {
+        // 用户取消分享不视为错误
+        if (e instanceof DOMException && e.name === "AbortError") return;
+        console.error("[ChatSlice] 分享失败:", e);
       }
     },
   };

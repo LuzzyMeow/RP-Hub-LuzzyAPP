@@ -219,26 +219,56 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
  * 解决问题：旧版每次 fullText 变化都重建 setInterval，流式时定时器堆积导致 UI 卡顿
  * 新版用 rAF 平滑追赶，单一定时器，性能显著提升
  *
- * 在生成中时，逐字渲染文本。
- * 生成完成后，直接显示完整文本。
+ * v0.4.3: 恢复轻量打字机效果,每帧追加 8-16 字符,平衡流式实时性与性能
+ * 生成中时逐字渲染,生成完成后直接显示完整文本
  */
-function useTypewriter(fullText: string, isGenerating: boolean, speed = 20): string {
+function useTypewriter(fullText: string, isGenerating: boolean, speed = 30): string {
   const [displayedText, setDisplayedText] = React.useState("");
+  const rafRef = React.useRef<number | null>(null);
   const displayedRef = React.useRef("");
 
   React.useEffect(() => {
     if (!isGenerating) {
-      // 生成完成，直接显示完整文本
+      // 生成完成,直接显示完整文本
       displayedRef.current = fullText;
       setDisplayedText(fullText);
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       return;
     }
 
-    // v0.4.0-patch4: 简化逻辑 - 流式中直接显示最新 fullText
-    // 移除打字机追赶机制（原版 rAF 每帧仅追加 3-12 字符，导致中文/长内容显示严重滞后，
-    // 用户感受为"无流式输出"）。流式更新的节奏由 chat-slice 的 updateMessage 节流控制
-    displayedRef.current = fullText;
-    setDisplayedText(fullText);
+    // v0.4.3: rAF 追赶机制,每帧追加 8-16 字符(根据内容长度自适应)
+    const animate = () => {
+      const current = displayedRef.current;
+      if (current.length >= fullText.length) {
+        rafRef.current = null;
+        return;
+      }
+      // 每帧追加量:基础 8 + 内容长度自适应(最多 16)
+      const step = Math.min(
+        Math.max(8, Math.ceil(fullText.length / 60)),
+        16,
+      );
+      const nextLen = Math.min(current.length + step, fullText.length);
+      const next = fullText.slice(0, nextLen);
+      displayedRef.current = next;
+      setDisplayedText(next);
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    // 若当前显示长度已落后于 fullText,启动追赶
+    if (displayedRef.current.length < fullText.length) {
+      rafRef.current = requestAnimationFrame(animate);
+    }
+
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
   }, [fullText, isGenerating, speed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return displayedText;
@@ -251,12 +281,17 @@ function useTypewriter(fullText: string, isGenerating: boolean, speed = 20): str
 export function LuzzyThinkingTimeline({ cot, isGenerating }: LuzzyThinkingTimelineProps) {
   const steps = React.useMemo(() => parseThinkingSteps(cot, isGenerating), [cot, isGenerating]);
   const [expandedStep, setExpandedStep] = React.useState<number | null>(0);
+  // v0.4.3: 记录上一次 steps 数量,仅在新 Step 出现时展开新节点,不强制收起旧 Step
+  const prevStepsLengthRef = React.useRef(0);
 
-  // 生成中时默认展开最后一个步骤
   React.useEffect(() => {
     if (isGenerating && steps.length > 0) {
-      setExpandedStep(steps.length - 1);
+      // 仅当新增了 Step 时才展开最新的 Step,不收起已展开的旧 Step
+      if (steps.length > prevStepsLengthRef.current) {
+        setExpandedStep(steps.length - 1);
+      }
     }
+    prevStepsLengthRef.current = steps.length;
   }, [isGenerating, steps.length]);
 
   if (steps.length === 0) {
