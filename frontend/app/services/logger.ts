@@ -43,7 +43,7 @@ let currentLogLevel: LogLevel = 'debug';
 
 /** 内存中的日志缓冲区（用于 Web 环境或文件写入前的缓存） */
 const logBuffer: LogEntry[] = [];
-const MAX_BUFFER_SIZE = 500;
+const MAX_BUFFER_SIZE = 2000;
 
 /** 文件系统就绪标志 */
 let filesystemReady = false;

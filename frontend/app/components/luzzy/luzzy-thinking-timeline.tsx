@@ -406,10 +406,9 @@ function ThinkingNode({ step, isExpanded, onToggle, isLast }: ThinkingNodeProps)
     <div className="relative w-full">
       {/* 节点卡片 */}
       <motion.div
-        layout
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+        initial={isRunning ? false : { opacity: 0, y: 8 }}
+        animate={isRunning ? { opacity: 1 } : { opacity: 1, y: 0 }}
+        transition={isRunning ? { duration: 0 } : { duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
           "group relative w-full overflow-hidden rounded-lg border bg-card/60 p-2.5 shadow-sm backdrop-blur-sm transition-colors",
           isRunning
@@ -443,13 +442,13 @@ function ThinkingNode({ step, isExpanded, onToggle, isLast }: ThinkingNodeProps)
         <AnimatePresence initial={false}>
           {isExpanded && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              initial={isRunning ? false : { height: 0, opacity: 0 }}
+              animate={isRunning ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+              exit={isRunning ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              transition={isRunning ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className="mt-2 rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground">
+              <div className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground">
                 {step.content ? (
                   <Markdown content={step.content} isAnimating={isRunning} />
                 ) : (
@@ -479,10 +478,9 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
   return (
     <div className="relative w-full">
       <motion.div
-        layout
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+        initial={isRunning ? false : { opacity: 0, y: 8 }}
+        animate={isRunning ? { opacity: 1 } : { opacity: 1, y: 0 }}
+        transition={isRunning ? { duration: 0 } : { duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
           "group relative w-full overflow-hidden rounded-lg border bg-card/60 p-2.5 shadow-sm backdrop-blur-sm transition-colors",
           isRunning
@@ -518,13 +516,13 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
         <AnimatePresence initial={false}>
           {isExpanded && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              initial={isRunning ? false : { height: 0, opacity: 0 }}
+              animate={isRunning ? { opacity: 1 } : { height: "auto", opacity: 1 }}
+              exit={isRunning ? { opacity: 0 } : { height: 0, opacity: 0 }}
+              transition={isRunning ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className="mt-2 space-y-2">
+              <div className="mt-2 max-h-[320px] overflow-y-auto overscroll-contain space-y-2">
                 {/* 调用参数 */}
                 {step.callContent ? (
                   <div className="rounded-md border border-blue-500/10 bg-blue-500/[0.04] p-2">
@@ -532,7 +530,7 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
                       <IconToolKit className="size-3" />
                       <span>调用参数</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="max-h-[120px] overflow-y-auto text-xs text-muted-foreground">
                       <Markdown content={step.callContent} isAnimating={false} />
                     </div>
                   </div>
@@ -545,7 +543,7 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
                       <IconCheck className="size-3" />
                       <span>执行结果</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="max-h-[200px] overflow-y-auto text-xs text-muted-foreground">
                       <Markdown content={step.resultContent} isAnimating={false} />
                     </div>
                   </div>

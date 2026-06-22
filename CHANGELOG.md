@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.5.1
+
+### 🏗️ 三请求架构（重点）
+
+彻底重构消息生成流程为三阶段 API 请求，让 AI 拥有完全的工具自主权：
+
+- **请求 1 — 工具决策**：AI 查看上下文后自主决定调用哪些工具、传入什么参数。前端解析 `<tool_calls>` 标签执行对应工具，结果注入上下文。支持 `vector-memory`、`keyword-search`、`world-recall`、`world-search`、`anysearch`、MCP、SKILL 全部工具
+- **请求 2 — CoT 思考链**：基于工具结果输出完整思考过程，流式更新思考卡片
+- **请求 3 — 正文**：基于 CoT 输出正文，流式更新正文气泡
+- **KV 缓存保持命中**：三请求系统提示完全相同，后续请求仅在 messages 末尾追加
+
+### ❌ 删除系统强制预执行
+
+删除所有工具的强制预执行逻辑（force 模式、keyword-search、vector-memory、world-recall、world-search 预执行块），净删 ~300 行代码。保留 memory-recall 被动召回（在请求 1 前运行，结果注入上下文供 AI 参考）。
+
+### 🎬 动画优化：生成中禁用 motion 动画
+
+`luzzy-thinking-timeline.tsx` 和 `luzzy-chat-message.tsx`：生成中（`isRunning`/`isGenerating=true`）禁用 `layout` 动画、入场动画、高度动画，transition 设为 0，消除 Framer Motion 布局重计算导致的主线程阻塞，实现真正的逐字流式渲染。
+
+### 📐 UI: 卡片长内容裁剪
+
+ThinkingNode/ToolNode 展开内容区添加 `max-h` + `overflow-y-auto`：思考步骤 280px、工具卡片 320px、调用参数 120px、执行结果 200px，超出部分可滚动查看。
+
+### 🏗️ 版本号
+
+- v0.5.0 → v0.5.1
+
 ## v0.5.0
 
 ### 🎨 思考链 UI 完全重构（重点）
@@ -11,9 +38,10 @@
 
 ### 🌈 聊天页玻璃拟态沉浸体验
 
-- **顶部标题栏透明化**：`chat.tsx` 给 `LuzzyLayout` 传入 `headerClassName`：`bg-gradient-to-b from-background/80 via-background/45 to-transparent`，顶部功能按钮用圆角胶囊容器（`bg-background/40 backdrop-blur-md`）包裹，标题加 `drop-shadow-sm`
-- **底部输入区透明化**：`luzzy-chat-input.tsx` 改为 `bg-gradient-to-t from-background/85 via-background/55 to-transparent`，所有 ghost 按钮加 `rounded-full bg-background/30 hover:bg-background/50` 确保在复杂自定义背景下依然清晰可见
-- **可读性保证**：发送按钮保持实心，文字与图标均保留足够对比度，背景图片只是隐约可见而不会让功能按键不可见
+- **顶部标题栏透明化**：`chat.tsx` 给 `LuzzyLayout` 传入 `headerClassName`：`bg-gradient-to-b from-background/85 via-background/55 to-transparent`，与底部输入区渐变镜像对称；顶部功能按钮统一为 `size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60`，间距加大为 `gap-2`
+- **底部输入区透明化**：`luzzy-chat-input.tsx` 保持 `bg-gradient-to-t from-background/85 via-background/55 to-transparent`；第一排间距加大为 `gap-3`，发送按钮改为圆角玻璃拟态主色调（`border-primary/20 bg-primary/10 text-primary hover:bg-primary/20`）并替换图标为 `IconSend`，与左侧全屏按钮风格统一
+- **工具栏统一**：`luzzy-chat-input.tsx` 第二排模型/思考深度/更多按钮统一为 `size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60`，状态指示器改为居中药丸胶囊（`rounded-full border border-border/10 bg-background/40`），解决右侧排版拥挤并提升视觉层次
+- **可读性保证**：所有功能按钮保留足够对比度，背景图片只是隐约可见而不会让功能按键不可见
 
 ### 🔧 工具系统深度修复（本 session 重点）
 

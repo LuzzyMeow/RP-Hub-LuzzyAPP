@@ -253,17 +253,16 @@ function CotCard({
         {expanded && (
           <motion.div
             key="cot-content"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{
-              height: "auto",
-              opacity: 1,
-              transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
-            }}
-            exit={{
-              height: 0,
-              opacity: 0,
-              transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] },
-            }}
+            initial={isGenerating ? false : { height: 0, opacity: 0 }}
+            animate={isGenerating
+              ? { opacity: 1 }
+              : { height: "auto", opacity: 1, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } }
+            }
+            exit={isGenerating
+              ? { opacity: 0 }
+              : { height: 0, opacity: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+            }
+            transition={isGenerating ? { duration: 0 } : undefined}
             className="overflow-hidden"
           >
             <div className="min-w-0 border-t border-border/50 px-1 pb-1 pt-1">

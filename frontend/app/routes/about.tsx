@@ -6,7 +6,7 @@
  * - 分类 Tab 筛选（全部 / 流式 / API / 工具 / 记忆 等）
  * - 日志级别过滤（debug / info / warn / error）
  * - 实时自动刷新（每 500ms）
- * - 最多显示 1000 条
+ * - 最多显示 2000 条（受内存缓冲区限制）
  * - 点击条目展开完整内容
  */
 
@@ -43,7 +43,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.5.0";
+const APP_VERSION = "v0.5.1";
 
 /** 日志分类 Tab 配置 */
 const CATEGORY_TABS: { key: LogCategory | "all"; label: string }[] = [
@@ -155,8 +155,8 @@ export default function AboutPage() {
     if (levelFilter !== "all") {
       logs = logs.filter((l) => l.level === levelFilter);
     }
-    // 最多显示 1000 条，从末尾截取（最新的在最后）
-    return logs.slice(-1000);
+    // 最多显示 2000 条，从末尾截取（最新的在最后）
+    return logs.slice(-2000);
   }, [allLogs, categoryFilter, levelFilter]);
 
   // 格式化后的文本（用于复制）

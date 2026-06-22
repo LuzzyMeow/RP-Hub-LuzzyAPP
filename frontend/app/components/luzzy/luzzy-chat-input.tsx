@@ -12,7 +12,7 @@
 import * as React from "react";
 import { motion } from "motion/react";
 import {
-  IconPlane,
+  IconSend,
   IconStop,
   IconPlus,
   IconLight,
@@ -223,57 +223,55 @@ export function LuzzyChatInput({
         )}
         style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
       >
-        {/* 第一排：文本输入框（内嵌全屏按钮） + 发送按钮 */}
-        <div className="flex items-end gap-2 px-3 pt-3">
-          <div className="relative flex-1">
-            <Textarea
-              ref={textareaRef}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              disabled={disabled}
-              rows={1}
-              className="min-h-[40px] max-h-[200px] resize-none pr-10"
-            />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowFullscreen(true)}
-              disabled={disabled}
-              title="全屏编辑"
-              className="absolute top-1/2 right-2 size-9 -translate-y-1/2 rounded-full bg-background/40 hover:bg-background/60"
-              {...pressableSubtle}
-            >
-              <IconExpand className="size-5" />
-            </Button>
-          </div>
+        {/* 第一排：全屏编辑按钮 + 文本输入框 + 发送按钮 */}
+        <div className="flex items-end gap-3 px-3 pt-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowFullscreen(true)}
+            disabled={disabled}
+            title="全屏编辑"
+            className="size-10 shrink-0 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
+            {...pressableSubtle}
+          >
+            <IconExpand className="size-5" />
+          </Button>
+          <Textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            rows={1}
+            className="min-h-[44px] max-h-[200px] flex-1 resize-none rounded-2xl border-border/20 bg-background/50 px-4 py-2.5 backdrop-blur-sm"
+          />
           <Button
             size="icon"
             onClick={handleSendClick}
             disabled={!isGenerating && (disabled || !value.trim())}
-            className="size-10 shrink-0"
+            className="size-10 shrink-0 rounded-full border border-primary/20 bg-primary/10 text-primary backdrop-blur-sm hover:bg-primary/20"
             {...pressable}
           >
             {isGenerating ? (
-              <IconStop className="size-4" />
+              <IconStop className="size-5" />
             ) : (
-              <IconPlane className="size-4" />
+              <IconSend className="size-5" />
             )}
           </Button>
         </div>
 
         {/* 第二排：功能按钮行 */}
-        <div className="flex items-center justify-between gap-1 px-3 pt-2">
+        <div className="flex items-center justify-between gap-2 px-3 pt-2">
           {/* 左侧：模型 + 思考深度 */}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowModelPicker(true)}
               disabled={disabled}
               title="切换模型"
-              className="rounded-full bg-background/30 hover:bg-background/50"
+              className="size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
               {...pressableSubtle}
             >
               <IconToolKit className="size-5" />
@@ -285,7 +283,7 @@ export function LuzzyChatInput({
               disabled={disabled || thinkingDepthLockedByJson}
               title={thinkingDepthLockedByJson ? "思考深度已在请求体内设置" : "思考深度"}
               className={cn(
-                "rounded-full bg-background/30 hover:bg-background/50",
+                "size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60",
                 thinkingDepthLockedByJson && "opacity-40",
               )}
               {...pressableSubtle}
@@ -295,25 +293,27 @@ export function LuzzyChatInput({
           </div>
 
           {/* 中间：状态指示器 */}
-          <div className="flex flex-1 items-center gap-2 px-2 text-xs text-muted-foreground/60">
-            <span className="truncate">{displayModelName}</span>
-            {enableThinking && (
-              <>
-                <span>·</span>
-                <span>思考: {THINKING_DEPTH_OPTIONS.find((o) => o.value === currentThinkingDepth)?.label}</span>
-              </>
-            )}
+          <div className="flex min-w-0 flex-1 items-center justify-center px-2">
+            <div className="flex max-w-full items-center gap-2 rounded-full border border-border/10 bg-background/40 px-3 py-1.5 text-xs text-muted-foreground/70 backdrop-blur-sm">
+              <span className="truncate">{displayModelName}</span>
+              {enableThinking && (
+                <>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="shrink-0">思考: {THINKING_DEPTH_OPTIONS.find((o) => o.value === currentThinkingDepth)?.label}</span>
+                </>
+              )}
+            </div>
           </div>
 
           {/* 右侧：加号 */}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowPlusMenu(true)}
               disabled={disabled || isGenerating}
               title="更多"
-              className="rounded-full bg-background/30 hover:bg-background/50"
+              className="size-9 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
               {...pressableSubtle}
             >
               <IconPlus className="size-5" />

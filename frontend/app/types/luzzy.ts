@@ -73,6 +73,8 @@ export interface AgentStep {
   status: 'running' | 'completed' | 'error';
   startedAt: number;
   endedAt?: number;
+  /** v0.5.1: 所属请求阶段（1=工具决策, 2=CoT, 3=正文） */
+  phase?: 1 | 2 | 3;
 }
 
 /** 工具调用状态 */

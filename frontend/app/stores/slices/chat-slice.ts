@@ -106,6 +106,27 @@ const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
 };
 
 /**
+ * v0.5.1: 解析 AI 工具决策输出
+ * 支持格式: <tool_calls>name1:query1|name2:query2</tool_calls>
+ */
+function parseToolDecisions(raw: string): Array<{ toolName: string; query: string }> {
+  const text = (raw || '').trim();
+  if (!text) return [];
+  const blockMatch = text.match(/<tool_calls>([\s\S]*?)<\/tool_calls>/i);
+  if (blockMatch) {
+    const body = blockMatch[1].trim();
+    if (/^(NO_TOOLS|NONE)$/i.test(body)) return [];
+    return body.split('|').map(part => {
+      const colonIdx = part.indexOf(':');
+      if (colonIdx < 0) return { toolName: part.trim(), query: part.trim() };
+      return { toolName: part.substring(0, colonIdx).trim(), query: part.substring(colonIdx + 1).trim() };
+    }).filter(d => d.toolName);
+  }
+  if (/NO_TOOLS|不需要工具/i.test(text)) return [];
+  return [];
+}
+
+/**
  * 获取聊天补全 API 的完整 URL
  *
  * 处理两种情况：
@@ -289,12 +310,12 @@ export const createChatSlice: StateCreator<
       // v0.3.0 ACE: 记录本次注入的策略 ID（供反思用）
       let lastAppliedSkillIds: string[] = [];
 
-      // 2. 定义 API 调用辅助函数（供初始调用和工具调用循环复用）
-      // v0.4.1: 两次独立 API 请求架构
-      // - phase="cot": 第一次请求,仅输出 CoT 思考内容,流式更新思考卡片
-      // - phase="main": 第二次请求,基于 CoT 输出正文,流式更新正文气泡
-      // KV 缓存保护: 两次请求的 system_prompt + history + current_user_msg 前缀完全一致,
-      // 第二次仅在 messages 末尾追加 assistant(CoT) + user(指令),缓存自然命中
+      // v0.5.1: 三请求架构
+      // - phase="tool": 请求1, AI决定调用哪些工具,流式更新
+      // - phase="cot": 请求2, 输出 CoT 思考链,流式更新思考卡片
+      // - phase="main": 请求3, 输出正文,流式更新正文气泡
+      // KV 缓存保护: 三请求 system_prompt + history + user_msg 前缀完全一致,
+      // 后续请求仅在 messages 末尾追加,缓存自然命中
 
       // v0.4.1-fix: 带重试退避的 API 调用包装(针对 429 ServerOverloaded)
       // 最多重试 3 次,退避间隔递增(2s/4s/8s),重试期间显示提示
@@ -302,7 +323,7 @@ export const createChatSlice: StateCreator<
       const callApiWithRetry = async (
         msgId: string,
         contextMsgs: ChatMessage[],
-        phase: "cot" | "main" = "cot",
+        phase: "tool" | "cot" | "main" = "cot",
         cotContent?: string,
         skipToolsInjection: boolean = false, // v0.4.6: 续写请求时不注入 tools
       ): Promise<{ content: string; reasoning: string; cot: string; toolCalls: Array<{ id: string; function: { name: string; arguments: string } }> }> => {
@@ -363,7 +384,7 @@ export const createChatSlice: StateCreator<
       const callApiAndUpdate = async (
         msgId: string,
         contextMsgs: ChatMessage[],
-        phase: "cot" | "main" = "cot",
+        phase: "tool" | "cot" | "main" = "cot",
         cotContent?: string,
         skipToolsInjection: boolean = false, // v0.4.6: 续写请求时不注入 tools
       ): Promise<{ content: string; reasoning: string; cot: string; toolCalls: Array<{ id: string; function: { name: string; arguments: string } }> }> => {
@@ -888,129 +909,7 @@ export const createChatSlice: StateCreator<
       );
       const activeTools = activeToolsData ?? [];
 
-      // v0.3.6 C4: force 模式预执行所有已启用工具
-      // 在初始 API 调用前，主动执行所有已启用的非 vector-memory 工具
-      // 将结果作为独立 user 消息注入上下文末尾，不破坏 KV 缓存命中率
-      // v0.4.1: 将预执行结果添加到 agentSteps 和 toolCalls,作为独立二级思考卡片显示
-      if (toolGlobalSettings.mode === "force" && activeTools.length > 0) {
-        const characterUuid = currentCharacter?.uuid ?? null;
-        const filteredTools = filterToolsForCharacter(activeTools, characterUuid);
-        // 排除 vector 类型（已由 searchGlobalMemory 在 buildContext 中处理）
-        const enabledTools = filteredTools.filter(
-          (t) => t.enabled && t.type !== "vector",
-        );
-
-        if (enabledTools.length > 0) {
-          // 获取最近用户消息作为默认查询
-          const latestUserMsg = messages.filter((m) => m.role === "user").pop();
-          const defaultQuery = latestUserMsg?.content || "";
-
-          const forceResults: string[] = [];
-          const forceToolCalls: ToolCall[] = [];
-          const forceAgentSteps: AgentStep[] = [];
-          for (const tool of enabledTools) {
-            if (abortController?.signal.aborted) break;
-            try {
-              const toolCall: ActiveToolCall = {
-                tool,
-                mode: "add",
-                callLabel: tool.callName || tool.name,
-                query: defaultQuery,
-                raw: "",
-                reason: "force mode pre-execution",
-              };
-              const forceStepId = uuidv4();
-              const forceCallStep: AgentStep = {
-                id: forceStepId,
-                type: "tool_call",
-                title: tool.name,
-                content: defaultQuery,
-                status: "running",
-                startedAt: Date.now(),
-              };
-              const result = await executeActiveToolCall(toolCall, {
-                messages: get().messages,
-                character: currentCharacter,
-                vectorMemoryShards,
-                worldInfoEntries,
-                tavilyApiKey: "",
-                mcpSessionIds: new Map(),
-                anysearchConfig: builtinToolConfigs.find((c) => c.type === "anysearch"),
-              });
-              if (result && result.trim()) {
-                forceResults.push(
-                  `<tool_result tool="${tool.name}" mode="force">\n${result}\n</tool_result>`,
-                );
-              }
-              // 标记步骤完成,添加结果步骤
-              forceCallStep.status = "completed";
-              forceCallStep.endedAt = Date.now();
-              const forceResultStep: AgentStep = {
-                id: uuidv4(),
-                type: "tool_result",
-                title: tool.name,
-                content: result || "(空结果)",
-                status: "completed",
-                startedAt: forceCallStep.startedAt,
-                endedAt: Date.now(),
-              };
-              forceAgentSteps.push(forceCallStep, forceResultStep);
-              forceToolCalls.push({
-                id: uuidv4(),
-                toolName: tool.name,
-                callLabel: tool.callName || tool.name,
-                query: defaultQuery,
-                reason: "force mode pre-execution",
-                status: "completed" as const,
-                result: result || "(空结果)",
-              });
-            } catch (e) {
-              console.warn(
-                `[ChatSlice] force 模式预执行工具 ${tool.name} 失败:`,
-                e,
-              );
-              // 记录错误步骤
-              const errorStep: AgentStep = {
-                id: uuidv4(),
-                type: "tool_call",
-                title: tool.name,
-                content: e instanceof Error ? e.message : String(e),
-                status: "error",
-                startedAt: Date.now(),
-                endedAt: Date.now(),
-              };
-              forceAgentSteps.push(errorStep);
-              forceToolCalls.push({
-                id: uuidv4(),
-                toolName: tool.name,
-                callLabel: tool.callName || tool.name,
-                query: defaultQuery,
-                reason: "force mode pre-execution",
-                status: "error" as const,
-                error: e instanceof Error ? e.message : String(e),
-              });
-            }
-          }
-
-          if (forceResults.length > 0) {
-            // 作为独立 user 消息追加到上下文末尾（不持久化到 store）
-            contextMessages.push({
-              id: uuidv4(),
-              role: "user",
-              content: `<force_tool_results>\n${forceResults.join("\n\n")}\n</force_tool_results>`,
-              createdAt: Date.now(),
-            });
-          }
-
-          // v0.4.1: 将 force 模式的工具调用结果更新到消息,作为二级思考卡片显示
-          if (forceToolCalls.length > 0) {
-            get().updateMessage(assistantMessageId, {
-              toolCalls: forceToolCalls,
-              agentSteps: forceAgentSteps,
-            });
-          }
-        }
-      }
+      // v0.5.1: force 模式已废弃——所有工具现在由 AI 在请求 1 中主动决定是否调用
 
       // v0.3.7: memory-recall 内置工具预执行
       // v0.4.6: 改为搜索会话级向量记忆分片（searchVectorMemory），不再搜索空库 longTermMemory
@@ -1657,45 +1556,94 @@ export const createChatSlice: StateCreator<
         }
       }
 
-      // v0.4.1: 两次独立 API 请求架构
-      // 第一次请求: 输出 CoT 思考内容(放入头脑风暴卡片 + 二级卡片)
-      // 第二次请求: 基于 CoT 输出正文(正文气泡 + 头脑风暴节点)
-      // KV 缓存保护: 两次请求前缀完全一致,第二次仅在 messages 末尾追加
-      // v0.4.1-fix: 使用 callApiWithRetry 包装,自动处理 429 错误重试
-      // v0.4.6: 流式诊断日志（记录请求1开始前状态）
+      // v0.5.1: 三请求架构
+      // 请求1: 工具决策 → AI决定调哪些工具 → 执行
+      // 请求2: CoT 思考链
+      // 请求3: 正文
+      // KV 缓存: 三请求系统提示相同，仅在 messages 末尾追加
+      logger.info("api", "=== 三请求架构开始 ===");
+
+      // 请求1: 工具决策
+      logger.info("api", "API 请求阶段1: 工具决策");
       {
         const msg = get().messages.find(m => m.id === assistantMessageId);
-        logger.info("stream", `请求1开始前: agentSteps数=${msg?.agentSteps?.length ?? 0}（force预执行后）`);
+        logger.info("stream", `请求1开始前: agentSteps数=${msg?.agentSteps?.length ?? 0}`);
       }
-      logger.info("api", "API 请求阶段1: CoT 思考链生成");
-      const { content: cotRawContent, reasoning: cotReasoning, cot: cotContent } =
-        await callApiWithRetry(assistantMessageId, contextMessages, "cot");
-      logger.info("api", `API 响应阶段1: CoT 完成（字符数=${cotContent.length}）`);
+      const { content: toolDecisionRaw, reasoning: toolReasoning } =
+        await callApiWithRetry(assistantMessageId, contextMessages, "tool");
+      logger.info("api", `API 响应阶段1: 工具决策完成（字符数=${toolDecisionRaw.length}）`);
 
-      // 检查第一次请求(CoT)是否为空响应
-      if (!cotRawContent.trim() && !cotReasoning.trim() && !cotContent.trim()) {
-        get().updateMessage(assistantMessageId, {
-          loading: false,
-          error: "API 返回空响应(CoT 阶段)",
-        });
-        return;
+      // 解析工具决策并执行
+      if (!abortController?.signal.aborted && toolDecisionRaw.trim()) {
+        const decisions = parseToolDecisions(toolDecisionRaw);
+        if (decisions.length > 0) {
+          logger.info("tool", `AI决定调用 ${decisions.length} 个工具: ${decisions.map(d => d.toolName).join(", ")}`);
+          for (const d of decisions) {
+            if (abortController?.signal.aborted) break;
+            try {
+              // 查找匹配的 ActiveTool 或 builtin config
+              let result = "";
+              const builtinConfig = builtinToolConfigs.find(c => c.enabled && c.type === d.toolName);
+              if (builtinConfig) {
+                // 构造临时 ActiveTool 并调用
+                const tempTool: ActiveTool = {
+                  id: `builtin-${d.toolName}`, name: d.toolName, type: builtinConfig.type === "anysearch" ? "web" : "vector",
+                  callName: d.toolName, description: d.toolName, enabled: true, resultCount: builtinConfig.resultCount || 8,
+                  worldInfoAccessMode: "all", enableMode: "all", mcpTools: [],
+                } as ActiveTool;
+                result = await executeActiveToolCall(
+                  { tool: tempTool, mode: "add", callLabel: d.toolName, query: d.query, raw: "", reason: "AI tool decision" },
+                  { messages: get().messages, character: currentCharacter, vectorMemoryShards, worldInfoEntries, tavilyApiKey: "", mcpSessionIds: new Map(), anysearchConfig: builtinConfig },
+                );
+              } else {
+                const charUuid = currentCharacter?.uuid ?? null;
+                const filtered = filterToolsForCharacter(activeTools, charUuid);
+                const userTool = filtered.find(t => t.callName === d.toolName || t.name === d.toolName);
+                if (userTool) {
+                  result = await executeActiveToolCall(
+                    { tool: userTool, mode: "add", callLabel: d.toolName, query: d.query, raw: "", reason: "AI tool decision" },
+                    { messages: get().messages, character: currentCharacter, vectorMemoryShards, worldInfoEntries, tavilyApiKey: "", mcpSessionIds: new Map(), anysearchConfig: builtinToolConfigs.find(c => c.type === "anysearch") },
+                  );
+                } else {
+                  result = `<builtin_tool_result status='error'>未找到工具: ${d.toolName}</builtin_tool_result>`;
+                }
+              }
+              const existingMsg = get().messages.find(m => m.id === assistantMessageId);
+              const callStep: AgentStep = { id: uuidv4(), type: "tool_call", title: d.toolName, content: d.query, status: "completed", startedAt: Date.now(), endedAt: Date.now(), phase: 1 };
+              const resultStep: AgentStep = { id: uuidv4(), type: "tool_result", title: d.toolName, content: result || "(空结果)", status: "completed", startedAt: Date.now(), endedAt: Date.now(), phase: 1 };
+              get().updateMessage(assistantMessageId, {
+                toolCalls: [...(existingMsg?.toolCalls ?? []), { id: uuidv4(), toolName: d.toolName, callLabel: d.toolName, query: d.query, reason: "AI tool decision", status: "completed", result: result || "(空结果)" }],
+                agentSteps: [...(existingMsg?.agentSteps ?? []), callStep, resultStep],
+              });
+              contextMessages.push({ id: uuidv4(), role: "user", content: `<tool_result tool="${d.toolName}">\n${result || "(空结果)"}\n</tool_result>`, createdAt: Date.now() });
+            } catch (e) { logger.warn("tool", `工具 ${d.toolName} 执行失败: ${e}`); }
+          }
+        }
       }
-
-      // 检查是否已被用户取消
       if (abortController?.signal.aborted) return;
 
-      // v0.4.6: 流式诊断日志（记录请求2开始前状态）
+      // 请求2: CoT 思考链
+      logger.info("api", "API 请求阶段2: CoT 思考链生成");
       {
         const msg = get().messages.find(m => m.id === assistantMessageId);
-        logger.info("stream", `请求2开始前: agentSteps数=${msg?.agentSteps?.length ?? 0} cot长度=${(msg?.cot ?? "").length}`);
+        logger.info("stream", `请求2开始前: agentSteps数=${msg?.agentSteps?.length ?? 0}`);
       }
+      const { content: cotRawContent, reasoning: cotReasoning, cot: cotContent } =
+        await callApiWithRetry(assistantMessageId, contextMessages, "cot");
+      logger.info("api", `API 响应阶段2: CoT 完成（字符数=${cotContent.length}）`);
 
-      // 第二次请求: 基于 CoT 输出正文
-      logger.info("api", "API 请求阶段2: 正文生成");
+      if (!cotRawContent.trim() && !cotReasoning.trim() && !cotContent.trim()) {
+        get().updateMessage(assistantMessageId, { loading: false, error: "API 返回空响应(CoT 阶段)" });
+        return;
+      }
+      if (abortController?.signal.aborted) return;
+
+      // 请求3: 正文
+      logger.info("api", "API 请求阶段3: 正文生成");
       const { content: accumulatedContent, reasoning: accumulatedReasoning, toolCalls: nativeToolCallsFromMain } =
         await callApiWithRetry(assistantMessageId, contextMessages, "main", cotContent);
       console.log('[Phase main result]', accumulatedContent.slice(0, 100));
-      logger.info("api", `API 响应阶段2: 正文完成（字符数=${accumulatedContent.length}）`);
+      logger.info("api", `API 响应阶段3: 正文完成（字符数=${accumulatedContent.length}）`);
       logger.info("chat", `消息接收完成（CoT=${cotContent.length}字符，正文=${accumulatedContent.length}字符）`);
 
       // 7. 检查空响应(正文阶段)

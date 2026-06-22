@@ -469,18 +469,18 @@ export default function ChatPage() {
     <>
       <LuzzyLayout
         title={currentCharacter.name}
-        headerClassName="border-b border-border/15 bg-gradient-to-b from-background/80 via-background/45 to-transparent"
+        headerClassName="border-b border-border/15 bg-gradient-to-b from-background/85 via-background/55 to-transparent"
         actions={
-          <div className="flex items-center gap-0.5 rounded-full border border-border/10 bg-background/40 px-1 py-0.5 backdrop-blur-md">
+          <div className="flex items-center gap-2">
             {/* v0.3.5: 快捷切换角色 */}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setShowCharacterPicker(true)}
               title="切换角色"
-              className="size-8 rounded-full hover:bg-background/50"
+              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
             >
-              <IconUserGroup className="size-4" />
+              <IconUserGroup className="size-5" />
             </Button>
             {/* 新建会话 */}
             <Button
@@ -488,9 +488,9 @@ export default function ChatPage() {
               size="icon"
               onClick={handleCreateSession}
               title="新建会话"
-              className="size-8 rounded-full hover:bg-background/50"
+              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
             >
-              <IconPlus className="size-4" />
+              <IconPlus className="size-5" />
             </Button>
             {/* 当前会话列表 */}
             <Button
@@ -498,9 +498,9 @@ export default function ChatPage() {
               size="icon"
               onClick={() => setShowSessionList(true)}
               title="当前会话列表"
-              className="size-8 rounded-full hover:bg-background/50"
+              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
             >
-              <IconMenu className="size-4" />
+              <IconMenu className="size-5" />
             </Button>
             {/* 所有会话列表 */}
             <Button
@@ -508,9 +508,9 @@ export default function ChatPage() {
               size="icon"
               onClick={() => setShowAllSessions(true)}
               title="所有会话列表"
-              className="size-8 rounded-full hover:bg-background/50"
+              className="size-10 rounded-full border border-border/10 bg-background/40 backdrop-blur-sm hover:bg-background/60"
             >
-              <IconGrid className="size-4" />
+              <IconGrid className="size-5" />
             </Button>
           </div>
         }
