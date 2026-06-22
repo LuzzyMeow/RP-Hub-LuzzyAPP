@@ -116,12 +116,12 @@ const MEMORY_SETTINGS_KEY = "memorySettings";
 
 /** 默认记忆设置（v0.2.0 移除 maxMemories） */
 const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
-  enabled: false,
+  enabled: true, // 默认启用，无嵌入模型时自动禁用
   embeddingModel: "",
   embeddingApiProviderId: "",
   maxMemories: 100, // 保留字段以兼容旧数据，UI 不再展示
-  recallDepth: 10,
-  vectorTopK: 15,
+  recallDepth: 10, // 系统内置最优值
+  vectorTopK: 15, // 系统内置最优值
   similarityThreshold: 0.7,
   compressionEnabled: false,
   compressionKeepRecent: 20,
@@ -189,7 +189,14 @@ export default function MemoryPage() {
   /** 保存记忆设置 */
   const handleSaveSettings = React.useCallback(async () => {
     try {
-      await setItem("memory", MEMORY_SETTINGS_KEY, settings);
+      // 系统内置最优值：enabled 由嵌入模型是否存在自动决定，recallDepth/vectorTopK 固定
+      const persisted: MemorySettings = {
+        ...settings,
+        enabled: true,
+        recallDepth: 10,
+        vectorTopK: 15,
+      };
+      await setItem("memory", MEMORY_SETTINGS_KEY, persisted);
       logger.info("user", "保存记忆设置");
       toast.success("记忆设置已保存");
     } catch (e) {
@@ -310,8 +317,8 @@ function MemorySettingsCard({
           <CardTitle className="flex items-center gap-2">
             <IconBook className="size-4" />
             记忆设置
-            <Badge variant={settings.enabled ? "default" : "secondary"}>
-              {settings.enabled ? "已启用" : "未启用"}
+            <Badge variant={hasEmbeddingModel ? "default" : "secondary"}>
+              {hasEmbeddingModel ? "已启用" : "未启用"}
             </Badge>
           </CardTitle>
           <span className="text-xs text-muted-foreground">
@@ -329,18 +336,10 @@ function MemorySettingsCard({
             className="overflow-hidden"
           >
             <CardContent className="grid gap-4 pt-0">
-              {/* 启用开关 */}
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <div>
-                  <div className="text-sm font-medium">启用记忆系统</div>
-                  <div className="text-xs text-muted-foreground">
-                    开启后将在对话中自动召回与压缩记忆
-                  </div>
-                </div>
-                <Switch
-                  checked={settings.enabled}
-                  onCheckedChange={(v) => onUpdate("enabled", v)}
-                />
+              {/* 系统自动启用说明 */}
+              <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <IconInfo className="mt-0.5 size-3.5 shrink-0" />
+                <span>记忆系统在配置嵌入模型后自动启用</span>
               </div>
 
               {/* 嵌入模型（v0.3.4: 改为下拉框+手动输入） */}
@@ -414,47 +413,23 @@ function MemorySettingsCard({
                 )}
               </div>
 
-              {/* 数值参数 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">召回深度</label>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={settings.recallDepth}
-                    onChange={(e) =>
-                      onUpdate("recallDepth", Number(e.target.value))
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">向量 Top-K</label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={settings.vectorTopK}
-                    onChange={(e) =>
-                      onUpdate("vectorTopK", Number(e.target.value))
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">
-                    相似度阈值
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      {settings.similarityThreshold.toFixed(2)}
-                    </span>
-                  </label>
-                  <Slider
-                    value={[settings.similarityThreshold]}
-                    onValueChange={([v]) =>
-                      onUpdate("similarityThreshold", v)
-                    }
-                    min={0}
-                    max={1}
-                    step={0.01}
-                  />
-                </div>
+              {/* 相似度阈值 */}
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">
+                  相似度阈值
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {settings.similarityThreshold.toFixed(2)}
+                  </span>
+                </label>
+                <Slider
+                  value={[settings.similarityThreshold]}
+                  onValueChange={([v]) =>
+                    onUpdate("similarityThreshold", v)
+                  }
+                  min={0}
+                  max={1}
+                  step={0.01}
+                />
               </div>
 
               <div className="flex justify-end">

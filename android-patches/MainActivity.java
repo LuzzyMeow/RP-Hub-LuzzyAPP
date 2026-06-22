@@ -273,6 +273,9 @@ public class MainActivity extends BridgeActivity {
                     conn.setRequestProperty(header.getKey(), header.getValue());
                 }
 
+                // v0.4.4: 显式禁用 gzip,避免 HttpURLConnection 缓冲完整 gzip 响应导致流式失效
+                conn.setRequestProperty("Accept-Encoding", "identity");
+
                 // 使用 LUZZY 的 apiKey 设置 Authorization
                 // v0.4.2-fix: 火山方舟编码计划(/v3 路径)使用 coding plan 认证,不需要 API Key
                 // 若 cachedApiKey 是占位符(如 "placeholder" 或空),且目标是火山方舟,则不注入 Authorization

@@ -291,12 +291,13 @@ export const createChatSlice: StateCreator<
 
       // v0.4.1-fix: 带重试退避的 API 调用包装(针对 429 ServerOverloaded)
       // 最多重试 3 次,退避间隔递增(2s/4s/8s),重试期间显示提示
+      // v0.4.4: 返回值新增 toolCalls 字段,支持原生 tool_calls 透传
       const callApiWithRetry = async (
         msgId: string,
         contextMsgs: ChatMessage[],
         phase: "cot" | "main" = "cot",
         cotContent?: string,
-      ): Promise<{ content: string; reasoning: string; cot: string }> => {
+      ): Promise<{ content: string; reasoning: string; cot: string; toolCalls: Array<{ id: string; function: { name: string; arguments: string } }> }> => {
         const maxRetries = 3;
         const baseDelays = [2000, 4000, 8000]; // 递增退避
         let lastError: unknown;
@@ -356,7 +357,7 @@ export const createChatSlice: StateCreator<
         contextMsgs: ChatMessage[],
         phase: "cot" | "main" = "cot",
         cotContent?: string,
-      ): Promise<{ content: string; reasoning: string; cot: string }> => {
+      ): Promise<{ content: string; reasoning: string; cot: string; toolCalls: Array<{ id: string; function: { name: string; arguments: string } }> }> => {
         // 构建 API 上下文
         const { apiMessages: rawApiMessages, appliedSkillIds: ctxAppliedSkillIds } = await buildContext({
           messages: contextMsgs,
@@ -435,12 +436,12 @@ export const createChatSlice: StateCreator<
         if (!chatApiKey?.trim()) {
           toast.error("未配置 API Key，请前往设置页配置");
           set({ isGenerating: false });
-          return { content: "", reasoning: "", cot: "" };
+          return { content: "", reasoning: "", cot: "", toolCalls: [] };
         }
         if (!chatApiUrl?.trim()) {
           toast.error("未配置 API URL，请前往设置页配置");
           set({ isGenerating: false });
-          return { content: "", reasoning: "", cot: "" };
+          return { content: "", reasoning: "", cot: "", toolCalls: [] };
         }
 
         // 调试日志：打印多供应商路由结果
@@ -458,6 +459,20 @@ export const createChatSlice: StateCreator<
         const currentProvider = allProviders.find((p) => p.id === get().apiProviderId);
         const thinkingDepth = currentProvider?.thinkingDepth;
 
+        // v0.4.4: 注入 activeTools 到 buildApiRequestBody（仅非 force 模式）
+        // force 模式下由预执行逻辑处理工具，不注入 tools 参数避免重复调用
+        // activeTools 在 line 775 加载，由于 callApiAndUpdate 是闭包且在 activeTools 初始化后才被调用，可安全引用
+        const activeToolsForRequest =
+          toolGlobalSettings.mode !== "force" && activeTools.length > 0
+            ? activeTools
+              .filter((t) => t.enabled)
+              .map((tool) => ({
+                type: tool.type,
+                callName: tool.callName || tool.name,
+                description: tool.description,
+              }))
+            : undefined;
+
         const requestBody = buildApiRequestBody(
           {
             model: actualModel,
@@ -468,6 +483,7 @@ export const createChatSlice: StateCreator<
             enableThinking: settings.enableThinking,
             thinkingDepth,
             customRequestBody: get().customRequestBody,
+            activeTools: activeToolsForRequest,
           },
         );
 
@@ -478,8 +494,16 @@ export const createChatSlice: StateCreator<
         const requestStartTime = Date.now();
         let lastUsage: Record<string, unknown> | undefined;
         // Agent 步骤追踪（v0.3.0 新增）
-        const agentSteps: AgentStep[] = [];
+        // v0.4.4: 修复 agentSteps 覆盖问题 - 读取已有消息的 agentSteps 作为初始值
+        // 避免第二次请求(callApiAndUpdate)覆盖第一次请求已写入的 force 预执行/记忆召回步骤
+        const existingMsg = get().messages.find(m => m.id === msgId);
+        const agentSteps: AgentStep[] = existingMsg?.agentSteps ? [...existingMsg.agentSteps] : [];
         let thinkingStepAdded = false;
+        // v0.4.4: 累积原生 tool_calls（流式增量合并）
+        const accumulatedToolCalls: Array<{
+          id: string;
+          function: { name: string; arguments: string };
+        }> = [];
 
         // v0.3.6: parseCot 调用节流，避免每个 chunk 都全量解析
         // 仅在内容长度变化超过阈值或检测到标签闭合时才解析
@@ -528,6 +552,25 @@ export const createChatSlice: StateCreator<
               if (chunk.content) {
                 accumulatedContent += chunk.content;
                 set({ isThinking: false, isReceiving: true });
+              }
+
+              // v0.4.4: 累积原生 tool_calls（流式增量合并）
+              if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+                for (const tc of chunk.toolCalls) {
+                  const existing = accumulatedToolCalls.find(t => t.id === tc.id && tc.id);
+                  if (existing) {
+                    existing.function.name += tc.function?.name ?? '';
+                    existing.function.arguments += tc.function?.arguments ?? '';
+                  } else {
+                    accumulatedToolCalls.push({
+                      id: tc.id ?? '',
+                      function: {
+                        name: tc.function?.name ?? '',
+                        arguments: tc.function?.arguments ?? '',
+                      },
+                    });
+                  }
+                }
               }
 
               // v0.3.6: parseCot 调用节流
@@ -633,6 +676,19 @@ export const createChatSlice: StateCreator<
           accumulatedReasoning = chunk.reasoningContent;
           if (chunk.usage) {
             lastUsage = { ...lastUsage, ...chunk.usage };
+          }
+
+          // v0.4.4: 累积原生 tool_calls（非流式一次性获取）
+          if (chunk.toolCalls && chunk.toolCalls.length > 0) {
+            for (const tc of chunk.toolCalls) {
+              accumulatedToolCalls.push({
+                id: tc.id ?? '',
+                function: {
+                  name: tc.function?.name ?? '',
+                  arguments: tc.function?.arguments ?? '',
+                },
+              });
+            }
           }
 
           const cotResult = parseCot(accumulatedContent);
@@ -759,7 +815,8 @@ export const createChatSlice: StateCreator<
           accumulatedReasoning +
           (finalCotResult.cot ? "\n" + finalCotResult.cot : "")
         ).trim();
-        return { content: accumulatedContent, reasoning: accumulatedReasoning, cot: finalCotCombined };
+        // v0.4.4: 返回 toolCalls 字段,供外层工具调用循环使用
+        return { content: accumulatedContent, reasoning: accumulatedReasoning, cot: finalCotCombined, toolCalls: accumulatedToolCalls };
       };
 
       // 3. 初始 API 调用
@@ -1561,7 +1618,7 @@ export const createChatSlice: StateCreator<
 
       // 第二次请求: 基于 CoT 输出正文
       logger.info("api", "API 请求阶段2: 正文生成");
-      const { content: accumulatedContent, reasoning: accumulatedReasoning } =
+      const { content: accumulatedContent, reasoning: accumulatedReasoning, toolCalls: nativeToolCallsFromMain } =
         await callApiWithRetry(assistantMessageId, contextMessages, "main", cotContent);
       logger.info("api", `API 响应阶段2: 正文完成（字符数=${accumulatedContent.length}）`);
       logger.info("chat", `消息接收完成（CoT=${cotContent.length}字符，正文=${accumulatedContent.length}字符）`);
@@ -1596,7 +1653,225 @@ export const createChatSlice: StateCreator<
       let currentAssistantId = assistantMessageId;
       // v0.3.6: activeTools 已在初始 API 调用前加载，此处直接复用
 
-      if (activeTools.length > 0) {
+      // v0.4.4: 优先检测原生 tool_calls（API 原生返回，非文本标签解析）
+      // 仅在非 force 模式下检测（force 模式由预执行逻辑处理）
+      const nativeToolCalls =
+        toolGlobalSettings.mode !== "force" && nativeToolCallsFromMain && nativeToolCallsFromMain.length > 0
+          ? nativeToolCallsFromMain
+          : null;
+
+      if (nativeToolCalls && nativeToolCalls.length > 0) {
+        // === v0.4.4: 原生 tool_calls 模式 ===
+        logger.info("api", `检测到原生 tool_calls（数量=${nativeToolCalls.length}），进入原生工具调用模式`);
+
+        const characterUuid = currentCharacter?.uuid ?? null;
+        const filteredTools = filterToolsForCharacter(activeTools, characterUuid);
+
+        // v0.4.4: 工具执行超时保护（30s）
+        const executeWithTimeout = async <T>(fn: () => Promise<T>, timeoutMs = 30000): Promise<T> => {
+          return Promise.race([
+            fn(),
+            new Promise<T>((_, reject) =>
+              setTimeout(() => reject(new Error('工具执行超时')), timeoutMs),
+            ),
+          ]);
+        };
+
+        // v0.4.4: 根据工具名（callName）查找对应的 ActiveTool 并执行
+        const executeToolByName = async (
+          toolName: string,
+          query: string,
+        ): Promise<string> => {
+          const tool = filteredTools.find(
+            (t) => t.callName === toolName || t.name === toolName,
+          );
+          if (!tool) {
+            throw new Error(`未找到匹配的工具: ${toolName}`);
+          }
+          const toolCall: ActiveToolCall = {
+            tool,
+            mode: "add",
+            callLabel: tool.callName || tool.name,
+            query,
+            raw: "",
+            reason: "native tool_calls",
+          };
+          return executeWithTimeout(() =>
+            executeActiveToolCall(toolCall, {
+              messages: get().messages,
+              character: currentCharacter,
+              vectorMemoryShards,
+              worldInfoEntries,
+              tavilyApiKey: "",
+              mcpSessionIds: new Map(),
+              anysearchConfig: builtinToolConfigs.find((c) => c.type === "anysearch"),
+            }),
+          );
+        };
+
+        // 获取当前消息的 agentSteps 作为初始值
+        const nativeAgentSteps: AgentStep[] = [
+          ...(get().messages.find((m) => m.id === assistantMessageId)?.agentSteps ?? []),
+        ];
+        const nativeToolCallRecords: ToolCall[] = [
+          ...(get().messages.find((m) => m.id === assistantMessageId)?.toolCalls ?? []),
+        ];
+
+        for (const tc of nativeToolCalls) {
+          if (abortController?.signal.aborted) break;
+          try {
+            // 解析工具参数
+            let toolArgs: { query?: string; keys?: string };
+            try {
+              toolArgs = JSON.parse(tc.function.arguments || '{}');
+            } catch {
+              toolArgs = { query: tc.function.arguments };
+            }
+
+            const queryStr = toolArgs.query ?? '';
+            logger.info("api", `执行原生工具调用: ${tc.function.name}（query=${queryStr.slice(0, 50)}）`);
+
+            // 添加 tool_call 步骤（运行中）
+            const nativeCallStepId = uuidv4();
+            const nativeCallStep: AgentStep = {
+              id: nativeCallStepId,
+              type: "tool_call",
+              title: tc.function.name,
+              content: queryStr,
+              status: "running",
+              startedAt: Date.now(),
+            };
+            nativeAgentSteps.push(nativeCallStep);
+            get().updateMessage(assistantMessageId, {
+              agentSteps: [...nativeAgentSteps],
+            });
+
+            // 执行工具
+            const rawResult = await executeToolByName(tc.function.name, queryStr);
+
+            // v0.4.4: 工具结果长度限制（2000 字符）
+            const truncatedResult = rawResult.length > 2000
+              ? rawResult.slice(0, 2000) + '\n...[结果已截断]'
+              : rawResult;
+
+            // 标记 tool_call 完成，添加 tool_result 步骤
+            nativeCallStep.status = "completed";
+            nativeCallStep.endedAt = Date.now();
+            const nativeResultStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_result",
+              title: tc.function.name,
+              content: truncatedResult,
+              status: "completed",
+              startedAt: nativeCallStep.startedAt,
+              endedAt: Date.now(),
+            };
+            nativeAgentSteps.push(nativeResultStep);
+
+            // 记录 ToolCall
+            const matchedTool = filteredTools.find(
+              (t) => t.callName === tc.function.name || t.name === tc.function.name,
+            );
+            nativeToolCallRecords.push({
+              id: uuidv4(),
+              toolName: matchedTool?.name ?? tc.function.name,
+              callLabel: tc.function.name,
+              query: queryStr,
+              reason: "native tool_calls",
+              status: "completed" as const,
+              result: truncatedResult,
+            });
+
+            // 添加 tool 角色消息到 contextMessages（OpenAI 原生格式）
+            // ChatMessage 类型不支持 role: 'tool'，用 as any 绕过
+            contextMessages.push({
+              id: uuidv4(),
+              role: "tool" as any,
+              content: truncatedResult,
+              createdAt: Date.now(),
+              tool_call_id: tc.id,
+            } as any);
+
+            // 更新消息
+            get().updateMessage(assistantMessageId, {
+              toolCalls: [...nativeToolCallRecords],
+              agentSteps: [...nativeAgentSteps],
+            });
+          } catch (e) {
+            // v0.4.4: 错误容错 - 工具失败不中断主流程
+            console.warn('[Tool Calls] 工具执行失败:', tc.function.name, e);
+            const errorMsg = e instanceof Error ? e.message : String(e);
+
+            // 添加错误步骤
+            const errorStep: AgentStep = {
+              id: uuidv4(),
+              type: "tool_call",
+              title: tc.function.name,
+              content: errorMsg,
+              status: "error",
+              startedAt: Date.now(),
+              endedAt: Date.now(),
+            };
+            nativeAgentSteps.push(errorStep);
+
+            const matchedTool = filteredTools.find(
+              (t) => t.callName === tc.function.name || t.name === tc.function.name,
+            );
+            nativeToolCallRecords.push({
+              id: uuidv4(),
+              toolName: matchedTool?.name ?? tc.function.name,
+              callLabel: tc.function.name,
+              query: '',
+              reason: "native tool_calls",
+              status: "error" as const,
+              error: errorMsg,
+            });
+
+            // 注入错误信息到 contextMessages
+            contextMessages.push({
+              id: uuidv4(),
+              role: "tool" as any,
+              content: `工具执行失败: ${errorMsg}`,
+              createdAt: Date.now(),
+              tool_call_id: tc.id,
+            } as any);
+
+            get().updateMessage(assistantMessageId, {
+              toolCalls: [...nativeToolCallRecords],
+              agentSteps: [...nativeAgentSteps],
+            });
+          }
+        }
+
+        // 更新消息的 agentSteps
+        get().updateMessage(assistantMessageId, { agentSteps: [...nativeAgentSteps] });
+
+        // 续写（基于工具结果继续生成）
+        if (!abortController?.signal.aborted && nativeToolCalls.length > 0) {
+          logger.info("api", "原生工具调用完成，发起续写请求");
+          // 创建新的 assistant 消息用于续写
+          const continuationMessage: ChatMessage = {
+            id: uuidv4(),
+            role: "assistant",
+            content: "",
+            createdAt: Date.now(),
+            loading: true,
+          };
+          get().addMessage(continuationMessage);
+          currentAssistantId = continuationMessage.id;
+
+          const newContextMessages = get().messages.filter(
+            (m) => m.id !== continuationMessage.id,
+          );
+          await callApiWithRetry(
+            continuationMessage.id,
+            newContextMessages,
+            "main",
+            cotContent,
+          );
+        }
+      } else if (activeTools.length > 0) {
+        // === 回退到文本标签解析模式（原有逻辑） ===
         const characterUuid = currentCharacter?.uuid ?? null;
         const filteredTools = filterToolsForCharacter(
           activeTools,

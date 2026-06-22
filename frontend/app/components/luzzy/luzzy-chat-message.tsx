@@ -125,9 +125,11 @@ function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
 function CotCard({
   cot,
   isGenerating,
+  agentSteps,
 }: {
   cot: string;
   isGenerating: boolean;
+  agentSteps?: import("~/types/luzzy").AgentStep[];
 }) {
   // v0.4.3: 生成中默认展开,生成完成后保持展开(仅用户手动点击才收起)
   const [expanded, setExpanded] = React.useState(true);
@@ -179,7 +181,11 @@ function CotCard({
             className="overflow-hidden"
           >
             <div className="border-t border-muted">
-              <LuzzyThinkingTimeline cot={cot} isGenerating={isGenerating} />
+              <LuzzyThinkingTimeline
+                cot={cot}
+                isGenerating={isGenerating}
+                agentSteps={agentSteps}
+              />
             </div>
           </motion.div>
         )}
@@ -395,16 +401,19 @@ export function LuzzyChatMessage({
       >
         {/* 思考链 */}
         {!isUser && message.cot && (
-          <CotCard cot={message.cot} isGenerating={Boolean(isGenerating && isLast)} />
-        )}
-
-        {/* v0.4.3: 工具调用步骤合并到 CotCard 下方纵列(与思考卡片排成一列) */}
-        {!isUser && message.agentSteps && message.agentSteps.length > 0 && (
-          <LuzzyAgentSteps
-            steps={message.agentSteps.filter(
+          <CotCard
+            cot={message.cot}
+            isGenerating={Boolean(isGenerating && isLast)}
+            agentSteps={message.agentSteps?.filter(
               (s) => !(s.type === "thinking" && message.cot)
             )}
           />
+        )}
+
+        {/* v0.4.4: LuzzyAgentSteps 已合并到 CotCard 的思考节点中,不再独立显示 */}
+        {/* 回退: cot 为空但 agentSteps 有内容(force 预执行阶段,cot 还没生成) */}
+        {!isUser && !message.cot && message.agentSteps && message.agentSteps.length > 0 && (
+          <LuzzyAgentSteps steps={message.agentSteps} />
         )}
 
         {/* 记忆召回 */}

@@ -395,6 +395,7 @@ export const getEmbedding = async (
   providerKeys: Record<string, string>,
 ): Promise<number[]> => {
   const model = (settings.embeddingModel || '').trim();
+  console.log('[Memory] getEmbedding 调用:', { model: settings.embeddingModel, textLength: text.length });
 
   // 缓存命中短路：相同文本+模型直接返回缓存的向量
   if (model) {
@@ -493,6 +494,10 @@ export const buildVectorMemory = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<VectorMemoryShard[]> => {
+  // 无嵌入模型时跳过向量记忆构建（系统自动判断启用状态）
+  if (!settings.embeddingModel) return [];
+  console.log('[Memory] buildVectorMemory 启动:', { messageCount: messages.length, model: settings.embeddingModel });
+
   // 过滤掉开场白（如果角色卡有开场白且首条消息匹配）
   let filteredMessages = messages;
   if (character?.firstMessage && messages.length > 0) {
@@ -528,6 +533,7 @@ export const buildVectorMemory = async (
     }
   }
 
+  console.log('[Memory] buildVectorMemory 完成:', { shardCount: shards.length });
   return shards;
 };
 
@@ -553,6 +559,7 @@ export const searchVectorMemory = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<VectorMemoryShard[]> => {
+  console.log('[Memory] searchVectorMemory 启动:', { query, shardCount: shards.length, topK: settings.vectorTopK });
   const scored = await searchVectorMemoryWithScore(
     query,
     shards,
@@ -561,7 +568,9 @@ export const searchVectorMemory = async (
     providers,
     providerKeys,
   );
-  return scored.map((item) => item.shard);
+  const results = scored.map((item) => item.shard);
+  console.log('[Memory] searchVectorMemory 完成:', { resultCount: results.length });
+  return results;
 };
 
 /**
@@ -586,6 +595,8 @@ export const searchVectorMemoryWithScore = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<{ shard: VectorMemoryShard; score: number }[]> => {
+  // 无嵌入模型时跳过向量搜索（系统自动判断启用状态）
+  if (!settings.embeddingModel) return [];
   if (!query.trim() || shards.length === 0) return [];
 
   // 获取查询文本的嵌入向量

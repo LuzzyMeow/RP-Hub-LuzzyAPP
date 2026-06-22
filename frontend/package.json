@@ -2,7 +2,7 @@
   "name": "luzzy-frontend",
   "private": true,
   "type": "module",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "scripts": {
     "build": "react-router build && tsx copy.ts",
     "dev": "react-router dev",
@@ -10,7 +10,9 @@
     "typecheck": "react-router typegen && tsc",
     "lint": "oxlint app --fix",
     "fmt": "oxfmt app",
-    "fmt:check": "oxfmt app --check"
+    "fmt:check": "oxfmt app --check",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@capacitor/device": "^8.0.2",
@@ -71,6 +73,7 @@
     "typescript": "^5.9.2",
     "vite": "^7.1.7",
     "vite-plugin-svgr": "^4.5.0",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^4.1.9"
   }
 }

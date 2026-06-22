@@ -21,6 +21,21 @@ declare global {
 /** 本地代理基础地址（仅原生平台使用） */
 const NATIVE_PROXY_BASE = 'http://localhost:18527';
 
+// v0.4.4: 保存原始 fetch 和 XMLHttpRequest,避免被 CapacitorHttp patch
+// 注意:Node.js 环境下 XMLHttpRequest 可能不存在,需做安全检测
+const _originalFetch =
+  typeof window !== 'undefined'
+    ? window.fetch.bind(window)
+    : typeof fetch !== 'undefined'
+      ? fetch
+      : undefined;
+const _originalXHR =
+  typeof window !== 'undefined'
+    ? window.XMLHttpRequest
+    : typeof XMLHttpRequest !== 'undefined'
+      ? XMLHttpRequest
+      : undefined;
+
 /**
  * 检测当前是否为 Capacitor 原生平台
  *
@@ -80,6 +95,13 @@ export interface SSEChunkData {
   finishReason: string;
   /** Token 使用统计（OpenAI 在最后一个 chunk 携带，Anthropic 在 message_delta 事件携带） */
   usage?: Record<string, unknown>;
+  /** v0.4.4: 原生 tool_calls 增量（OpenAI 兼容格式） */
+  toolCalls?: Array<{
+    index: number;
+    id?: string;
+    type?: 'function';
+    function?: { name?: string; arguments?: string };
+  }>;
 }
 
 /**
@@ -257,6 +279,23 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
   result.content = String(delta.content ?? '');
   result.reasoningContent = extractReasoning(delta);
 
+  // v0.4.4: 解析原生 tool_calls（OpenAI 兼容格式）
+  const toolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
+  if (toolCalls && Array.isArray(toolCalls)) {
+    result.toolCalls = toolCalls.map((tc) => {
+      const fn = (tc.function ?? {}) as Record<string, unknown>;
+      return {
+        index: Number(tc.index ?? 0),
+        id: String(tc.id ?? ''),
+        type: 'function' as const,
+        function: {
+          name: String(fn.name ?? ''),
+          arguments: String(fn.arguments ?? ''),
+        },
+      };
+    });
+  }
+
   return result;
 };
 
@@ -398,6 +437,12 @@ export interface ApiRequestBodySettings {
   thinkingDepth?: ThinkingDepth;
   /** 自定义请求体 JSON 字符串 */
   customRequestBody?: string;
+  /** v0.4.4: 活动工具列表（用于原生 tool_calls 注入） */
+  activeTools?: Array<{
+    type: string;
+    callName: string;
+    description: string;
+  }>;
 }
 
 /**
@@ -454,6 +499,39 @@ export const validateCustomRequestBody = (
 };
 
 /**
+ * v0.4.4: 构建工具的 JSON Schema（用于原生 tool_calls）
+ * 根据工具类型返回对应的参数 schema
+ */
+export const buildToolSchema = (toolType: string): Record<string, unknown> => {
+  const baseSchema = {
+    type: 'object',
+    properties: {
+      query: {
+        type: 'string',
+        description: '搜索/召回的查询关键词',
+      },
+    },
+    required: ['query'],
+  };
+
+  // world-search 支持额外的 keys 参数
+  if (toolType === 'world-search') {
+    return {
+      ...baseSchema,
+      properties: {
+        ...baseSchema.properties,
+        keys: {
+          type: 'string',
+          description: '可选的世界书条目 keys 筛选（逗号分隔）',
+        },
+      },
+    };
+  }
+
+  return baseSchema;
+};
+
+/**
  * 构建最终请求体（合并基础字段 + 深度思考 + 自定义 JSON）
  *
  * 合并优先级：基础字段 < 深度思考 < 自定义 JSON
@@ -465,6 +543,11 @@ export const validateCustomRequestBody = (
  * - auto: 不注入任何思考字段（由模型决定）
  * - low/medium/high/max: 注入 reasoning_effort（OpenAI 风格）+ thinking（Anthropic 风格）
  * - 自定义 JSON 可覆盖思考字段（优先级最高）
+ *
+ * v0.4.4 新增：原生 tool_calls 支持
+ * - 当 settings.activeTools 非空时，注入 tools 和 tool_choice 参数
+ * - 模型可通过原生 tool_calls 字段调用工具，无需文本标签协议
+ * - tools 参数不影响 messages 前缀，KV 缓存友好
  *
  * @param baseBody - 基础请求体（含 model, messages, temperature, stream）
  * @param settings - API 设置（含思考深度与自定义请求体）
@@ -493,7 +576,20 @@ export const buildApiRequestBody = (
     result.thinking = { type: 'enabled' };
   }
 
-  // 自定义 JSON 合并（优先级最高，可覆盖思考字段）
+  // v0.4.4: 原生 tool_calls 注入（在自定义 JSON 之前，可被自定义 JSON 覆盖）
+  if (settings.activeTools && settings.activeTools.length > 0) {
+    result.tools = settings.activeTools.map((tool) => ({
+      type: 'function',
+      function: {
+        name: tool.callName,
+        description: tool.description,
+        parameters: buildToolSchema(tool.type),
+      },
+    }));
+    result.tool_choice = 'auto';
+  }
+
+  // 自定义 JSON 合并（优先级最高，可覆盖思考字段和 tools）
   const customBody = parseCustomRequestBody(settings.customRequestBody);
   if (customBody) {
     for (const key of Object.keys(customBody)) {
@@ -725,7 +821,11 @@ const sendStreamRequestViaXHR = (
     xhr.onprogress = (): void => {
       if (chunkError) return;
       try {
-        processIncremental();
+        const newText = xhr.responseText.substring(receivedLength);
+        if (newText.length > 0) {
+          console.log('[XHR Stream] onprogress chunk:', newText.length, 'bytes, total:', xhr.responseText.length);
+          processIncremental();
+        }
       } catch (e) {
         console.warn('[XHR Stream] onprogress 处理异常:', e);
       }

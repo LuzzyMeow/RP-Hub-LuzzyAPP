@@ -532,6 +532,7 @@ export default function SettingsPage() {
                         placeholder="https://api.example.com/v1"
                         className="max-w-full font-mono text-xs"
                         maxLength={500}
+                        inputMode="url"
                       />
                     </div>
 
@@ -1119,7 +1120,7 @@ export default function SettingsPage() {
             placeholder="请输入目标语言名称"
             maxLength={40}
             className="max-w-full"
-            autoFocus
+            inputMode="text"
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -1293,6 +1294,7 @@ export default function SettingsPage() {
                   }}
                   placeholder="128000 / 128k / 1m"
                   className="max-w-full"
+                  inputMode="numeric"
                 />
                   <p className="text-xs text-muted-foreground">
                     支持数字（1000000）或数字+单位（1000k / 1m）
@@ -1318,6 +1320,7 @@ export default function SettingsPage() {
                   }}
                   placeholder="4096 / 4k"
                   className="max-w-full"
+                  inputMode="numeric"
                 />
                 </div>
 
@@ -1343,6 +1346,7 @@ export default function SettingsPage() {
                           },
                         });
                       }}
+                      inputMode="numeric"
                     />
                   </div>
                   <Slider

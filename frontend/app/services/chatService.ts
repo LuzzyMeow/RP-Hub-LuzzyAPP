@@ -219,6 +219,37 @@ const toNonNegativeNumber = (value: unknown, fallback = 0): number => {
 };
 
 /**
+ * token 级上下文截断（v0.4.4 新增）
+ *
+ * 粗略估算 token 数：1 token ≈ 1.5 个中文字符或 0.25 个英文单词
+ * 保守采用 1 token ≈ 2 字符的估算（避免低估导致超限）
+ * 从最新消息向前保留，丢弃最早的消息
+ *
+ * @param messages - 待截断的消息列表
+ * @param maxTokens - 模型最大上下文 token 数
+ * @returns 截断后的消息列表（保留最新消息）
+ */
+const truncateByTokens = (messages: ChatMessage[], maxTokens: number): ChatMessage[] => {
+  if (messages.length === 0) return [];
+  // 预留 4096 token 给系统提示词和模型输出
+  const reservedTokens = 4096;
+  const availableTokens = Math.max(1000, maxTokens - reservedTokens);
+  // 保守估算：1 token ≈ 2 字符
+  const maxChars = availableTokens * 2;
+
+  let totalChars = 0;
+  const result: ChatMessage[] = [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    const msgChars = (msg.content?.length ?? 0) + (msg.cot?.length ?? 0);
+    if (totalChars + msgChars > maxChars && result.length > 0) break;
+    result.unshift(msg);
+    totalChars += msgChars;
+  }
+  return result;
+};
+
+/**
  * 拼接世界书条目内容为文本
  * @param entries - 世界书条目列表
  * @returns 拼接后的文本
@@ -497,7 +528,8 @@ export const buildContext = async (
   }
 
   // 3.7 向量记忆召回
-  if (memorySettings?.enabled && vectorMemoryShards && vectorMemoryShards.length > 0) {
+  // v0.4.4: 判断条件改为基于 embeddingModel（与阶段二记忆机制重构一致）
+  if (memorySettings?.embeddingModel && vectorMemoryShards && vectorMemoryShards.length > 0) {
     const latestUserMessage = [...messages]
       .reverse()
       .find((m) => m.role === 'user');
@@ -641,6 +673,35 @@ export const buildContext = async (
         limitedMessages = compressedMessages.slice(-limit);
       }
     }
+  }
+
+  // 4.3.2 token 级上下文截断（v0.4.4 新增）
+  // 当历史消息总 token 估算超出模型上下文长度时，从最早的消息开始丢弃
+  // 丢弃的消息由记忆召回/向量记忆工具补充（已在阶段一实现）
+  const MAX_CONTEXT_TOKENS = (() => {
+    if (settings.modelName && apiProviders.length > 0) {
+      const matchedProvider = apiProviders.find((p) =>
+        settings.modelName.startsWith(`${p.id}_`),
+      );
+      if (matchedProvider?.models) {
+        const prefix = `${matchedProvider.id}_`;
+        const rawModelName = settings.modelName.slice(prefix.length);
+        const currentModel = matchedProvider.models.find(
+          (m) => m.name === rawModelName,
+        );
+        return currentModel?.contextLength ?? 128000;
+      }
+    }
+    return 128000;
+  })();
+
+  const truncatedMessages = truncateByTokens(limitedMessages, MAX_CONTEXT_TOKENS);
+  if (truncatedMessages.length < limitedMessages.length) {
+    logger.info(
+      "memory",
+      `Token 级截断: ${limitedMessages.length} → ${truncatedMessages.length} 条(上限 ${MAX_CONTEXT_TOKENS} tokens)`,
+    );
+    limitedMessages = truncatedMessages;
   }
 
   // 4.4 聊天记录（移除 CoT 内容）

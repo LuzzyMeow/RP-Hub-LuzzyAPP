@@ -11,7 +11,15 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { IconCheck, IconArrowDown } from "~/components/luzzy/luzzy-icons";
+import {
+  IconCheck,
+  IconArrowDown,
+  IconToolKit,
+  IconBook,
+  IconSearch,
+  IconClose,
+} from "~/components/luzzy/luzzy-icons";
+import type { AgentStep } from "~/types/luzzy";
 import Markdown from "~/components/markdown/markdown";
 
 // ============================================================================
@@ -27,11 +35,34 @@ interface ThinkingStep {
   status: "running" | "completed";
 }
 
+/** 工具步骤（v0.4.4: 合并 agentSteps 到 Timeline 节点） */
+interface ToolStep {
+  type: "tool";
+  /** 工具类型：tool_call / tool_result / memory_inject / knowledge_call */
+  toolType: string;
+  /** 步骤内容 */
+  content: string;
+  /** 步骤标题 */
+  title: string;
+  /** 步骤状态 */
+  status: "running" | "completed" | "error";
+}
+
+/** Timeline 步骤联合类型 */
+type TimelineStep = ThinkingStep | ToolStep;
+
+/** 类型守卫：判断是否为工具步骤 */
+function isToolStep(step: TimelineStep): step is ToolStep {
+  return (step as ToolStep).type === "tool";
+}
+
 interface LuzzyThinkingTimelineProps {
   /** 完整的 CoT 思考链文本 */
   cot: string;
   /** 是否正在生成 */
   isGenerating: boolean;
+  /** Agent 执行步骤（v0.4.4: 工具步骤合并到 Timeline 节点） */
+  agentSteps?: AgentStep[];
 }
 
 // ============================================================================
@@ -208,6 +239,42 @@ function parseThinkingSteps(cot: string, isGenerating: boolean): ThinkingStep[] 
   return steps;
 }
 
+/**
+ * 合并 thinking 步骤和 agentSteps（v0.4.4 新增）
+ *
+ * 将 force 预执行的 agentSteps 转换为 ToolStep，与 thinking 步骤合并：
+ * - 过滤掉 thinking 类型（与 cot 重复）
+ * - 工具步骤在前（force 预执行在 API 调用之前）
+ * - 思考步骤在后（CoT 在 API 调用之后生成）
+ */
+function mergeSteps(
+  thinkingSteps: ThinkingStep[],
+  agentSteps?: AgentStep[],
+): TimelineStep[] {
+  if (!agentSteps || agentSteps.length === 0) return thinkingSteps;
+
+  const titleMap: Record<string, string> = {
+    tool_call: "工具调用",
+    tool_result: "工具结果",
+    memory_inject: "记忆注入",
+    knowledge_call: "知识库调用",
+  };
+
+  // 将 agentSteps 转换为 ToolStep 格式
+  const toolSteps: ToolStep[] = agentSteps
+    .filter((s) => s.type !== "thinking")
+    .map((s) => ({
+      type: "tool" as const,
+      toolType: s.type,
+      content: s.content || "",
+      title: titleMap[s.type] || "工具步骤",
+      status: s.status,
+    }));
+
+  // 简单合并：工具步骤在前，思考步骤在后
+  return [...toolSteps, ...thinkingSteps];
+}
+
 // ============================================================================
 // 打字机效果 Hook
 // ============================================================================
@@ -278,23 +345,25 @@ function useTypewriter(fullText: string, isGenerating: boolean, speed = 30): str
 // 主组件
 // ============================================================================
 
-export function LuzzyThinkingTimeline({ cot, isGenerating }: LuzzyThinkingTimelineProps) {
-  const steps = React.useMemo(() => parseThinkingSteps(cot, isGenerating), [cot, isGenerating]);
+export function LuzzyThinkingTimeline({ cot, isGenerating, agentSteps }: LuzzyThinkingTimelineProps) {
+  const thinkingSteps = React.useMemo(() => parseThinkingSteps(cot, isGenerating), [cot, isGenerating]);
+  // v0.4.4: 合并 agentSteps 到 Timeline 节点
+  const allSteps = React.useMemo(() => mergeSteps(thinkingSteps, agentSteps), [thinkingSteps, agentSteps]);
   const [expandedStep, setExpandedStep] = React.useState<number | null>(0);
   // v0.4.3: 记录上一次 steps 数量,仅在新 Step 出现时展开新节点,不强制收起旧 Step
   const prevStepsLengthRef = React.useRef(0);
 
   React.useEffect(() => {
-    if (isGenerating && steps.length > 0) {
+    if (isGenerating && allSteps.length > 0) {
       // 仅当新增了 Step 时才展开最新的 Step,不收起已展开的旧 Step
-      if (steps.length > prevStepsLengthRef.current) {
-        setExpandedStep(steps.length - 1);
+      if (allSteps.length > prevStepsLengthRef.current) {
+        setExpandedStep(allSteps.length - 1);
       }
     }
-    prevStepsLengthRef.current = steps.length;
-  }, [isGenerating, steps.length]);
+    prevStepsLengthRef.current = allSteps.length;
+  }, [isGenerating, allSteps.length]);
 
-  if (steps.length === 0) {
+  if (allSteps.length === 0) {
     return (
       <div className="px-3 py-2 text-sm text-muted-foreground">
         {isGenerating ? "等待思考..." : "无思考内容"}
@@ -308,15 +377,31 @@ export function LuzzyThinkingTimeline({ cot, isGenerating }: LuzzyThinkingTimeli
       <div className="absolute bottom-4 left-[1.4rem] top-4 w-px bg-border/50" />
 
       <div className="space-y-3">
-        {steps.map((step, idx) => (
-          <ThinkingNode
-            key={idx}
-            step={step}
-            index={idx}
-            isExpanded={expandedStep === idx}
-            onToggle={() => setExpandedStep(expandedStep === idx ? null : idx)}
-          />
-        ))}
+        {allSteps.map((step, idx) => {
+          const isExpanded = expandedStep === idx;
+          const onToggle = () => setExpandedStep(isExpanded ? null : idx);
+          // v0.4.4: 根据步骤类型选择对应节点组件
+          if (isToolStep(step)) {
+            return (
+              <ToolNode
+                key={idx}
+                step={step}
+                index={idx}
+                isExpanded={isExpanded}
+                onToggle={onToggle}
+              />
+            );
+          }
+          return (
+            <ThinkingNode
+              key={idx}
+              step={step}
+              index={idx}
+              isExpanded={isExpanded}
+              onToggle={onToggle}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -388,6 +473,125 @@ function ThinkingNode({ step, index, isExpanded, onToggle }: ThinkingNodeProps) 
               )}
               {isRunning && (
                 <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-primary" />
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ============================================================================
+// 工具节点组件（v0.4.4 新增）
+// ============================================================================
+
+interface ToolNodeProps {
+  step: ToolStep;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+/**
+ * 根据工具类型获取图标和颜色配置
+ *
+ * - tool_call: 蓝色工具箱图标
+ * - tool_result: 绿色对勾图标
+ * - memory_inject: 紫色书本图标
+ * - knowledge_call: 琥珀色搜索图标
+ */
+function getToolIconConfig(toolType: string): {
+  icon: React.ReactNode;
+  bgClass: string;
+} {
+  switch (toolType) {
+    case "tool_call":
+      return {
+        icon: <IconToolKit className="size-3" />,
+        bgClass: "bg-blue-500/15",
+      };
+    case "tool_result":
+      return {
+        icon: <IconCheck className="size-3 text-green-600 dark:text-green-400" />,
+        bgClass: "bg-green-500/15",
+      };
+    case "memory_inject":
+      return {
+        icon: <IconBook className="size-3 text-purple-600 dark:text-purple-400" />,
+        bgClass: "bg-purple-500/15",
+      };
+    case "knowledge_call":
+      return {
+        icon: <IconSearch className="size-3 text-amber-600 dark:text-amber-400" />,
+        bgClass: "bg-amber-500/15",
+      };
+    default:
+      return {
+        icon: <IconToolKit className="size-3" />,
+        bgClass: "bg-blue-500/15",
+      };
+  }
+}
+
+function ToolNode({ step, isExpanded, onToggle }: ToolNodeProps) {
+  const isRunning = step.status === "running";
+  const isError = step.status === "error";
+  const { icon, bgClass } = getToolIconConfig(step.toolType);
+
+  return (
+    <div className="relative pl-8">
+      {/* 状态圆圈 */}
+      <div className="absolute left-0 top-0 flex size-6 shrink-0 items-center justify-center">
+        {isRunning ? (
+          // 执行中：pulse 动画的空心圆圈
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+            className="size-3 rounded-full border-2 border-primary bg-primary/20"
+          />
+        ) : isError ? (
+          // 错误：红色叉号
+          <div className="flex size-5 items-center justify-center rounded-full bg-red-500/15">
+            <IconClose className="size-3 text-red-600 dark:text-red-400" />
+          </div>
+        ) : (
+          // 完成：根据工具类型显示对应图标
+          <div className={`flex size-5 items-center justify-center rounded-full ${bgClass}`}>
+            {icon}
+          </div>
+        )}
+      </div>
+
+      {/* 节点内容 */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full min-w-0 items-center gap-1.5 text-left leading-6"
+      >
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-muted-foreground">
+          {isRunning ? `${step.title}中...` : step.title}
+        </span>
+        <motion.div animate={{ rotate: isExpanded ? 0 : -90 }} transition={{ duration: 0.2 }}>
+          <IconArrowDown className="size-3 shrink-0 text-muted-foreground" />
+        </motion.div>
+      </button>
+
+      {/* 展开详情 */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="mt-1.5 rounded-md bg-muted/40 p-2 text-sm text-muted-foreground">
+              {step.content ? (
+                <Markdown content={step.content} isAnimating={false} />
+              ) : (
+                <span className="text-xs opacity-60">无内容</span>
               )}
             </div>
           </motion.div>

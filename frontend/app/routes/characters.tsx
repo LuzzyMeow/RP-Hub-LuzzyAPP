@@ -78,6 +78,8 @@ import {
   extractWorldInfoFromCard,
   extractRegexScriptsFromCard,
 } from "~/services/characterCardImport";
+// v0.4.4: 鹿溪角色保护 - 禁止编辑/删除/分享
+import { LUXI_CHARACTER_NAME } from "~/services/presetContent";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
@@ -460,6 +462,12 @@ export default function CharactersPage() {
     setIsNew(true);
   }, []);
 
+  // v0.4.4: 鹿溪角色保护 - 禁止编辑/删除/分享
+  const isLuxiCharacter = React.useCallback(
+    (c: Character) => c.name === LUXI_CHARACTER_NAME,
+    [],
+  );
+
   /** 打开编辑弹窗 */
   const handleEdit = React.useCallback((c: Character) => {
     setEditing(c);
@@ -575,6 +583,8 @@ export default function CharactersPage() {
   /** v0.3.4: 单击角色卡跳转聊天页 */
   const handleCardClick = React.useCallback(
     (c: Character) => {
+      // v0.4.4: 鹿溪角色保护 - 禁止点击进入（保留收藏按钮可用）
+      if (c.name === LUXI_CHARACTER_NAME) return;
       setCurrentCharacterUuid(c.uuid);
       setCurrentCharacter(c);
       // 查找该角色的最近会话
@@ -958,6 +968,7 @@ export default function CharactersPage() {
                       onSwipeRight={() => handleEdit(c)}
                       leftIcon={<IconTrash className="size-5" />}
                       rightIcon={<IconEdit className="size-5" />}
+                      disabled={isLuxiCharacter(c)}
                     >
                       <Card
                         className="cursor-pointer gap-3 rounded-xl p-3 transition-all"
@@ -1018,19 +1029,22 @@ export default function CharactersPage() {
                               }`}
                             />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleExport(c);
-                            }}
-                            title="分享/导出"
-                            {...pressableSubtle}
-                          >
-                            <IconShare className="size-4" />
-                          </Button>
+                          {/* v0.4.4: 分享/导出按钮 - 鹿溪隐藏 */}
+                          {!isLuxiCharacter(c) && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExport(c);
+                              }}
+                              title="分享/导出"
+                              {...pressableSubtle}
+                            >
+                              <IconShare className="size-4" />
+                            </Button>
+                          )}
                         </div>
                       </Card>
                     </SwipeCard>
@@ -1062,6 +1076,7 @@ export default function CharactersPage() {
                   onChange={(e) => updateField("name", e.target.value)}
                   placeholder="角色名称"
                   className="max-w-full"
+                  inputMode="text"
                 />
               </div>
 
@@ -1258,6 +1273,7 @@ export default function CharactersPage() {
                   }
                   placeholder="标签1, 标签2"
                   className="max-w-full"
+                  inputMode="text"
                 />
               </div>
 
@@ -1270,6 +1286,7 @@ export default function CharactersPage() {
                     onChange={(e) => updateField("creator", e.target.value)}
                     placeholder="创作者名称"
                     className="max-w-full"
+                    inputMode="text"
                   />
                 </div>
                 <div className="grid min-w-0 gap-2">
@@ -1279,6 +1296,7 @@ export default function CharactersPage() {
                     onChange={(e) => updateField("characterVersion", e.target.value)}
                     placeholder="1.0"
                     className="max-w-full"
+                    inputMode="text"
                   />
                 </div>
               </div>

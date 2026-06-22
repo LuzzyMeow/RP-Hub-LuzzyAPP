@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.4.4
+
+### 🐛 Bug 修复
+
+- **内置工具模型不知道可以调用（重点任务）**：实现混合工具调用方案。`apiClient.ts` 新增 `buildToolSchema` 函数为各工具类型生成 JSON Schema,`buildApiRequestBody` 注入 `tools` 和 `tool_choice` 参数;`SSEChunkData` 接口新增 `toolCalls` 字段,`parseSSEChunk` 解析 `delta.tool_calls`;`chat-slice.ts` 新增 `accumulatedToolCalls` 流式增量合并(按 index/id 累积),`executeWithTimeout`(30s 超时保护)和 `executeToolByName` 执行原生 tool_calls,工具结果截断到 2000 字符,JSON.parse 失败时回退原始字符串。优先原生 tool_calls,回退文本标签解析模式
+- **嵌入模型配置了不起作用（重点任务）**：`memoryService.ts` `buildVectorMemory` 和 `searchVectorMemoryWithScore` 新增 `if (!settings.embeddingModel) return []` 早返回,记忆系统启用判断从 `enabled` 字段改为 `embeddingModel` 是否存在;`getEmbedding` 添加日志打印模型名和文本长度,`buildVectorMemory` 和 `searchVectorMemory` 添加启动/完成日志
+- **三大记忆功能失效（重点任务）**：`chatService.ts` 向量记忆召回判断从 `memorySettings?.enabled` 改为 `memorySettings?.embeddingModel`,与会话记忆/长期记忆/全局记忆(ACE Skillbook)的启用逻辑一致
+- **Android 真机流式输出完全失效（重点任务）**：`apiClient.ts` 模块顶部保存原始 fetch/XMLHttpRequest 引用(带 Node.js 环境安全检测),XHR 构造函数三级回退策略(CapacitorWebXMLHttpRequest.fullObject → 原始 XHR → XMLHttpRequest);`MainActivity.java` 代理请求添加 `Accept-Encoding: identity` 禁用 gzip,响应头添加 `Cache-Control: no-cache` 和 `X-Accel-Buffering: no` 禁用缓冲;`onprogress` 添加诊断日志
+- **工具卡片时序 bug（重点任务）**：`chat-slice.ts` `callApiAndUpdate` 函数内 `agentSteps` 初始化改为读取已有消息的 agentSteps(`existingMsg?.agentSteps ? [...existingMsg.agentSteps] : []`),继承 force 预执行阶段的 tool_call/tool_result 步骤,避免流式 CoT 更新时覆盖
+- **会话切换滚动问题**：`chat.tsx` `handleSwitchSession` 添加 `setTimeout(() => scrollToBottom(), 300)`,等待 AnimatePresence 动画完成后滚动到底部
+- **输入法自动唤出**：`settings.tsx` 移除自定义目标语言弹窗的 `autoFocus`,API 地址输入框添加 `inputMode="url"`,上下文长度/输出长度/历史消息数限制添加 `inputMode="numeric"`;`characters.tsx` 名称/标签/创作者/版本输入框添加 `inputMode="text"`
+
+### ✨ 新增功能
+
+- **20 轮分页**：`chat.tsx` 新增 `PAGE_SIZE=40`(20 轮 = 40 条消息)、`displayCount`、`isLoadingMore` 状态;切换会话时重置分页;`visibleMessages` 仅渲染最后 `displayCount` 条消息;`handleScroll` 在 scrollTop < 50 时加载更多,500ms 动画,保持滚动位置;顶部加载指示器(IconRefresh animate-spin)。仅前端分页,后端保留完整会话
+- **火山方舟 CodingPlan 供应商**：`settings-slice.ts` 新增 `ArkCodingPlan` 供应商(id: "ArkCodingPlan", apiUrl: "https://ark.cn-beijing.volces.com/api/coding/v3", customRequestBody: '{"thinking": {"type": "enabled"}}'),内置 3 个模型:glm-5.2(1024K 上下文/128K 输出/推理)、deepseek-v4-pro(1024K/384K/推理)、doubao-embedding-vision(视觉+嵌入)
+- **DeepSeek 供应商 customRequestBody**：`settings-slice.ts` DeepSeek 供应商添加 `apiType: "openai-compatible"`、`customRequestBody: '{"reasoning_effort": "max"}'`,模型 contextLength 改为 1048576,outputLength 改为 393216
+- **角色卡鹿溪保护**：`characters.tsx` 导入 `LUXI_CHARACTER_NAME`,新增 `isLuxiCharacter` 判断函数;SwipeCard 对鹿溪禁用滑动(`disabled={isLuxiCharacter(c)}`);分享按钮对鹿溪条件渲染(`!isLuxiCharacter(c)`);`handleCardClick` 鹿溪提前返回
+- **工具卡片作为思考节点**：`luzzy-thinking-timeline.tsx` 新增 `ToolStep` 接口和 `TimelineStep` 联合类型,`isToolStep` 类型守卫,`mergeSteps` 函数(工具步骤与思考步骤合并);`ToolNode` 组件渲染 tool_call(蓝色 IconToolKit)/tool_result(绿色 IconCheck)/memory_inject(紫色 IconBook)/knowledge_call(琥珀色 IconSearch);`LuzzyThinkingTimeline` 接受 `agentSteps` 参数;`luzzy-chat-message.tsx` `CotCard` 传递 `agentSteps`
+
+### 🚀 功能增强
+
+- **历史消息 token 级截断**：`chatService.ts` 新增 `truncateByTokens` 函数(1 token ≈ 2 字符保守估算,预留 4096 token 给 system prompt 和输出),在 `historyMessageLimit` 条数级截断后追加 token 级保护,从最新消息向前保留,丢弃最早消息(由记忆召回/向量记忆工具补充)
+- **记忆设置 UI 简化**：`memory.tsx` `DEFAULT_MEMORY_SETTINGS.enabled` 改为 `true`;移除启用开关、召回深度配置、向量 Top-K 配置;保留嵌入模型选择器和相似度阈值滑块;顶部添加说明"记忆系统在配置嵌入模型后自动启用";Badge 状态判断改为基于 `hasEmbeddingModel`;保存逻辑强制 `enabled: true, recallDepth: 10, vectorTopK: 15`
+- **自动化测试脚本**：新增 `vitest.config.ts` 配置;新增 3 个测试文件:`streaming.test.ts`(12 个测试,SSE 解析/tool_calls 增量合并)、`tool-calls.test.ts`(11 个测试,buildToolSchema/原生 tool_calls 解析)、`memory.test.ts`(11 个测试,cosineSimilarity/buildVectorMemory 早返回/searchVectorMemory 早返回);`package.json` 添加 `test` 和 `test:watch` 脚本
+- **版本号升级**：v0.4.3 → v0.4.4(package.json + frontend/package.json + build.gradle versionCode 22 + about.tsx + README.md 徽章)
+
 ## v0.4.3
 
 ### 🐛 Bug 修复

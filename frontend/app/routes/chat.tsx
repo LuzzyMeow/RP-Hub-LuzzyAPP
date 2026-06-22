@@ -19,6 +19,7 @@ import {
   IconExclamation,
   IconSettings,
   IconArrowDown,
+  IconRefresh,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
@@ -148,6 +149,43 @@ export default function ChatPage() {
   // 智能滚动附着（use-stick-to-bottom）
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
 
+  // v0.4.4: 20 轮分页(20 对话轮 = 40 条消息)
+  const PAGE_SIZE = 40;
+  const [displayCount, setDisplayCount] = React.useState(PAGE_SIZE);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+
+  // v0.4.4: 切换会话时重置分页
+  React.useEffect(() => {
+    setDisplayCount(PAGE_SIZE);
+  }, [currentSessionId]);
+
+  // v0.4.4: 只渲染最后 displayCount 条消息
+  const visibleMessages = React.useMemo(() => {
+    return messages.slice(-displayCount);
+  }, [messages, displayCount]);
+
+  // v0.4.4: 滚动到顶部时加载更多消息
+  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    if (target.scrollTop < 50 && displayCount < messages.length && !isLoadingMore) {
+      setIsLoadingMore(true);
+      const prevScrollHeight = target.scrollHeight;
+      const prevScrollTop = target.scrollTop;
+
+      // 显示刷新转圈动画 500ms
+      setTimeout(() => {
+        setDisplayCount(prev => Math.min(prev + PAGE_SIZE, messages.length));
+        // 保持滚动位置(加载历史消息后,视图不跳动)
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevScrollHeight + prevScrollTop;
+          }
+        });
+        setIsLoadingMore(false);
+      }, 500);
+    }
+  }, [displayCount, messages.length, isLoadingMore, scrollRef]);
+
   // 消息变化时，若已附着底部则自动滚动
   React.useEffect(() => {
     if (isAtBottom) {
@@ -272,10 +310,14 @@ export default function ChatPage() {
           setCurrentCharacterUuid(session.characterId);
           setCurrentCharacter(char);
         }
+        // v0.4.4: 等待 AnimatePresence 动画完成后滚动到底部
+        setTimeout(() => {
+          scrollToBottom();
+        }, 300);
       }
       setShowAllSessions(false);
     },
-    [switchSession, sessions, setMessages, characters, setCurrentCharacterUuid, setCurrentCharacter],
+    [switchSession, sessions, setMessages, characters, setCurrentCharacterUuid, setCurrentCharacter, scrollToBottom],
   );
 
   /** 删除会话 */
@@ -486,7 +528,11 @@ export default function ChatPage() {
               />
             )}
             {/* 消息列表 - 使用 use-stick-to-bottom 实现智能滚动附着 */}
-            <div ref={scrollRef} className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden">
+            <div
+              ref={scrollRef}
+              className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden"
+              onScroll={handleScroll}
+            >
               {/* v0.4.1: 会话切换/分支创建时的淡入淡出 + 滑动过渡动画 */}
               <AnimatePresence mode="wait">
                 <motion.div
@@ -498,13 +544,28 @@ export default function ChatPage() {
                   transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                   className="flex flex-col gap-1 py-4"
                 >
-                  {messages.map((msg, i) => (
+                  {/* v0.4.4: 顶部加载指示器 */}
+                  {displayCount < messages.length && (
+                    <div className="flex justify-center py-4">
+                      {isLoadingMore ? (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <IconRefresh className="size-4 animate-spin" />
+                          <span>加载更多消息...</span>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground/50">
+                          向上滚动查看更多
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {visibleMessages.map((msg, i) => (
                     <div key={msg.id} id={`msg-${msg.id}`}>
                       <LuzzyChatMessage
                         message={msg}
                         avatarUrl={currentCharacter.avatar}
                         avatarName={currentCharacter.name}
-                        isLast={i === messages.length - 1}
+                        isLast={i === visibleMessages.length - 1}
                         isGenerating={isGenerating}
                         onCopy={handleCopy}
                         onDelete={handleDelete}
