@@ -444,6 +444,16 @@ export const createChatSlice: StateCreator<
           };
         });
 
+        // v0.5.1: phase="tool" 时剥离 assistant 消息的角色名
+        // 避免模型因历史消息中带有 name:"角色名" 而认领角色身份，忽略工具决策指令
+        if (phase === "tool") {
+          for (const msg of apiMessages) {
+            if (msg.role === "assistant" && msg.name) {
+              delete msg.name;
+            }
+          }
+        }
+
         // v0.4.1: phase="main" 时,在 messages 末尾追加 assistant(CoT) + user(指令)
         // 关键: 不修改 system_prompt 和已有 messages,仅在末尾追加,确保 KV 缓存命中
         if (phase === "main" && cotContent) {

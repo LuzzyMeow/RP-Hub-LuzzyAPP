@@ -1186,7 +1186,9 @@ export const extractMemory = async (
       character.uuid,
       sessionId,
     );
-    const allShards = [...existingShards, ...adjustedShards];
+    // v0.5.1: 按 turn 去重，处理重试/重新生成导致的同轮多次分片冗余
+    const dedupedExisting = existingShards.filter(s => s.turn !== turnNumber);
+    const allShards = [...dedupedExisting, ...adjustedShards];
 
     await saveVectorMemoryShards(character.uuid, allShards, sessionId);
   } catch (e) {
