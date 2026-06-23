@@ -665,6 +665,19 @@ export const loadVectorMemoryShards = async (
   const data = await getItem<VectorMemoryShard[]>('memory', key);
   const count = data?.length ?? 0;
   logger.debug("memory", `loadVectorMemoryShards: key=${key} 分片数=${count}`);
+
+  // v0.6.1-fix: 向后兼容 - 若带 session 的键返回空，尝试不带 session 的键
+  // （旧版保存时 currentSessionId 可能为 null，分片存到了角色级键）
+  if (sessionId && count === 0) {
+    const fallbackKey = `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}`;
+    const fallbackData = await getItem<VectorMemoryShard[]>('memory', fallbackKey);
+    const fallbackCount = fallbackData?.length ?? 0;
+    if (fallbackCount > 0) {
+      logger.info("memory", `loadVectorMemoryShards: 回退到角色级键 key=${fallbackKey} 分片数=${fallbackCount}`);
+      return fallbackData!;
+    }
+  }
+
   return data ?? [];
 };
 

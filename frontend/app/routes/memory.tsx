@@ -752,6 +752,9 @@ function SessionMemoryTab({
               value={selectedUuid}
               onValueChange={(v) => {
                 setSelectedUuid(v);
+                // v0.6.1: 角色切换时重置会话和世界书选择
+                setSelectedSessionId("");
+                setSelectedBookId("");
                 setActiveSource("session");
               }}
             >
@@ -773,7 +776,7 @@ function SessionMemoryTab({
               </SelectContent>
             </Select>
 
-            {/* 会话选择（二级缩进，移除"全部会话"选项） */}
+            {/* v0.6.1: 会话选择（二级缩进，与世界书互斥） */}
             {selectedUuid && characterSessions.length > 0 && (
               <div className="ml-4 grid gap-2 border-l border-border/40 pl-3">
                 <label className="text-xs font-medium text-muted-foreground">
@@ -783,6 +786,8 @@ function SessionMemoryTab({
                   value={selectedSessionId}
                   onValueChange={(v) => {
                     setSelectedSessionId(v);
+                    // v0.6.1: 互斥 - 选择会话时清空世界书
+                    setSelectedBookId("");
                     setActiveSource("session");
                   }}
                 >
@@ -799,43 +804,43 @@ function SessionMemoryTab({
                 </Select>
               </div>
             )}
-          </div>
 
-          {/* 世界书选择（一级，与角色卡平级） */}
-          <div className="grid gap-2 border-t border-border/30 pt-3">
-            <label className="text-sm font-medium">选择世界书</label>
-            <Select
-              value={selectedBookId}
-              onValueChange={(v) => {
-                setSelectedBookId(v);
-                setActiveSource("world");
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="选择世界书查看向量分片" />
-              </SelectTrigger>
-              <SelectContent>
-                {worldBooks.length === 0 ? (
-                  <SelectItem value="__none__" disabled>
-                    暂无世界书
-                  </SelectItem>
-                ) : (
-                  worldBooks.map((b) => (
-                    <SelectItem key={b.bookId} value={b.bookId}>
-                      <span className="flex items-center gap-2">
-                        <span className="truncate">{b.bookName}</span>
-                        <Badge
-                          variant="outline"
-                          className="text-[10px] leading-none"
-                        >
-                          {b.count}
-                        </Badge>
-                      </span>
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
+            {/* v0.6.1: 世界书选择（二级缩进，与会话互斥） */}
+            {selectedUuid && worldBooks.length > 0 && (
+              <div className="ml-4 grid gap-2 border-l border-border/40 pl-3">
+                <label className="text-xs font-medium text-muted-foreground">
+                  选择世界书
+                </label>
+                <Select
+                  value={selectedBookId}
+                  onValueChange={(v) => {
+                    setSelectedBookId(v);
+                    // v0.6.1: 互斥 - 选择世界书时清空会话
+                    setSelectedSessionId("");
+                    setActiveSource("world");
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="选择世界书查看向量分片" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {worldBooks.map((b) => (
+                      <SelectItem key={b.bookId} value={b.bookId}>
+                        <span className="flex items-center gap-2">
+                          <span className="truncate">{b.bookName}</span>
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] leading-none"
+                          >
+                            {b.count}
+                          </Badge>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           {/* 分片列表 */}
