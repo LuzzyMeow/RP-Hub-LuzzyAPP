@@ -25,42 +25,76 @@ rikkahub 是 Kotlin/Compose Android 原生应用，与 RP-Hub（TypeScript/React
 - `flowOn(Dispatchers.Default)`（后台调度）→ `useDeferredValue` 自动延迟到低优先级
 - `callbackFlow + EventSource`（SSE 接收）→ `XHR onprogress + 异步队列`
 
+---
+
 ### 🏗️ 三请求架构修复
 
 - **A1 — world-recall enabled 过滤修复**（`chat-slice.ts`）：移除 `executeToolByName` 中的 enabled 二次过滤（加载时已按 bookId 过滤，buildContext 已按 enabled 过滤），避免误删有效条目
 - **A2 — embedding 懒加载**（`chat-slice.ts`）：对缺少 embedding 的 WorldInfoEntry 实时生成并持久化到 IndexedDB，修复 `WorldInfoEntry.embedding` 从未赋值导致语义检索退化为无序的问题
 - **B2 — onChunk abort 检查**（`chat-slice.ts`）：onChunk 回调首行检查 `abortController?.signal.aborted`，避免向已卸载组件写入状态
 - **B3 — Phase 3 后 abort 检查**（`chat-slice.ts`）：正文生成完成后、工具调用循环之前检查 abort，避免卸载后继续执行工具调用
-- **D1 — parseCot 处理 reasoning 字段**（`chat-slice.ts`）：对 `accumulatedReasoning` 调用 `parseCot`，与 content 的 cot 合并，解决 GLM-5.2 等推理型模型将 CoT 放在 reasoning_content 字段的问题
-- **D2 — COT_OUTPUT_PROTOCOL reasoning 兼容**（`chatService.ts`）：协议末尾增加 reasoning_content 字段兼容说明，告知模型可不在 content 中使用 `<cot>` 标签
 
-### 🔧 三请求架构完美修复（日志溯源 — 4 大结构性缺陷）
+---
 
-> 通过用户日志 `LUZZY-logs-2026-06-23T03-42-39` 溯源定位：请求2(cot)首chunk延迟34秒、cot停在75字符空转1000+条日志、请求1返回的620字正文窜入气泡。根因为三请求共享同一 contextMessages + 输出写入不区分阶段 + CoT提取依赖标签。
+### 🔧 三请求架构结构性缺陷修复
 
-- **缺陷A — 请求间结果传递**（`chat-slice.ts`）：请求1的工具决策结果（`NO_TOOLS` 或 `tool_calls` 摘要）此前从未注入后续请求上下文，请求2/3完全看不到请求1发生了什么。修复：请求1完成后将规范化决策作为 `<tool_decision>` assistant 消息追加到 contextMessages，请求2/3即可见
-- **缺陷B — phase=tool 输出隔离**（`chat-slice.ts`）：此前 `phase !== "cot"` 的二分逻辑使 `phase=tool` 走 else 分支，将请求1返回的 `NO_TOOLS\n\n---\n正文` 直接写入 `message.content` 气泡。修复：流式/非流式/最终态三处写入逻辑改为 `tool`/`cot`/`main` 三分支严格隔离，`phase=tool` 仅更新 agentSteps，绝不触碰 content/cot
-- **缺陷C — CoT reasoning 直接显示**（`chat-slice.ts`）：此前对 `reasoning_content` 字段仍调用 `parseCot` 找 `<cot>` 标签，但 API 通过 reasoning 返回的思考链是纯文本无标签，仅模型偶尔自发加标签的前75字符被提取，其余被当 `main` 丢弃。修复：`phase=cot` 时 `accumulatedReasoning` 直接作为 cot 显示（兼容回退：reasoning 为空时用 parseCot 提取 content 中的标签），思考卡片实现真正逐字流式
-- **缺陷D — CoT 阶段设定隔离说明**（`chatService.ts`）：请求2的角色设定/世界书段落此前无隔离说明，模型易混淆用途直接据此生成正文。修复：`phase=2` 时在 `[Character]` 和 `[World Info]` 段落前追加 `[以下设定内容仅为你的 CoT 推理参考素材，本阶段你只输出思考链，不输出正文]` 头部说明
-- **提示词阶段独立性强化**（`chatService.ts`）：`TOOL_DECISION_PROMPT` 新增"不要续写对话"明确禁止模型作为角色输出正文；`COT_OUTPUT_PROTOCOL` 重写为"本阶段唯一任务"开头，明确告知模型处于第2阶段、正文将在第3阶段独立生成，优先推荐 reasoning_content 字段输出（方式A），content 标签为备选（方式B）
+> 通过用户日志 `LUZZY-logs-2026-06-23T03-42-39` 溯源定位：三请求共享同一 contextMessages、输出写入不区分阶段、CoT 提取依赖标签等问题。
 
-### 📐 思考卡片层级设计规范（用户明确需求）
+#### 缺陷A — 请求间结果传递（`chat-slice.ts`）
 
-> 以下为用户明确提出的思考卡片（agentSteps）展示架构。后续开发者必须严格遵循此规范。
+请求1的工具决策结果（`NO_TOOLS` 或 `tool_calls` 摘要）此前从未注入后续请求上下文，请求2/3完全看不到请求1发生了什么。修复：请求1完成后将规范化决策作为 `<tool_decision>` assistant 消息追加到 contextMessages，请求2/3即可见。
+
+#### 缺陷B — phase=tool 输出隔离（`chat-slice.ts`）
+
+此前 `phase !== "cot"` 的二分逻辑使 `phase=tool` 走 else 分支，将请求1返回的 `NO_TOOLS\n\n---\n正文` 直接写入 `message.content` 气泡。修复：流式/非流式/最终态三处写入逻辑改为 `tool`/`cot`/`main` 三分支严格隔离，`phase=tool` 仅更新 agentSteps，绝不触碰 content/cot。
+
+#### 缺陷D — CoT 阶段设定隔离说明（`chatService.ts`）
+
+请求2的角色设定/世界书段落此前无隔离说明，模型易混淆用途直接据此生成正文。修复：`phase=2` 时在 `[Character]` 和 `[World Info]` 段落前追加 `[以下设定内容仅为你的 CoT 推理参考素材，本阶段你只输出思考链，不输出正文]` 头部说明。
+
+#### 提示词阶段独立性强化（`chatService.ts`）
+
+- `TOOL_DECISION_PROMPT`：新增"不要续写对话"明确禁止模型作为角色输出正文
+- `COT_OUTPUT_PROTOCOL`：重写为"本阶段唯一任务"开头，明确告知模型处于第2阶段、正文将在第3阶段独立生成，优先推荐 reasoning_content 字段输出（方式A），content 标签为备选（方式B）
+
+---
+
+### 📐 思考卡片层级重构（核心 — reasoning/content 分离显示）
+
+> 通过用户日志 `LUZZY-logs-2026-06-23T04-07-58` 溯源定位：模型通过 `content` 字段返回思考内容（`reasoning_content` 为0），但 CoT 提取逻辑依赖 `<cot>` 标签导致思考卡片空白，且思考内容窜入气泡。
+>
+> **核心改造**：`reasoning_content` 和 `content` 是两个独立字段，必须分别创建独立的思考卡片节点，不再合并。
+
+#### AgentStep 类型扩展（`luzzy.ts`）
+
+新增两种节点类型：
+- `brainstorm` — 头脑风暴（来自 `reasoning_content` 字段，模型原生思考）
+- `cot_output` — CoT 输出（来自请求2的 `content` 字段）
+
+#### 数据层重构（`chat-slice.ts`）
+
+- `chunk.reasoningContent` → 创建 `brainstorm` 节点（标题"头脑风暴"），流式实时更新
+- `chunk.content`（phase=cot）→ 创建 `cot_output` 节点（标题"CoT 输出"），流式实时更新
+- `chunk.content`（phase=tool）→ 不创建节点（工具决策由外层解析处理）
+- `chunk.content`（phase=main）→ 写入 `message.content` 正文气泡
+- **phase=cot 不再写入 message.content**，彻底解决"思考内容窜入气泡"
+- 删除旧的 `finalCot` 合并逻辑（reasoning 和 content 不再合并到同一个 thinking 节点）
+- 删除未使用的 `THINKING_TITLES` 映射和 `parseCot` 对 reasoning 的二次提取
+
+#### 渲染层重构（`luzzy-thinking-timeline.tsx`）
+
+- 新增 `BrainstormStep`、`CotOutputStep` 类型，加入 `TimelineStep` 联合类型
+- **重写 `mergeSteps` 函数**：不再过滤 `thinking` 类型，改为按 agentSteps 原始顺序遍历，将 `brainstorm`/`cot_output`/`tool_call`/`tool_result` 各自转换为对应节点
+- 删除未使用的 `mergeAgentSteps` 函数（逻辑内联到 mergeSteps）
+- **ThinkingNode 新增 `nodeType` 属性**：brainstorm 用琥珀色灯泡图标（`IconLight`），cot_output 用紫色消息图标（`IconMessage`），thinking 保持原样
+
+#### 过滤移除（`luzzy-chat-message.tsx`）
+
+移除了 `agentSteps?.filter((s) => !(s.type === "thinking" && message.cot))` 的二次过滤，直接传递所有 agentSteps 给 CotCard。
+
+#### 思考卡片层级设计规范（用户明确需求）
 
 三请求架构的每个阶段会产生两类内容，必须在思考卡片中以**独立的二级节点**分开显示：
-
-1. **模型原生思考（reasoning_content 字段）** → 显示为「头脑风暴」节点
-   - 这是模型自身的推理过程，由 API 的 `reasoning_content` 字段返回
-   - 每次请求（工具决策/CoT/正文）都可能产生独立的 reasoning，各自成为独立的「头脑风暴」节点
-   - 节点标题固定为"头脑风暴"
-
-2. **模型输出内容（content 字段）** → 按阶段用途命名节点
-   - 请求1的 content → 「工具调用」节点（工具调用的输入和输出放在一起）
-   - 请求2的 content → 「CoT 输出」节点（遵循 CoT 框架/Step 步骤的思考链）
-   - 请求3的 content → 正文气泡（非思考卡片节点）
-
-期望的思考卡片层级结构：
 
 ```
 一级思考卡片（顶层容器）
@@ -77,6 +111,8 @@ rikkahub 是 Kotlin/Compose Android 原生应用，与 RP-Hub（TypeScript/React
 - 当 reasoning_content 为空（模型不支持思考字段，如 `thinking=false`）时，跳过「头脑风暴」节点，不创建空节点
 - 当请求1的 content 为 `NO_TOOLS` 时，跳过「工具调用」节点
 - 每个节点的内容随其阶段 SSE chunk 流式实时增长
+
+---
 
 ### 🗑️ 数据完整性
 
