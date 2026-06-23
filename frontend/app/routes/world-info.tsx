@@ -31,6 +31,7 @@ import {
   IconKey,
   IconTag,
   IconExclamation,
+  IconRefresh,
 } from "~/components/luzzy/luzzy-icons";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 import { useBindingDeleteConfirm } from "~/components/luzzy/luzzy-binding-delete-dialog";
@@ -267,6 +268,9 @@ export default function WorldInfoPage() {
   const customApiProviders = useAppStore((s) => s.customApiProviders);
   const apiProviderKeys = useAppStore((s) => s.apiProviderKeys);
 
+  // v0.6.0: 嵌入向量生成中状态（用于显示处理动画）
+  const [isGeneratingEmbeddings, setIsGeneratingEmbeddings] = React.useState(false);
+
   /** v0.5.9: 触发世界书条目嵌入向量预生成（异步，不阻塞 UI） */
   const triggerEmbeddingGeneration = React.useCallback(
     (entriesToProcess: WorldInfoEntry[]) => {
@@ -299,6 +303,8 @@ export default function WorldInfoPage() {
           ).length;
           if (count > 0) {
             toast.info(`已开始为 ${count} 条世界书条目生成嵌入向量...`);
+            // v0.6.0: 设置生成中状态，显示处理动画
+            setIsGeneratingEmbeddings(true);
           }
           await generateWorldInfoEmbeddings(
             entriesToProcess,
@@ -309,6 +315,9 @@ export default function WorldInfoPage() {
           );
         } catch (e) {
           logger.warn("world", "世界书嵌入预生成失败: " + (e as Error).message);
+        } finally {
+          // v0.6.0: 无论成功或失败都关闭处理动画
+          setIsGeneratingEmbeddings(false);
         }
       })();
     },
@@ -734,6 +743,28 @@ export default function WorldInfoPage() {
             )}
           </div>
         )}
+
+        {/* v0.6.0: 嵌入向量生成中处理动画 */}
+        <AnimatePresence>
+          {isGeneratingEmbeddings && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25 }}
+              className="flex shrink-0 items-center gap-2 overflow-hidden rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs text-primary"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="shrink-0"
+              >
+                <IconRefresh className="size-3.5" />
+              </motion.div>
+              <span>正在生成向量记忆分片...</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {loaded && entries.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">

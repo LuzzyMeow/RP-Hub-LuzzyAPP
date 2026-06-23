@@ -712,6 +712,25 @@ export const removeVectorMemoryShardsByTurn = async (
   }
 };
 
+/**
+ * v0.6.0: 按 ID 删除单个会话向量记忆分片
+ *
+ * 用于记忆页面分片详情 Dialog 的删除操作。
+ */
+export const removeVectorMemoryShardById = async (
+  characterUuid: string,
+  shardId: string,
+  sessionId?: string,
+): Promise<void> => {
+  if (!characterUuid || !shardId) return;
+  const existing = await loadVectorMemoryShards(characterUuid, sessionId);
+  const filtered = existing.filter((s) => s.id !== shardId);
+  if (filtered.length !== existing.length) {
+    await saveVectorMemoryShards(characterUuid, filtered, sessionId);
+    logger.info("memory", `removeVectorMemoryShardById: 删除分片 ${shardId}，剩余 ${filtered.length} 个`);
+  }
+};
+
 // ============================================================================
 // 世界书向量记忆分片（v0.5.9 新增）
 // ============================================================================
@@ -753,6 +772,24 @@ export const saveWorldVectorMemoryShards = async (
   const key = `${WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX}${bookId}`;
   logger.info("memory", `saveWorldVectorMemoryShards: key=${key} 分片数=${shards.length}`);
   await setItem('memory', key, shards);
+};
+
+/**
+ * v0.6.0: 按 ID 删除单个世界书向量记忆分片
+ *
+ * 用于记忆页面分片详情 Dialog 的删除操作。
+ */
+export const removeWorldVectorMemoryShardById = async (
+  bookId: string,
+  shardId: string,
+): Promise<void> => {
+  if (!bookId || !shardId) return;
+  const existing = await loadWorldVectorMemoryShards(bookId);
+  const filtered = existing.filter((s) => s.id !== shardId);
+  if (filtered.length !== existing.length) {
+    await saveWorldVectorMemoryShards(bookId, filtered);
+    logger.info("memory", `removeWorldVectorMemoryShardById: 删除世界书 ${bookId} 分片 ${shardId}，剩余 ${filtered.length} 个`);
+  }
 };
 
 /**
@@ -857,15 +894,23 @@ export const generateWorldInfoEmbeddings = async (
 
   for (const [bookId, groupEntries] of bookGroups) {
     try {
-      const shards: VectorMemoryShard[] = groupEntries.map((entry, idx) => ({
-        id: uuidv4(),
-        content: entry.content,
-        turn: idx + 1,
-        embedding: entry.embedding!,
-        createdAt: Date.now(),
-      }));
-      await saveWorldVectorMemoryShards(bookId, shards);
-      logger.info("memory", `generateWorldInfoEmbeddings: 保存世界书 ${bookId} 分片数=${shards.length}`);
+      // v0.6.0-fix: 合并已有分片，按 content 去重（同内容视为同分片，更新 embedding）
+      const existing = await loadWorldVectorMemoryShards(bookId);
+      const merged = [...existing];
+      for (const entry of groupEntries) {
+        const idx = merged.findIndex((s) => s.content === entry.content);
+        const shard: VectorMemoryShard = {
+          id: idx >= 0 ? merged[idx].id : uuidv4(),
+          content: entry.content,
+          turn: idx >= 0 ? merged[idx].turn : merged.length + 1,
+          embedding: entry.embedding!,
+          createdAt: idx >= 0 ? merged[idx].createdAt : Date.now(),
+        };
+        if (idx >= 0) merged[idx] = shard;
+        else merged.push(shard);
+      }
+      await saveWorldVectorMemoryShards(bookId, merged);
+      logger.info("memory", `generateWorldInfoEmbeddings: 合并保存世界书 ${bookId} 分片数=${merged.length}（新增/更新 ${groupEntries.length} 条）`);
     } catch (e) {
       logger.warn("memory", `generateWorldInfoEmbeddings: 保存世界书 ${bookId} 分片失败: ${(e as Error).message}`);
     }

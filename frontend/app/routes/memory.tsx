@@ -20,6 +20,7 @@ import {
   IconRefresh,
   IconLock,
   IconExclamation,
+  IconTrash,
 } from "~/components/luzzy/luzzy-icons";
 
 import type {
@@ -35,12 +36,15 @@ import { logger } from "~/services/logger";
 import {
   loadVectorMemoryShards,
   loadWorldVectorMemoryShards,
+  removeVectorMemoryShardById,
+  removeWorldVectorMemoryShardById,
   // v0.5.9-locked: 长期记忆功能锁定
   // loadLongTermMemory,
   // searchAllMemory,
   // type MemorySearchResult,
 } from "~/services/memoryService";
 import { useAppStore } from "~/stores";
+import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -53,6 +57,7 @@ import {
 } from "~/components/ui/card";
 import { Slider } from "~/components/ui/slider";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -60,6 +65,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "~/components/ui/dialog";
 import {
   Empty,
   EmptyHeader,
@@ -72,6 +85,7 @@ import {
   pressable,
   pressableSubtle,
   fadeSlide,
+  listItemAnimation,
 } from "~/lib/motion-presets";
 import { toast } from "sonner";
 
@@ -542,6 +556,44 @@ function SessionMemoryTab({
     "session",
   );
 
+  // v0.6.0: 分片详情 Dialog 状态 + 删除确认
+  const [selectedShard, setSelectedShard] = React.useState<VectorMemoryShard | null>(null);
+  const [deleting, setDeleting] = React.useState(false);
+  // v0.6.0: 处理中动画状态（分片为空且嵌入模型已配置时显示）
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  const confirm = useConfirm();
+
+  /** v0.6.0: 删除单个分片（会话或世界书） */
+  const handleDeleteShard = React.useCallback(async () => {
+    if (!selectedShard) return;
+    const ok = await confirm({
+      title: "删除分片",
+      description: "确定删除该向量记忆分片吗？此操作不可撤销。",
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      if (activeSource === "world") {
+        await removeWorldVectorMemoryShardById(selectedBookId, selectedShard.id);
+        setWorldShards((prev) => prev.filter((s) => s.id !== selectedShard.id));
+      } else {
+        await removeVectorMemoryShardById(
+          selectedUuid,
+          selectedShard.id,
+          selectedSessionId || undefined,
+        );
+        setShards((prev) => prev.filter((s) => s.id !== selectedShard.id));
+      }
+      toast.success("分片已删除");
+      setSelectedShard(null);
+    } catch (e) {
+      toast.error("删除失败：" + (e as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  }, [selectedShard, activeSource, selectedBookId, selectedUuid, selectedSessionId, confirm]);
+
   /** 当前角色的会话列表（按最近更新排序） */
   const characterSessions = React.useMemo(() => {
     if (!selectedUuid) return [];
@@ -668,6 +720,19 @@ function SessionMemoryTab({
   const displayLoaded =
     activeSource === "world" ? worldLoaded : loaded;
 
+  // v0.6.0: 分片列表为空且嵌入模型已配置时，短暂显示"正在处理"动画
+  // 实际向量生成是异步的（extractMemory / generateWorldInfoEmbeddings），此处仅作 UX 提示
+  React.useEffect(() => {
+    if (!displayLoaded) return;
+    const hasSelection = activeSource === "world" ? !!selectedBookId : !!selectedUuid;
+    if (hasEmbeddingModel && hasSelection && displayShards.length === 0) {
+      setIsProcessing(true);
+      const timer = setTimeout(() => setIsProcessing(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    setIsProcessing(false);
+  }, [displayLoaded, displayShards.length, hasEmbeddingModel, activeSource, selectedBookId, selectedUuid]);
+
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
       <Card>
@@ -774,7 +839,14 @@ function SessionMemoryTab({
           </div>
 
           {/* 分片列表 */}
-          {!hasEmbeddingModel && (activeSource === "session" ? !selectedUuid || (displayLoaded && displayShards.length === 0) : !selectedBookId || (displayLoaded && displayShards.length === 0)) ? (
+          {!displayLoaded ? (
+            // v0.6.0: 加载中状态 - Skeleton 占位
+            <div className="flex flex-col gap-2 p-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-16 w-full rounded-md" />
+              ))}
+            </div>
+          ) : !hasEmbeddingModel && (activeSource === "session" ? !selectedUuid || (displayLoaded && displayShards.length === 0) : !selectedBookId || (displayLoaded && displayShards.length === 0)) ? (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -809,6 +881,31 @@ function SessionMemoryTab({
                 </Button>
               )}
             </motion.div>
+          ) : isProcessing ? (
+            // v0.6.0: 处理中动画 - 分片为空且嵌入模型已配置时显示
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="shrink-0"
+              >
+                <IconRefresh className="size-4 text-primary" />
+              </motion.div>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-primary">
+                  正在生成向量记忆分片...
+                </span>
+                <span className="text-xs text-primary/70">
+                  系统正在分析并构建向量索引，请稍候
+                </span>
+              </div>
+            </motion.div>
           ) : activeSource === "session" && !selectedUuid ? (
             <EmptyState
               icon={<IconBook className="size-6" />}
@@ -840,9 +937,12 @@ function SessionMemoryTab({
                   {displayShards.map((s, idx) => (
                     <motion.div
                       key={s.id}
-                      {...springEnter}
+                      layout
+                      {...listItemAnimation}
                       custom={idx}
-                      className="rounded-md border bg-muted/30 p-2.5"
+                      onClick={() => setSelectedShard(s)}
+                      className="cursor-pointer rounded-md border bg-muted/30 p-2.5 transition-colors hover:bg-muted/50"
+                      {...pressableSubtle}
                     >
                       <div className="mb-1.5 flex items-center gap-1.5">
                         <Badge variant="outline" className="text-xs">
@@ -866,6 +966,57 @@ function SessionMemoryTab({
           )}
         </CardContent>
       </Card>
+
+      {/* v0.6.0: 分片详情 Dialog */}
+      <Dialog open={!!selectedShard} onOpenChange={(o) => !o && setSelectedShard(null)}>
+        <DialogContent className="max-h-[85vh] min-w-0 overflow-hidden max-w-2xl">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-2">
+              <IconBook className="size-4" />
+              分片详情
+            </DialogTitle>
+            <DialogDescription>
+              {selectedShard &&
+                `轮次 ${selectedShard.turn} · ${selectedShard.embedding.length} 维 · ${formatTime(selectedShard.createdAt)}`}
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="flex-1 min-h-0 pr-2">
+            <div className="flex flex-col gap-3 pb-2">
+              {/* 元数据 */}
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs">
+                  轮次 {selectedShard?.turn}
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {selectedShard?.embedding.length ?? 0} 维
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  {formatTime(selectedShard?.createdAt ?? 0)}
+                </Badge>
+              </div>
+              {/* 完整内容 */}
+              <div className="rounded-md border bg-muted/30 p-3">
+                <p className="whitespace-pre-wrap break-words text-sm">
+                  {selectedShard?.content || "(空)"}
+                </p>
+              </div>
+            </div>
+          </ScrollArea>
+          <DialogFooter className="shrink-0 gap-2">
+            <Button variant="outline" onClick={() => setSelectedShard(null)}>
+              关闭
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteShard}
+              disabled={deleting}
+            >
+              <IconTrash className="size-4" />
+              {deleting ? "删除中..." : "删除"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -912,7 +1063,7 @@ function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTab
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-foreground">功能开发中，敬请期待</span>
               <span className="text-xs text-muted-foreground">
-                长期记忆功能正在重构中，暂不可用
+                长期记忆功能正在重构中，暂不可用。当前会话向量记忆不受此设置影响
               </span>
             </div>
           </motion.div>
@@ -928,7 +1079,7 @@ function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTab
               </span>
             </label>
             <p className="text-xs text-muted-foreground">
-              选择要启用长期记忆的角色卡（不选则全部禁用）
+              此设置将在长期记忆功能解锁后生效，当前不影响会话向量记忆
             </p>
             <div className="flex flex-wrap gap-2">
               {characters.length === 0 ? (

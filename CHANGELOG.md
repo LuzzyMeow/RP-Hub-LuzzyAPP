@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.6.0
+
+### 🐛 重大修复
+
+> 修复向量记忆分片完全失效问题，新增分片详情 Dialog、删除功能和处理动画。
+
+- **修复向量记忆分片完全失效**：解除 `extractMemory` 闸门，会话向量记忆不再被 `longTermMemoryCharacterIds`（已锁定的长期记忆功能）阻挡，现在只受 `memorySettings.enabled` 控制
+- **修复世界书单条保存覆盖整本分片**：`generateWorldInfoEmbeddings` 改为合并保存模式，按 content 去重，逐条编辑保存不再清空整本只剩当前 1 条
+
+### ✨ 新功能
+
+- **分片详情 Dialog**：点击分片列表项打开详情弹窗，查看完整内容、元数据（轮次/维度/创建时间）
+- **分片删除功能**：详情 Dialog 内支持删除单个分片，带二次确认
+- **处理动画指示器**：
+  - 世界书页面：保存/导入条目时显示"正在生成向量记忆分片..."脉冲动画
+  - 记忆页面：分片列表为空且嵌入模型已配置时显示处理中占位项
+- **Skeleton 加载状态**：分片列表加载时显示骨架屏占位
+
+### 🎨 UI 优化
+
+- 分片列表项改为可点击，添加 `listItemAnimation` + `cursor-pointer` + `hover:bg-muted/50` 交互效果
+- LongTermMemoryTab 文案更新：明确告知当前设置不影响会话向量记忆
+
+### 🔧 技术改进
+
+- 新增 `removeVectorMemoryShardById` / `removeWorldVectorMemoryShardById` 服务函数
+- `handleDeleteShard` callback 区分 world/session 两个分支
+
 ## v0.5.9
 
 ### 🎯 记忆系统重构 + 向量分片修复 + 翻译高亮

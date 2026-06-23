@@ -2008,8 +2008,9 @@ export const createChatSlice: StateCreator<
       }
 
       // 10. 异步提取记忆（不阻塞主流程）
-      // v0.5.9: 空列表=全部禁用，非空列表=仅启用列出的角色
-      if (longTermMemoryEnabledForCharacter) {
+      // v0.6.0-fix: 会话向量记忆提取只受 memorySettings.enabled 控制，
+      //             不再受 longTermMemoryCharacterIds（已锁定的长期记忆功能）闸门
+      if (memorySettings?.enabled) {
         extractMemory({
           messages: get().messages,
           character: currentCharacter,
