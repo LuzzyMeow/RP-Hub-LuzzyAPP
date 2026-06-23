@@ -221,7 +221,7 @@ export function LuzzyChatInput({
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: "spring", stiffness: 260, damping: 24 }}
         className={cn(
-          "border-t border-border bg-background",
+          "relative z-20 border-t border-border bg-background shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]",
           className,
         )}
         style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
