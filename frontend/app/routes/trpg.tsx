@@ -108,7 +108,7 @@ export default function TrpgPage() {
               了解 TRPG 模式如何配置 API 服务
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 min-h-0 py-2 pr-2">
+          <div className="flex-1 min-h-0 overflow-y-auto py-2 pr-2">
             <div className="space-y-3 text-sm leading-relaxed">
               {/* v0.4.2: 重写说明弹窗,明确支持三种 API 配置场景 */}
               <div className="rounded-lg border border-border/50 bg-muted/30 p-3">

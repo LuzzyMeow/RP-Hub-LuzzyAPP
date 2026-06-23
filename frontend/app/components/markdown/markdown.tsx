@@ -136,7 +136,7 @@ export default function Markdown({
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         plugins={{ cjk: cjk }}
         isAnimating={isAnimating}
-        animated={isAnimating ? { animation: "fadeIn", sep: "word", duration: 150 } : false}
+        animated={false}
         controls={{code: false, mermaid: false}}
         components={{
           pre: ({ children }) => <>{children}</>,

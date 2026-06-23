@@ -406,7 +406,7 @@ function mergeSteps(
     const anyError = subItems.some((s) => s.status === "error");
     const toolStep: CombinedToolStep = {
       type: "tool",
-      title: "工具调用",
+      title: subItems.length > 1 ? `工具调用 (${subItems.length})` : "工具调用",
       category: "tool",
       subItems,
       status: anyRunning ? "running" : anyError ? "error" : "completed",
@@ -517,6 +517,22 @@ interface ToolNodeProps {
 
 function ThinkingNode({ step, isExpanded, onToggle, isLast, nodeType = "thinking" }: ThinkingNodeProps) {
   const isRunning = step.status === "running";
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const userScrolledRef = React.useRef(false);
+
+  // v0.5.8: 流式输出时自动吸附底部
+  React.useEffect(() => {
+    const el = contentRef.current;
+    if (!el || !isRunning || !isExpanded || userScrolledRef.current) return;
+    el.scrollTop = el.scrollHeight;
+  }, [step.content, isRunning, isExpanded]);
+
+  const handleScroll = React.useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+    userScrolledRef.current = !atBottom;
+  }, []);
 
   // v0.5.5-arch: 按 nodeType 区分图标和配色
   const nodeIconConfig = (() => {
@@ -590,7 +606,10 @@ function ThinkingNode({ step, isExpanded, onToggle, isLast, nodeType = "thinking
               transition={isRunning ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="overflow-hidden"
             >
-              <div className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground">
+              <div
+                ref={contentRef}
+                onScroll={handleScroll}
+                className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground">
                 {step.content ? (
                   <Markdown content={step.content} isAnimating={isRunning} />
                 ) : (

@@ -313,11 +313,10 @@ export const createChatSlice: StateCreator<
       logger.debug("memory", `向量记忆分片加载: ${vectorMemoryShards.length} 个`);
 
       // v0.5.6: longTermMemoryCharacterIds 过滤逻辑
-      // 空列表 = 所有角色卡的向量记忆均不启用
-      // 非空列表 = 仅启用列出的角色卡
+      // v0.5.8: 空列表 = 全部角色启用长期记忆，非空列表 = 仅启用列出的角色
       const longTermMemoryEnabledForCharacter = (() => {
         const ids = memorySettings?.longTermMemoryCharacterIds;
-        if (!ids || ids.length === 0) return false;
+        if (!ids || ids.length === 0) return true;
         return currentCharacter ? ids.includes(currentCharacter.uuid) : false;
       })();
 
@@ -1318,16 +1317,19 @@ export const createChatSlice: StateCreator<
             return results.map((r, i) => `  <memory index="${i + 1}" turn="${r.turn}">\n    ${r.content}\n  </memory>`).join('\n\n');
           }
           // keyword-search: 优先搜索向量记忆分片，无分片时回退到原始消息
+          // v0.5.8: 支持多关键词拆分 + 精准匹配评分
           if (toolName === "keyword-search") {
-            const lowerQuery = query.toLowerCase();
+            const terms = query.split(/[\s,，、;；|｜/\\]+/u).map((t) => t.trim().toLowerCase()).filter(Boolean);
             const source = vectorMemoryShards.length > 0
               ? vectorMemoryShards.map(s => ({ content: s.content, role: 'assistant' as const }))
               : get().messages.map(m => ({ content: m.content, role: m.role }));
-            const matched = source
-              .filter((item) => item.content && item.content.toLowerCase().includes(lowerQuery))
-              .slice(-limit);
-            if (matched.length === 0) return "<builtin_tool_result status='empty'>未找到匹配的消息。</builtin_tool_result>";
-            return matched.map((m, i) => `  <message index="${i + 1}" role="${m.role}">\n    ${m.content.slice(0, 500)}\n  </message>`).join('\n\n');
+            const scored = source.map((item) => {
+              const lowerContent = String(item.content || '').toLowerCase();
+              const matchCount = terms.filter((t) => lowerContent.includes(t)).length;
+              return { item, score: matchCount };
+            }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
+            if (scored.length === 0) return "<builtin_tool_result status='empty'>未找到匹配的消息。</builtin_tool_result>";
+            return scored.map((s, i) => `  <message index="${i + 1}" role="${s.item.role}" score="${s.score}">\n    ${s.item.content.slice(0, 500)}\n  </message>`).join('\n\n');
           }
           // world-recall: 世界书语义检索（需要嵌入模型）
           // v0.5.3: 移除 enabled 二次过滤——加载时已按 bookId 过滤，buildContext 已按 enabled 过滤
@@ -1348,7 +1350,8 @@ export const createChatSlice: StateCreator<
                 const lowerKeys = (e.keys || []).map((k) => String(k).toLowerCase());
                 const contentMatches = terms.filter((t) => lowerContent.includes(t));
                 const keyMatches = terms.filter((t) => lowerKeys.some((k) => k.includes(t)));
-                return { entry: e, score: contentMatches.length + keyMatches.length * 2 };
+                const exactKeyMatches = terms.filter((t) => lowerKeys.some((k) => k === t));
+                return { entry: e, score: contentMatches.length + keyMatches.length * 2 + exactKeyMatches.length * 5 };
               }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
               if (matched.length === 0) return "<builtin_tool_result status='empty'>世界书检索未找到匹配条目（无嵌入模型，降级为关键词搜索）。</builtin_tool_result>";
               return matched.map((s, i) => `  <entry index="${i + 1}" name="${s.entry.id}">\n    ${s.entry.content.slice(0, 4000)}\n  </entry>`).join('\n\n');
@@ -1404,7 +1407,8 @@ export const createChatSlice: StateCreator<
               const lowerKeys = (e.keys || []).map((k) => String(k).toLowerCase());
               const contentMatches = terms.filter((t) => lowerContent.includes(t));
               const keyMatches = terms.filter((t) => lowerKeys.some((k) => k.includes(t)));
-              return { entry: e, score: contentMatches.length + keyMatches.length * 2 };
+              const exactKeyMatches = terms.filter((t) => lowerKeys.some((k) => k === t));
+              return { entry: e, score: contentMatches.length + keyMatches.length * 2 + exactKeyMatches.length * 5 };
             }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
             if (matched.length === 0) return "<builtin_tool_result status='empty'>世界书检索未找到匹配条目。</builtin_tool_result>";
             return matched.map((s, i) => `  <entry index="${i + 1}" name="${s.entry.id}">\n    ${s.entry.content.slice(0, 4000)}\n  </entry>`).join('\n\n');
@@ -2234,18 +2238,28 @@ export const createChatSlice: StateCreator<
           ...BUILTIN_PROVIDERS,
           ...get().customApiProviders,
         ];
-        const chatApiUrl = getApiUrlForModel(
-          get().modelName,
-          allProviders,
-          get().apiUrl,
-        );
-        const chatApiKey = getApiKeyForModel(
-          get().modelName,
-          get().apiProviderKeys,
-          get().apiKey,
-          allProviders,
-        );
-        const actualModel = getActualModelName(get().modelName);
+        // v0.5.8: 翻译专用模型支持
+        const translationModelId = translationSettings.translationModelId;
+        let chatApiUrl: string;
+        let chatApiKey: string;
+        let actualModel: string;
+
+        if (translationModelId) {
+          const { providerId } = parseModelName(translationModelId, allProviders);
+          if (providerId) {
+            const provider = allProviders.find((p) => p.id === providerId);
+            chatApiUrl = provider?.apiUrl || get().apiUrl;
+            chatApiKey = get().apiProviderKeys[providerId] || get().apiKey;
+          } else {
+            chatApiUrl = get().apiUrl;
+            chatApiKey = get().apiKey;
+          }
+          actualModel = getActualModelName(translationModelId);
+        } else {
+          chatApiUrl = getApiUrlForModel(get().modelName, allProviders, get().apiUrl);
+          chatApiKey = getApiKeyForModel(get().modelName, get().apiProviderKeys, get().apiKey, allProviders);
+          actualModel = getActualModelName(get().modelName);
+        }
         const url = getChatCompletionsUrl(chatApiUrl);
 
         const requestBody = buildApiRequestBody(

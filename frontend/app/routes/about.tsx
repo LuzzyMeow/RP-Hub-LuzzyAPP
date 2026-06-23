@@ -43,7 +43,16 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.5.6";
+const APP_VERSION = "v0.5.8";
+
+/** v0.5.8: 关于页动态文案轮播 */
+const ABOUT_PHRASES = [
+  "陪伴，夜晚，你",
+  "那天的阳光正好，是你来了",
+  "每次对话，都像一本有你的小说",
+  "我从不想念过去，因为现在，有你",
+];
+const PHRASE_INTERVAL = 4500;
 
 /** 日志分类 Tab 配置 */
 const CATEGORY_TABS: { key: LogCategory | "all"; label: string }[] = [
@@ -87,6 +96,18 @@ export default function AboutPage() {
   const [autoRefresh, setAutoRefresh] = React.useState(true);
   const [expandedId, setExpandedId] = React.useState<number | null>(null);
   const refreshTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const phraseTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  const [phraseIndex, setPhraseIndex] = React.useState(0);
+  const logContainerRef = React.useRef<HTMLDivElement>(null);
+  const [userScrolledUp, setUserScrolledUp] = React.useState(false);
+
+  // v0.5.8: 关于页动态文案轮播
+  React.useEffect(() => {
+    phraseTimerRef.current = setInterval(() => {
+      setPhraseIndex((i) => (i + 1) % ABOUT_PHRASES.length);
+    }, PHRASE_INTERVAL);
+    return () => { if (phraseTimerRef.current) clearInterval(phraseTimerRef.current); };
+  }, []);
 
   /** 刷新日志列表 */
   const refreshLogs = React.useCallback(() => {
@@ -146,6 +167,19 @@ export default function AboutPage() {
     };
   }, [autoRefresh, refreshLogs]);
 
+  const handleLogScroll = React.useCallback(() => {
+    const el = logContainerRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+    setUserScrolledUp(!atBottom);
+  }, []);
+
+  const scrollLogToBottom = React.useCallback(() => {
+    const el = logContainerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    setUserScrolledUp(false);
+  }, []);
+
   // 筛选日志
   const filteredLogs = React.useMemo(() => {
     let logs = allLogs;
@@ -155,9 +189,15 @@ export default function AboutPage() {
     if (levelFilter !== "all") {
       logs = logs.filter((l) => l.level === levelFilter);
     }
-    // 最多显示 2000 条，从末尾截取（最新的在最后）
     return logs.slice(-2000);
   }, [allLogs, categoryFilter, levelFilter]);
+
+  // v0.5.8: 日志自动吸附底部
+  React.useEffect(() => {
+    const el = logContainerRef.current;
+    if (!el || userScrolledUp) return;
+    el.scrollTop = el.scrollHeight;
+  }, [filteredLogs, userScrolledUp]);
 
   // 格式化后的文本（用于复制）
   const formattedLogsText = React.useMemo(
@@ -258,8 +298,18 @@ export default function AboutPage() {
             </div>
             <div className="text-center">
               <h1 className="text-2xl font-bold tracking-tight">LUZZY</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                AI 角色扮演与 TRPG 对话应用
+              <p className="mt-1 h-5 text-sm text-muted-foreground">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={phraseIndex}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+                  >
+                    {ABOUT_PHRASES[phraseIndex]}
+                  </motion.span>
+                </AnimatePresence>
               </p>
               <p className="mt-2 text-xs font-mono text-muted-foreground">
                 {APP_VERSION}
@@ -413,7 +463,11 @@ export default function AboutPage() {
               </div>
 
               {/* 日志列表 */}
-              <div className="max-h-[600px] overflow-auto rounded-md border bg-muted/30">
+              <div
+                ref={logContainerRef}
+                onScroll={handleLogScroll}
+                className="relative max-h-[600px] overflow-auto rounded-md border bg-muted/30"
+              >
                 {filteredLogs.length === 0 ? (
                   <div className="p-4 text-center text-xs text-muted-foreground">
                     暂无匹配日志。去聊一句触发流式诊断吧。
@@ -479,6 +533,20 @@ export default function AboutPage() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+                {/* v0.5.8: 回到底部浮动按钮 */}
+                {userScrolledUp && filteredLogs.length > 0 && (
+                  <div className="absolute bottom-3 right-3">
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="size-8 rounded-full shadow-md opacity-80 hover:opacity-100"
+                      onClick={scrollLogToBottom}
+                      title="回到底部"
+                    >
+                      <IconArrowDown className="size-4" />
+                    </Button>
                   </div>
                 )}
               </div>

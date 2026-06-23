@@ -161,6 +161,20 @@ export default function SettingsPage() {
   // v0.3.3: 翻译设置
   const translationSettings = useAppStore((s) => s.translationSettings);
   const setTranslationSettings = useAppStore((s) => s.setTranslationSettings);
+  // v0.5.8: 翻译模型选择器
+  const allTranslationProviders = React.useMemo(() => {
+    return getAllProviders();
+  }, [getAllProviders]);
+  const translationModelOptions = React.useMemo(() => {
+    const options: { value: string; label: string }[] = [{ value: "", label: "使用主模型" }];
+    for (const provider of allTranslationProviders) {
+      for (const model of provider.models || []) {
+        const value = `${provider.id}_${model.name}`;
+        options.push({ value, label: `${provider.name} / ${model.name}` });
+      }
+    }
+    return options;
+  }, [allTranslationProviders]);
   // v0.3.7: 高亮显示设置
   const highlightSettings = useAppStore((s) => s.highlightSettings);
   const setHighlightSettings = useAppStore((s) => s.setHighlightSettings);
@@ -962,6 +976,33 @@ export default function SettingsPage() {
                             </span>
                           </span>
                         </div>
+                      </div>
+
+                      {/* v0.5.8: 翻译专用模型选择 */}
+                      <div className="grid min-w-0 gap-2">
+                        <label className="text-sm font-medium">
+                          翻译模型
+                          <span className="ml-2 text-xs text-muted-foreground">
+                            可选专用模型，留空则使用主模型
+                          </span>
+                        </label>
+                        <Select
+                          value={translationSettings.translationModelId || ""}
+                          onValueChange={(v) =>
+                            setTranslationSettings({ translationModelId: v })
+                          }
+                        >
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="使用主模型" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {translationModelOptions.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* 翻译提示词模板 */}

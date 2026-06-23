@@ -4,11 +4,11 @@
 
 # LUZZY · 鹿溪
 
-> **让每一次对话，都像翻开一本新的角色扮演小说。**
+> **每次对话，都像一本有你的小说。**
 > 
-> *Every conversation feels like opening a fresh role-playing novel.*
+> *Every conversation feels like a novel with you in it.*
 
-[![Version](https://img.shields.io/badge/version-v0.5.7-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.5.8-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
@@ -26,9 +26,9 @@
 
 > **LUZZY** is a mobile-first conversation app for **AI roleplay** and **TRPG tabletop role-playing**, optimized for Android and also runnable in browsers.
 
-前端基于 [rikkahub]([https://github.com/lucky-rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)) Web UI 重构，完整保留其成熟的后端业务逻辑，并在此基础上围绕移动端交互、主题系统、角色卡生态与记忆机制进行了深度定制。
+围绕移动端交互、主题系统、角色卡生态与记忆机制进行了深度定制。
 
-> The frontend is rebuilt from [rikkahub]([https://github.com/lucky-rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)) Web UI, preserving its proven backend logic while deeply customizing mobile interaction, theming, character cards, and memory systems.
+> Deeply customized for mobile interaction, theming, character cards, and memory systems.
 
 ---
 

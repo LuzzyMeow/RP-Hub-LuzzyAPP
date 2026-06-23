@@ -1,5 +1,97 @@
 # Changelog
 
+## v0.5.8
+
+### 🎯 用户需求闭环：15 项修复与增强
+
+> 涵盖翻译模型选择、思考卡片吸附、正文流式直出、工具搜索增强、档案数据保护、日志吸附、动态文案等。
+
+#### 翻译专用模型选择（问题 1）
+
+- **`translationService.ts`**：新增 `resolveTranslationApi()` 函数，支持翻译专用模型配置
+  - `TranslationSettings` 新增 `translationModelId` 字段（`providerId_modelName` 格式）
+  - 空值 = 使用主模型（兼容旧行为），设置后使用指定供应商和模型
+  - 支持跨供应商选择（自动匹配对应 API 地址和 Key）
+- **`settings.tsx`**：翻译设置卡片新增模型选择下拉框（"使用主模型" + 所有供应商模型列表）
+- **`chat-slice.ts`**：`translateMessage` 适配专用模型路由
+
+#### 思考卡片内滚动吸附流式输出（问题 2）
+
+- **`luzzy-thinking-timeline.tsx`**：`ThinkingNode` 新增滚动吸附逻辑
+  - 流式输出时自动将内容区域滚动到底部（`scrollTop = scrollHeight`）
+  - 用户手动向上滚动 > 30px 时解除吸附，恢复手动浏览
+  - 滚回底部时自动恢复吸附
+
+#### 正文流式直出（问题 4）
+
+- **`markdown.tsx`**：禁用 Streamdown 词级淡入动画（`animated: false`）
+  - 根因：`sep: "word"` + `duration: 150` 导致所有词同时淡入，产生"模拟打字机"效果
+  - 修复：文字直接逐字渲染，AI 输出到第几个字就显示到第几个字
+
+#### 工具搜索增强（问题 5）
+
+- **`chat-slice.ts`**：
+  - `world-search` / `world-recall` 降级模式：新增精准 key 匹配评分（完全匹配 = 5x，子串匹配 = 2x，内容匹配 = 1x）
+  - `keyword-search`：重写为多关键词拆分匹配（按空格/标点拆分→各词独立评分→按匹配数排序）
+
+#### 工具节点显示工具数量（问题 6）
+
+- **`luzzy-thinking-timeline.tsx`**：工具聚合节点标题显示工具数量（如 `工具调用 (3)`）
+
+#### 工具查询参数质量增强（问题 7）
+
+- **`chatService.ts`**：重写 `TOOL_DECISION_PROMPT`
+  - 新增「严格禁止使用的无效泛化词」列表（"当前" "地点" "设定" 等）
+  - 新增「必须使用的具体实体词」指导（地名、人名、物品、事件、概念）
+  - 新增「工具用途速查」表格
+  - 升级所有示例，展示上下文推断关键词的完整做法
+
+#### 关于页动态文案（问题 8）
+
+- **`about.tsx`**：静态文本"AI 角色扮演与TRPG对话应用"改为 4 条文案轮播
+  - "陪伴，夜晚，你" / "那天的阳光正好，是你来了" / "每次对话，都像一本有你的小说" / "我从不想念过去，因为现在，有你"
+  - 使用 `AnimatePresence` + `motion.span` 实现淡入淡出切换（4.5 秒间隔）
+
+#### README 更新（问题 9）
+
+- 标语改为"每次对话，都像一本有你的小说"；删除 rikkahub 引用段落
+
+#### 向量记忆分片修复（问题 10）
+
+- **`chat-slice.ts`**：`longTermMemoryEnabledForCharacter` 逻辑修正
+  - 空列表 = 全部启用（恢复 v0.5.5 行为），非空列表 = 仅启用列出的角色
+  - **`memory.tsx`**：UI 标签从"全部禁用"改为"全部启用"
+
+#### 默认档案数据丢失修复（问题 11）
+
+- **`settings-slice.ts`**：新增 `defaultProfileData` 字段，保存默认档案的编辑内容
+  - `setUser` 在默认档案激活时同步到 `defaultProfileData`
+  - `switchProfile("default")` 和 `setDefaultProfileActive(true)` 从 `defaultProfileData` 恢复数据
+- **`types.ts`**、**`app-store.ts`**：新增 `defaultProfileData` 类型和持久化
+
+#### 用户档案默认名称优化（问题 13）
+
+- **`settings-slice.ts`**：`DEFAULT_USER_PROFILE.name` 从"请前往设置自定义你的名称"改为空字符串
+
+#### 日志查看器自动吸附（问题 14）
+
+- **`about.tsx`**：日志列表新增自动滚动到底部
+  - 新日志到达时自动吸附底部（`scrollTop = scrollHeight`）
+  - 用户上滑 > 50px 解除吸附，显示"回到底部"浮动按钮
+  - 点击按钮或滚回底部恢复吸附
+
+#### TRPG 弹窗滚动修复（问题 15）
+
+- **`trpg.tsx`**：Dialog 内容区域添加 `overflow-y-auto`，防止内容溢出遮挡按钮
+- TRPG 代理（`MainActivity.java`）代码审查：逻辑正常，`resolveTargetBase()` 覆盖三种场景
+
+### 📦 版本号统一
+
+- 版本号 0.5.7 → 0.5.8（versionCode 30 → 31）
+- 更新文件：`frontend/package.json`、`android/app/build.gradle`、`android-patches/build.gradle`、`luzzy-global-trpg-iframe.tsx`（缓存破坏参数）、`about.tsx`、`README.md`
+
+---
+
 ## v0.5.7
 
 ### 🎯 用户需求闭环：CoT 卡片折叠、输入框对齐、记忆召回、工具提示词、世界书查询、流式输出

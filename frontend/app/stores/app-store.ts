@@ -53,6 +53,7 @@ const PERSIST_KEYS = [
   "userProfiles",
   "activeProfileId",
   "defaultProfileActive",
+  "defaultProfileData",
   "sideMenuOpen",
   // v0.2.0 新增
   "translationSettings",

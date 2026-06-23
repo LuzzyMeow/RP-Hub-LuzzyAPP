@@ -416,12 +416,12 @@ function MemorySettingsCard({
                   长期记忆启用角色卡
                   <span className="ml-2 text-xs text-muted-foreground">
                     {(settings.longTermMemoryCharacterIds ?? []).length === 0
-                      ? "全部禁用"
+                      ? "全部启用"
                       : `${(settings.longTermMemoryCharacterIds ?? []).length} 个角色卡`}
                   </span>
                 </label>
                 <p className="text-xs text-muted-foreground">
-                  选择启用长期记忆的角色卡(不选则全部角色卡均不启用)
+                  选择要限制的角色卡（不选则全部角色卡均启用长期记忆）
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {characters.length === 0 ? (

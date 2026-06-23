@@ -575,6 +575,8 @@ export interface TranslationSettings {
   customLanguage: string;
   /** 翻译提示词模板（含 {message} 和 {language} 占位符） */
   promptTemplate: string;
+  /** v0.5.8: 翻译专用模型（providerId_modelName 格式，空则使用主模型） */
+  translationModelId: string;
 }
 
 /** 高亮显示设置（v0.3.7 新增） */

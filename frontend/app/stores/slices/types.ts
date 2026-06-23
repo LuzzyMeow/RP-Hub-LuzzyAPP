@@ -102,6 +102,8 @@ export interface SettingsSlice {
   activeProfileId: string | null;
   /** v0.3.2: 默认档案是否激活（true 时新增档案置灰） */
   defaultProfileActive: boolean;
+  /** v0.5.8: 默认档案的持久化编辑数据（防止切换档案后丢失） */
+  defaultProfileData: UserProfile;
 
   // ===== v0.2.0 新增 =====
   /** 翻译设置 */
