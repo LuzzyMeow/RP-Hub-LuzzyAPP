@@ -973,8 +973,7 @@ export const createChatSlice: StateCreator<
         memoryRecallConfig?.enabled &&
         currentCharacter?.uuid &&
         memorySettings?.embeddingModel &&
-        vectorMemoryShards.length > 0 &&
-        longTermMemoryEnabledForCharacter
+        vectorMemoryShards.length > 0
       ) {
         // v0.4.3: 日志记录记忆召回工具执行
         logger.info("memory", `记忆召回预执行启动（topK=${memoryRecallConfig.resultCount ?? 8}）`);
@@ -1100,7 +1099,7 @@ export const createChatSlice: StateCreator<
           }
         }
       } else if (memoryRecallConfig?.enabled) {
-        logger.debug("memory", `memory-recall 跳过: enabled=${memoryRecallConfig?.enabled} char=${!!currentCharacter?.uuid} memSettings=${!!memorySettings}`);
+        logger.info("memory", `memory-recall 跳过: configEnabled=${memoryRecallConfig?.enabled} char=${!!currentCharacter?.uuid} embeddingModel=${!!memorySettings?.embeddingModel} shards=${vectorMemoryShards.length}`);
       }
 
       // v0.5.1: vector-memory/keyword-search/world-recall/world-search 预执行已删除
@@ -1296,7 +1295,7 @@ export const createChatSlice: StateCreator<
         if (builtinConfig) {
           const limit = builtinConfig.resultCount || 8;
           // v0.4.6: memory-recall 改为搜索会话向量记忆
-          if (toolName === "memory-recall" && vectorMemoryShards.length > 0 && memorySettings && longTermMemoryEnabledForCharacter) {
+          if (toolName === "memory-recall" && vectorMemoryShards.length > 0 && memorySettings) {
             const results = await executeWithTimeout(() =>
               searchVectorMemory(
                 query,
@@ -1311,7 +1310,7 @@ export const createChatSlice: StateCreator<
             return results.map((r, i) => `  <memory index="${i + 1}" turn="${r.turn ?? -1}">\n    ${r.content}\n  </memory>`).join('\n\n');
           }
           // vector-memory: 调用 searchVectorMemory
-          if (toolName === "vector-memory" && vectorMemoryShards.length > 0 && longTermMemoryEnabledForCharacter) {
+          if (toolName === "vector-memory" && vectorMemoryShards.length > 0) {
             const results = await executeWithTimeout(() =>
               searchVectorMemory(query, vectorMemoryShards, memorySettings, settings, allProviders, get().apiProviderKeys),
             );
@@ -1332,7 +1331,28 @@ export const createChatSlice: StateCreator<
           }
           // world-recall: 世界书语义检索（需要嵌入模型）
           // v0.5.3: 移除 enabled 二次过滤——加载时已按 bookId 过滤，buildContext 已按 enabled 过滤
-          if (toolName === "world-recall" && worldInfoEntries.length > 0 && memorySettings?.embeddingModel) {
+          // v0.5.7: 无嵌入模型时降级为关键词搜索
+          if (toolName === "world-recall" && worldInfoEntries.length > 0) {
+            if (!memorySettings?.embeddingModel) {
+              // v0.5.7: 无嵌入模型降级为关键词搜索
+              const enabled = worldInfoEntries;
+              let terms = query.split(/[\s,，、;；|｜/\\]+/u).map((t) => t.trim().toLowerCase()).filter(Boolean);
+              if (terms.length === 1 && /[\u4e00-\u9fa5]/.test(terms[0]) && terms[0].length > 2) {
+                const orig = terms[0];
+                const bigrams: string[] = [];
+                for (let i = 0; i < orig.length - 1; i++) bigrams.push(orig.slice(i, i + 2));
+                terms = [orig, ...bigrams];
+              }
+              const matched = enabled.map((e) => {
+                const lowerContent = String(e.content || '').toLowerCase();
+                const lowerKeys = (e.keys || []).map((k) => String(k).toLowerCase());
+                const contentMatches = terms.filter((t) => lowerContent.includes(t));
+                const keyMatches = terms.filter((t) => lowerKeys.some((k) => k.includes(t)));
+                return { entry: e, score: contentMatches.length + keyMatches.length * 2 };
+              }).filter((item) => item.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
+              if (matched.length === 0) return "<builtin_tool_result status='empty'>世界书检索未找到匹配条目（无嵌入模型，降级为关键词搜索）。</builtin_tool_result>";
+              return matched.map((s, i) => `  <entry index="${i + 1}" name="${s.entry.id}">\n    ${s.entry.content.slice(0, 4000)}\n  </entry>`).join('\n\n');
+            }
             const enabled = worldInfoEntries;
             const queryEmbedding = await executeWithTimeout(() =>
               getEmbedding(query, memorySettings, settings, allProviders, get().apiProviderKeys),
@@ -1368,9 +1388,17 @@ export const createChatSlice: StateCreator<
           }
           // world-search: 世界书关键词搜索
           // v0.5.3: 移除 enabled 二次过滤
+          // v0.5.7: 单个中文长词增加 2-gram 拆分
           if (toolName === "world-search") {
             const enabled = worldInfoEntries;
-            const terms = query.split(/[\s,，、;；|｜/\\]+/u).map((t) => t.trim().toLowerCase()).filter(Boolean);
+            let terms = query.split(/[\s,，、;；|｜/\\]+/u).map((t) => t.trim().toLowerCase()).filter(Boolean);
+            // v0.5.7: 当仅有单个关键词且包含中文时，增加 2-gram 拆分提升匹配率
+            if (terms.length === 1 && /[\u4e00-\u9fa5]/.test(terms[0]) && terms[0].length > 2) {
+              const orig = terms[0];
+              const bigrams: string[] = [];
+              for (let i = 0; i < orig.length - 1; i++) bigrams.push(orig.slice(i, i + 2));
+              terms = [orig, ...bigrams];
+            }
             const matched = enabled.map((e) => {
               const lowerContent = String(e.content || '').toLowerCase();
               const lowerKeys = (e.keys || []).map((k) => String(k).toLowerCase());

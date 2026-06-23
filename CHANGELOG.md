@@ -1,5 +1,66 @@
 # Changelog
 
+## v0.5.7
+
+### 🎯 用户需求闭环：CoT 卡片折叠、输入框对齐、记忆召回、工具提示词、世界书查询、流式输出
+
+> 实际测试发现 6 个问题，逐一修复并优化。
+
+#### CoT 思考卡片折叠 bug 修复（问题 1）
+
+- **`luzzy-chat-message.tsx`**：修复 CotCard 组件 `useEffect` 逻辑缺陷
+  - 根因：旧 `useEffect([isGenerating, isMainPhase])` 在 `isMainPhase=true` 时每次依赖变化都强制折叠，覆盖用户手动展开操作
+  - 修复：使用 `useRef` 追踪 `isMainPhase` 上升沿（`false→true`）和 `isGenerating` 下降沿（`true→false`），仅在边沿变化时折叠一次，之后由用户完全控制
+  - `AnimatePresence` 添加 `mode="wait"` 确保退出动画完成后卸载
+
+#### 输入框按钮垂直对齐修复（问题 2）
+
+- **`luzzy-chat-input.tsx`**：`flex items-end` → `flex items-center`
+  - 根因：textarea `min-h-[44px]` 比按钮 `size-10`(40px) 高 4px，底部对齐导致按钮顶部低于 textarea 顶部
+  - 修复：改为垂直居中对齐，全屏按钮、textarea、发送按钮三者在同一水平线上
+
+#### 记忆召回工具卡片不显示修复（问题 3）
+
+- **`chat-slice.ts`**：`longTermMemoryEnabledForCharacter` 仅控制记忆**写入**（`extractMemory`），不再阻止记忆**读取**（`memory-recall`、`vector-memory`）
+  - 根因：v0.5.6 的 `longTermMemoryEnabledForCharacter` 同时控制了读取和写入，导致未配置长期记忆的角色无法召回已有记忆
+  - 修复：从 `memory-recall` 预执行条件、`memory-recall` 工具执行条件、`vector-memory` 工具执行条件中移除 `longTermMemoryEnabledForCharacter`
+  - 保留在 `extractMemory` 调用条件中——仅控制是否保存新记忆
+  - 增强跳过日志：输出具体哪个条件未满足（`configEnabled`、`char`、`embeddingModel`、`shards`）
+
+#### 记忆页默认打开最近会话（问题 3.1）
+
+- **`memory.tsx`**：`SessionMemoryTab` 进入时自动选中 `updatedAt` 最新的会话
+  - 根因：`selectedSessionId` 默认 `""`（角色级全部会话），用户期望默认打开最近会话
+  - 修复：角色切换时自动选中最近会话；会话列表按 `updatedAt` 降序排序
+  - 保留"全部会话（角色级）"选项供手动切换
+
+#### Phase 1 工具决策提示词优化（问题 4）
+
+- **`chatService.ts`**：重写 `TOOL_DECISION_PROMPT`
+  - 根因：旧示例引导 AI 传自然语言短语（如 `world-recall:周围环境场景设定`），无法命中关键词匹配
+  - 修复：新增「查询关键词拆分规则」，明确指示 AI 从用户消息+上下文提取关键实体词，空格分隔
+  - 新增错误/正确做法对比示例
+  - 同步更新 `BUILTIN_TOOL_INFO` 中 `vector-memory`、`keyword-search`、`world-recall`、`world-search` 的描述和参数说明
+  - 同步更新 `apiClient.ts` 中 `buildToolSchema` 的参数描述
+
+#### 世界书工具查询逻辑增强（问题 5）
+
+- **`chat-slice.ts`**：
+  - `world-recall`：无嵌入模型时自动降级为 `world-search` 关键词模式（此前直接跳过不返回结果）
+  - `world-search`：单个中文长词（>2 字符）增加 2-gram 拆分（如"周围环境场景设定" → 拆分为"环境"、"场景"、"设定"等 2 字组合），大幅提升匹配率
+  - 两个工具统一支持空格分隔多关键词查询
+
+#### Android 流式输出帧率优化（问题 6）
+
+- **`apiClient.ts`**：优化流式输出帧率控制
+  - 根因：`setTimeout(resolve, 0)` 在 React 18 自动批处理下，同宏任务内多个 setState 被合并，导致"突然蹦出"
+  - 修复：每帧最多处理 3 行 SSE 数据，达到上限后让出 16ms（约 60fps）帧时间
+  - XHR 路径（`processIncrementalAsync`）：增加 `MAX_LINES_PER_FRAME` 限制
+  - Fetch 路径（`sendStreamRequestViaFetch`）：增加 `FETCH_MAX_LINES_PER_FRAME` 限制和帧间让出
+  - 非流式回退路径：`setTimeout(resolve, 0)` → `setTimeout(resolve, 16)`
+
+---
+
 ## v0.5.6
 
 ### 🎯 用户需求闭环：ACE 记忆机制删除、长期记忆过滤、绑定删除弹窗

@@ -132,17 +132,24 @@ function CotCard({
   isGenerating: boolean;
   agentSteps?: import("~/types/luzzy").AgentStep[];
 }) {
-  // v0.4.6: 生成中默认展开，生成完成后自动收起
+  // v0.5.7: 修复 CoT 卡片展开后无法收回的 bug
+  // 根因：旧 useEffect 在 isMainPhase=true 时每次依赖变化都强制折叠，覆盖用户手动展开
+  // 修复：仅在 isMainPhase 上升沿（false→true）和 isGenerating 下降沿（true→false）时折叠一次
   const [expanded, setExpanded] = React.useState(true);
-  // v0.5.5-arch-fix: 进入正文阶段时立即折叠一级思考卡片
   const isMainPhase = useAppStore((s) => s.isMainPhase);
+  const prevIsMainPhaseRef = React.useRef(false);
+  const prevIsGeneratingRef = React.useRef(true);
 
   React.useEffect(() => {
-    if (isMainPhase) {
+    const prevMain = prevIsMainPhaseRef.current;
+    const prevGen = prevIsGeneratingRef.current;
+    if (isMainPhase && !prevMain) {
       setExpanded(false);
-    } else if (!isGenerating) {
+    } else if (!isGenerating && prevGen && !isMainPhase) {
       setExpanded(false);
     }
+    prevIsMainPhaseRef.current = isMainPhase;
+    prevIsGeneratingRef.current = isGenerating;
   }, [isGenerating, isMainPhase]);
 
   const handleToggle = () => setExpanded((prev) => !prev);
@@ -263,7 +270,7 @@ function CotCard({
         </span>
       </button>
 
-      <AnimatePresence initial={false}>
+      <AnimatePresence initial={false} mode="wait">
         {expanded && (
           <motion.div
             key="cot-content"

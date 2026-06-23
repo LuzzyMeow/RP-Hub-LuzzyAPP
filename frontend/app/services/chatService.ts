@@ -146,6 +146,19 @@ const TOOL_DECISION_PROMPT = `<tool_decision_phase>
 如果不需要任何工具，仅回复一个词：
 NO_TOOLS
 
+【查询关键词拆分规则 — 极其重要】
+工具的 query 参数必须为空格分隔的多个关键词，而非自然语言短语。
+你需要从用户消息、开场白、上下文中提取关键实体词（人名、地名、物品、概念、动作等），
+用空格连接为一个字符串作为 query 参数。
+
+错误做法（自然语言短语，无法匹配）：
+- world-recall:周围环境场景设定
+- vector-memory:上次酒馆的对话
+
+正确做法（空格分隔关键词）：
+- world-recall:环境 场景 第2区 人类 摊位 街区 市场
+- vector-memory:酒馆 对话 上次
+
 【绝对禁止】
 - 禁止作为角色续写对话内容
 - 禁止输出任何正文、剧情、场景描写
@@ -165,13 +178,18 @@ NO_TOOLS
 正确输出：NO_TOOLS
 
 用户输入："你还记得我们上次在酒馆的对话吗？"
-正确输出：<tool_calls>vector-memory:上次酒馆对话</tool_calls>
+正确输出：<tool_calls>vector-memory:酒馆 对话 上次</tool_calls>
+
+用户输入："（探索周围的环境）"
+（开场白提到了"第2区""市场""人类""摊位"等设定）
+正确输出：<tool_calls>world-recall:环境 场景 第2区 人类 摊位 街区 市场</tool_calls>
 
 用户输入："这个世界的政治格局是怎样的？"
-正确输出：<tool_calls>world-recall:政治格局</tool_calls>
+正确输出：<tool_calls>world-recall:政治 格局 世界</tool_calls>
 
 【再次强调】
 你的输出只能是 NO_TOOLS 或 <tool_calls>...</tool_calls>，绝不能是其他任何内容。
+query 参数必须是空格分隔的关键词列表，而非自然语言句子或短语。
 </tool_decision_phase>`;
 
 /** extractMemory 参数 */
@@ -212,38 +230,38 @@ const BUILTIN_TOOL_INFO: Record<BuiltinToolType, {
   },
   'vector-memory': {
     callLabel: 'vector-memory',
-    description: '在当前会话的向量记忆中语义检索。当你需要回忆之前对话的细节、查找已讨论过的内容时调用。参数 query 为自然语言查询（如"之前提到的那个城堡叫什么"）。',
+    description: '在当前会话的向量记忆中语义检索。当你需要回忆之前对话的细节、查找已讨论过的内容时调用。参数 query 为空格分隔的关键词列表（如"城堡 之前 名字"）。',
     parameters: {
       type: 'object',
-      properties: { query: { type: 'string', description: '向量记忆语义检索的查询内容' } },
+      properties: { query: { type: 'string', description: '空格分隔的多个关键词' } },
       required: ['query'],
     },
   },
   'keyword-search': {
     callLabel: 'keyword-search',
-    description: '在当前会话中按关键词搜索聊天消息。当你需要查找包含特定词汇的历史对话时调用。参数 query 为关键词。',
+    description: '在当前会话中按关键词搜索聊天消息。当你需要查找包含特定词汇的历史对话时调用。参数 query 为空格分隔的多个关键词。',
     parameters: {
       type: 'object',
-      properties: { query: { type: 'string', description: '关键词搜索的查询内容' } },
+      properties: { query: { type: 'string', description: '空格分隔的多个关键词' } },
       required: ['query'],
     },
   },
   'world-recall': {
     callLabel: 'world-recall',
-    description: '在世界书中语义检索世界观设定。当需要查找角色卡绑定的世界观、场景、NPC 等设定信息时调用。需要嵌入模型已配置。参数 query 为自然语言查询。',
+    description: '在世界书中语义检索世界观设定。当需要查找角色卡绑定的世界观、场景、NPC 等设定信息时调用。需要嵌入模型已配置。参数 query 为空格分隔的关键词列表。',
     parameters: {
       type: 'object',
-      properties: { query: { type: 'string', description: '世界书语义检索的查询内容' } },
+      properties: { query: { type: 'string', description: '空格分隔的多个关键词' } },
       required: ['query'],
     },
   },
   'world-search': {
     callLabel: 'world-search',
-    description: '在世界书中按关键词检索（无需嵌入模型）。参数 query 为关键词，可选 keys 按条目 keys 筛选。',
+    description: '在世界书中按关键词检索（无需嵌入模型）。参数 query 为空格分隔的多个关键词，可选 keys 按条目 keys 筛选。',
     parameters: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '世界书关键词搜索的查询内容' },
+        query: { type: 'string', description: '空格分隔的多个关键词' },
         keys: { type: 'string', description: '可选的世界书条目 keys 筛选（逗号分隔）' },
       },
       required: ['query'],

@@ -8,7 +8,7 @@
 > 
 > *Every conversation feels like opening a fresh role-playing novel.*
 
-[![Version](https://img.shields.io/badge/version-v0.5.6-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.5.7-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
@@ -142,6 +142,12 @@ RP-Hub/
 ---
 
 ## 📰 最新动态 · What's New
+
+### v0.5.7
+
+CoT 思考卡片折叠 bug 修复（useRef 边沿检测替代 effect 覆盖）；输入框按钮垂直居中对齐；记忆召回工具解耦长期记忆设置（仅控制写入不阻止读取）；记忆页默认打开最近会话；Phase 1 工具决策提示词重写（多关键词拆分）；世界书工具增强（无嵌入模型降级为关键词搜索 + 中文 2-gram 拆分）；Android 流式输出帧率优化（每帧最多 3 行 + 16ms 帧间隔）。
+
+> CoT card collapse fix (useRef edge detection replaces effect override); input button vertical centering; memory-recall tool decoupled from long-term memory setting (write-only gating); memory page defaults to most recent session; Phase 1 tool decision prompt rewritten (multi-keyword splitting); world info tool enhancements (no-embedding fallback to keyword search + Chinese 2-gram splitting); Android streaming frame rate optimization (max 3 lines per frame + 16ms frame interval).
 
 ### v0.5.4
 

@@ -227,7 +227,7 @@ export function LuzzyChatInput({
         style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
       >
         {/* 输入框 + 发送按钮 */}
-        <div className="flex items-end gap-2 px-3 pt-2">
+        <div className="flex items-center gap-2 px-3 pt-2">
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}

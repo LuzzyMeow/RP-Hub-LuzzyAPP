@@ -444,35 +444,35 @@ export const buildToolSchema = (toolType: string): Record<string, unknown> => {
     'memory-recall': {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '记忆召回的查询关键词' },
+        query: { type: 'string', description: '空格分隔的多个关键词' },
       },
       required: ['query'],
     },
     'vector-memory': {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '向量记忆语义检索的查询内容' },
+        query: { type: 'string', description: '空格分隔的多个关键词' },
       },
       required: ['query'],
     },
     'keyword-search': {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '关键词搜索的查询内容' },
+        query: { type: 'string', description: '空格分隔的多个关键词' },
       },
       required: ['query'],
     },
     'world-recall': {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '世界书语义检索的查询内容' },
+        query: { type: 'string', description: '空格分隔的多个关键词' },
       },
       required: ['query'],
     },
     'world-search': {
       type: 'object',
       properties: {
-        query: { type: 'string', description: '世界书关键词搜索的查询内容' },
+        query: { type: 'string', description: '空格分隔的多个关键词' },
         keys: { type: 'string', description: '可选的世界书条目 keys 筛选（逗号分隔）' },
       },
       required: ['query'],
@@ -811,9 +811,14 @@ const sendStreamRequestViaXHR = (
 
     // v0.5.4: 异步处理增量数据，每 10 行让出主线程一次，允许浏览器重绘
     // 解决 Android XHR onprogress 批量触发导致"一下子全部蹦出来"的问题
+    // v0.5.7: setTimeout(0)→setTimeout(16) 确保每行有完整 60fps 帧时间渲染
+    //         每帧最多处理 3 行防止积压导致"突然蹦出"
     const processIncrementalAsync = async (): Promise<void> => {
       if (isProcessing) return;
       isProcessing = true;
+
+      const MAX_LINES_PER_FRAME = 3;
+      let linesThisFrame = 0;
 
       while (pendingChunks.length > 0 && !chunkError && !settled) {
         const newChunk = pendingChunks.shift()!;
@@ -831,10 +836,14 @@ const sendStreamRequestViaXHR = (
             isProcessing = false;
             return;
           }
-          // v0.5.6: 每行让出主线程，允许 React 重绘
-          // 原因：React 18 自动批处理将同宏任务内的 setState 合并
-          // setTimeout(0) 将后续处理推到新宏任务，打破批处理
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          linesThisFrame++;
+          // v0.5.7: 每帧最多 3 行，达到后让出 16ms 帧时间让 React 渲染
+          if (linesThisFrame >= MAX_LINES_PER_FRAME) {
+            linesThisFrame = 0;
+            await new Promise<void>((resolve) => setTimeout(resolve, 16));
+          } else {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          }
         }
       }
       isProcessing = false;
@@ -1061,8 +1070,8 @@ const sendStreamRequestViaFetch = async (
             throw new Error(formatApiErrorMessage(response.status, dataStr));
           }
         }
-        // v0.5.6: 非流式回退也每行让出，允许 React 重绘
-        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        // v0.5.7: 非流式回退也每行让出 16ms，允许 React 渲染
+        await new Promise<void>((resolve) => setTimeout(resolve, 16));
       }
     }
     return { status: response.status, ok: true };
@@ -1071,6 +1080,9 @@ const sendStreamRequestViaFetch = async (
   // 流式响应：逐块读取并解析 SSE
   const decoder = new TextDecoder();
   let buffer = '';
+  // v0.5.7: 每帧最多处理 3 行，防止 React 批处理导致"突然蹦出"
+  let fetchLinesThisFrame = 0;
+  const FETCH_MAX_LINES_PER_FRAME = 3;
 
   try {
     while (true) {
@@ -1100,6 +1112,14 @@ const sendStreamRequestViaFetch = async (
             throw e;
           }
           console.warn('Error parsing stream chunk:', e);
+        }
+        // v0.5.7: 每帧最多 3 行，达到后让出 16ms 帧时间让 React 渲染
+        fetchLinesThisFrame++;
+        if (fetchLinesThisFrame >= FETCH_MAX_LINES_PER_FRAME) {
+          fetchLinesThisFrame = 0;
+          await new Promise<void>((resolve) => setTimeout(resolve, 16));
+        } else {
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
         }
       }
     }

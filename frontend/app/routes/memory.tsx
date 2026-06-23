@@ -498,10 +498,12 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
   const [shards, setShards] = React.useState<VectorMemoryShard[]>([]);
   const [loaded, setLoaded] = React.useState(false);
 
-  /** 当前角色的会话列表 */
+  /** 当前角色的会话列表（按最近更新排序） */
   const characterSessions = React.useMemo(() => {
     if (!selectedUuid) return [];
-    return sessions.filter((s) => s.characterId === selectedUuid);
+    return sessions
+      .filter((s) => s.characterId === selectedUuid)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }, [sessions, selectedUuid]);
 
   /** 当 currentCharacterUuid 变化且尚未手动选择时同步 */
@@ -511,9 +513,21 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
     }
   }, [currentCharacterUuid, selectedUuid]);
 
-  /** 角色切换时重置会话选择 */
+  /** 角色切换时自动选择最近会话 */
   React.useEffect(() => {
-    setSelectedSessionId("");
+    if (!selectedUuid) {
+      setSelectedSessionId("");
+      return;
+    }
+    const charSessions = sessions.filter((s) => s.characterId === selectedUuid);
+    if (charSessions.length === 0) {
+      setSelectedSessionId("");
+      return;
+    }
+    // v0.5.7: 默认打开最近会话（按 updatedAt 降序）
+    const mostRecent = [...charSessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+    setSelectedSessionId(mostRecent.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUuid]);
 
   /** 加载向量记忆分片 */
@@ -579,7 +593,7 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
             {selectedUuid && characterSessions.length > 0 && (
               <div className="grid gap-2">
                 <label className="text-sm font-medium">
-                  选择会话（可选，不选则查看角色级记忆）
+                  选择会话（默认打开最近会话，可切换为全部会话）
                 </label>
                 <Select
                   value={selectedSessionId || "__all__"}
