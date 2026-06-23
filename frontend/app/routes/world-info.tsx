@@ -35,9 +35,12 @@ import {
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 import { useBindingDeleteConfirm } from "~/components/luzzy/luzzy-binding-delete-dialog";
 
-import type { WorldInfoEntry, Character } from "~/types/luzzy";
+import type { WorldInfoEntry, Character, MemorySettings, ApiSettings, ApiProvider } from "~/types/luzzy";
 import { useAppStore } from "~/stores";
+import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
 import { getItem, setItem } from "~/services/storage";
+import { generateWorldInfoEmbeddings } from "~/services/memoryService";
+import { logger } from "~/services/logger";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -255,6 +258,63 @@ export default function WorldInfoPage() {
   const confirmBindingDelete = useBindingDeleteConfirm();
   const deleteCharacter = useAppStore((s) => s.deleteCharacter);
 
+  // v0.5.9: store 访问，用于世界书嵌入向量预生成
+  const apiUrl = useAppStore((s) => s.apiUrl);
+  const apiKey = useAppStore((s) => s.apiKey);
+  const modelName = useAppStore((s) => s.modelName);
+  const stream = useAppStore((s) => s.stream);
+  const customRequestBody = useAppStore((s) => s.customRequestBody);
+  const customApiProviders = useAppStore((s) => s.customApiProviders);
+  const apiProviderKeys = useAppStore((s) => s.apiProviderKeys);
+
+  /** v0.5.9: 触发世界书条目嵌入向量预生成（异步，不阻塞 UI） */
+  const triggerEmbeddingGeneration = React.useCallback(
+    (entriesToProcess: WorldInfoEntry[]) => {
+      void (async () => {
+        try {
+          // 读取记忆设置
+          const memorySettings = await getItem<MemorySettings>(
+            "memory",
+            "memorySettings",
+          );
+          if (!memorySettings || !memorySettings.embeddingModel?.trim()) {
+            logger.debug("world", "嵌入模型未配置，跳过预生成");
+            return;
+          }
+          // 构建 ApiSettings
+          const allProviders: ApiProvider[] = [
+            ...BUILTIN_PROVIDERS,
+            ...customApiProviders,
+          ];
+          const apiSettings: ApiSettings = {
+            apiUrl,
+            apiKey,
+            modelName,
+            stream,
+            enableThinking: false,
+            customRequestBody,
+          };
+          const count = entriesToProcess.filter(
+            (e) => e.content?.trim() && (!e.embedding || e.embedding.length === 0),
+          ).length;
+          if (count > 0) {
+            toast.info(`已开始为 ${count} 条世界书条目生成嵌入向量...`);
+          }
+          await generateWorldInfoEmbeddings(
+            entriesToProcess,
+            memorySettings,
+            apiSettings,
+            allProviders,
+            apiProviderKeys,
+          );
+        } catch (e) {
+          logger.warn("world", "世界书嵌入预生成失败: " + (e as Error).message);
+        }
+      })();
+    },
+    [apiUrl, apiKey, modelName, stream, customRequestBody, customApiProviders, apiProviderKeys],
+  );
+
   /** 页面加载时从 IndexedDB 读取 */
   React.useEffect(() => {
     void (async () => {
@@ -456,17 +516,21 @@ export default function WorldInfoPage() {
       return;
     }
     const saved = editingEntry;
+    // v0.5.9: 内容变更时清除已有 embedding，触发重新生成
+    const entryToSave: WorldInfoEntry = { ...saved, embedding: undefined };
     if (isNewEntry) {
-      updateEntries((prev) => [...prev, saved]);
+      updateEntries((prev) => [...prev, entryToSave]);
       toast.success("条目已创建");
     } else {
       updateEntries((prev) =>
-        prev.map((e) => (e.id === saved.id ? saved : e)),
+        prev.map((e) => (e.id === saved.id ? entryToSave : e)),
       );
       toast.success("条目已更新");
     }
     setEditingEntry(null);
-  }, [editingEntry, isNewEntry, updateEntries]);
+    // v0.5.9: 异步预生成嵌入向量
+    triggerEmbeddingGeneration([entryToSave]);
+  }, [editingEntry, isNewEntry, updateEntries, triggerEmbeddingGeneration]);
 
   /** 删除条目 */
   const handleDeleteEntry = React.useCallback(
@@ -516,6 +580,8 @@ export default function WorldInfoPage() {
         updateEntries((prev) => [...prev, ...result.entries]);
         setExpandedBooks((prev) => new Set(prev).add(result.entries[0].bookId!));
         toast.success(`已导入世界书「${result.name}」（${result.entries.length} 条）`);
+        // v0.5.9: 异步预生成嵌入向量
+        triggerEmbeddingGeneration(result.entries);
       } catch (err) {
         toast.error("导入失败：" + (err as Error).message);
       } finally {
@@ -523,7 +589,7 @@ export default function WorldInfoPage() {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }
     },
-    [updateEntries],
+    [updateEntries, triggerEmbeddingGeneration],
   );
 
   /** 导出世界书为 SillyTavern 兼容 JSON */

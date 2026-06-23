@@ -22,10 +22,12 @@ import type {
   Character,
   MemorySettings,
   VectorMemoryShard,
+  WorldInfoEntry,
   ApiSettings,
   ApiProvider,
-  MemoryEntry,
-  MemoryScope,
+  // v0.5.9-locked: 长期记忆类型锁定
+  // MemoryEntry,
+  // MemoryScope,
 } from '~/types/luzzy';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -128,8 +130,9 @@ export const clearEmbeddingCache = (): void => {
 /** 向量记忆分片在 IndexedDB 中的存储键前缀 */
 const VECTOR_MEMORY_STORAGE_KEY_PREFIX = 'vector_memory_';
 
-/** 长期记忆在 IndexedDB 中的存储键前缀（按角色 ID 分组） */
-const LONG_TERM_MEMORY_STORAGE_KEY_PREFIX = 'long_term_memory_';
+// v0.5.9-locked: 长期记忆功能锁定
+// /** 长期记忆在 IndexedDB 中的存储键前缀（按角色 ID 分组） */
+// const LONG_TERM_MEMORY_STORAGE_KEY_PREFIX = 'long_term_memory_';
 
 /** embeddings 响应行结构 */
 interface EmbeddingResponseRow {
@@ -400,7 +403,6 @@ export const getEmbedding = async (
   providerKeys: Record<string, string>,
 ): Promise<number[]> => {
   const model = (settings.embeddingModel || '').trim();
-  console.log('[Memory] getEmbedding 调用:', { model: settings.embeddingModel, textLength: text.length });
   logger.debug("memory", `getEmbedding: 模型=${settings.embeddingModel} 文本长度=${text.length}`);
 
   // 缓存命中短路：相同文本+模型直接返回缓存的向量
@@ -502,10 +504,11 @@ export const buildVectorMemory = async (
 ): Promise<VectorMemoryShard[]> => {
   // 无嵌入模型时跳过向量记忆构建（系统自动判断启用状态）
   if (!settings.embeddingModel) {
-    logger.debug("memory", "buildVectorMemory 跳过（无嵌入模型）");
+    // v0.5.9: 从 debug 升级到 warn，便于诊断向量记忆失效问题
+    logger.warn("memory", "buildVectorMemory 跳过: 未配置嵌入模型");
     return [];
   }
-  logger.info("memory", `buildVectorMemory 启动: 消息数=${messages.length} 模型=${settings.embeddingModel}`);
+  logger.info("memory", `buildVectorMemory 启动: messages=${messages.length} 模型=${settings.embeddingModel}`);
 
   // 过滤掉开场白（如果角色卡有开场白且首条消息匹配）
   let filteredMessages = messages;
@@ -518,10 +521,10 @@ export const buildVectorMemory = async (
 
   const turns = groupMessagesByTurn(filteredMessages);
   if (turns.length === 0) {
-    logger.debug("memory", "buildVectorMemory 跳过（无轮次）");
+    logger.debug("memory", "buildVectorMemory 跳过: 无完整对话轮次");
     return [];
   }
-  logger.debug("memory", `buildVectorMemory: ${turns.length} 轮次, 分${Math.ceil(turns.length / MEMORY_VECTOR_BATCH_SIZE)} 批请求嵌入`);
+  logger.info("memory", `buildVectorMemory: turns=${turns.length} 分${Math.ceil(turns.length / MEMORY_VECTOR_BATCH_SIZE)} 批请求嵌入`);
 
   const shards: VectorMemoryShard[] = [];
 
@@ -546,7 +549,6 @@ export const buildVectorMemory = async (
     }
   }
 
-  console.log('[Memory] buildVectorMemory 完成:', { shardCount: shards.length });
   logger.info("memory", `buildVectorMemory 完成: 创建 ${shards.length} 个分片`);
   return shards;
 };
@@ -573,7 +575,6 @@ export const searchVectorMemory = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<VectorMemoryShard[]> => {
-  console.log('[Memory] searchVectorMemory 启动:', { query, shardCount: shards.length, topK: settings.vectorTopK });
   logger.info("memory", `searchVectorMemory: 查询="${query.slice(0,50)}" 分片数=${shards.length} topK=${settings.vectorTopK}`);
   const scored = await searchVectorMemoryWithScore(
     query,
@@ -584,7 +585,6 @@ export const searchVectorMemory = async (
     providerKeys,
   );
   const results = scored.map((item) => item.shard);
-  console.log('[Memory] searchVectorMemory 完成:', { resultCount: results.length });
   logger.info("memory", `searchVectorMemory 完成: 找到 ${results.length} 条结果`);
   return results;
 };
@@ -713,6 +713,168 @@ export const removeVectorMemoryShardsByTurn = async (
 };
 
 // ============================================================================
+// 世界书向量记忆分片（v0.5.9 新增）
+// ============================================================================
+
+/** 世界书向量记忆存储键前缀 */
+const WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX = 'vector_memory_world_';
+
+/**
+ * 加载世界书向量记忆分片
+ *
+ * v0.5.9: 世界书条目预生成的嵌入向量分片，键为 `vector_memory_world_<bookId>`。
+ * 用于记忆页面查看世界书向量分片内容。
+ *
+ * @param bookId - 世界书 ID
+ * @returns 向量记忆分片数组，不存在则返回空数组
+ */
+export const loadWorldVectorMemoryShards = async (
+  bookId: string,
+): Promise<VectorMemoryShard[]> => {
+  if (!bookId) return [];
+  const key = `${WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX}${bookId}`;
+  const data = await getItem<VectorMemoryShard[]>('memory', key);
+  const count = data?.length ?? 0;
+  logger.debug("memory", `loadWorldVectorMemoryShards: key=${key} 分片数=${count}`);
+  return data ?? [];
+};
+
+/**
+ * 保存世界书向量记忆分片到 IndexedDB
+ *
+ * @param bookId - 世界书 ID
+ * @param shards - 向量记忆分片数组
+ */
+export const saveWorldVectorMemoryShards = async (
+  bookId: string,
+  shards: VectorMemoryShard[],
+): Promise<void> => {
+  if (!bookId) return;
+  const key = `${WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX}${bookId}`;
+  logger.info("memory", `saveWorldVectorMemoryShards: key=${key} 分片数=${shards.length}`);
+  await setItem('memory', key, shards);
+};
+
+/**
+ * v0.5.9: 为世界书条目预生成嵌入向量
+ *
+ * 在世界书导入或创建条目时异步调用，为每条条目生成 embedding 向量并：
+ * 1. 写回 entry.embedding 字段（持久化到 IndexedDB worldInfo store）
+ * 2. 同时保存为向量分片到 `vector_memory_world_<bookId>`（便于记忆页面查看）
+ *
+ * 批量调用 getEmbedding（复用现有缓存），仅处理无 embedding 或内容变更的条目。
+ * 仅当 memorySettings.embeddingModel 已配置时触发。
+ *
+ * @param entries - 待处理的世界书条目数组
+ * @param settings - 记忆设置
+ * @param apiSettings - API 设置
+ * @param providers - 供应商列表
+ * @param providerKeys - 供应商 ID 到 API Key 的映射
+ * @returns 更新后的条目数组（含 embedding 字段）
+ */
+export const generateWorldInfoEmbeddings = async (
+  entries: WorldInfoEntry[],
+  settings: MemorySettings,
+  apiSettings: ApiSettings,
+  providers: ApiProvider[],
+  providerKeys: Record<string, string>,
+): Promise<WorldInfoEntry[]> => {
+  const model = (settings.embeddingModel || '').trim();
+  if (!model) {
+    logger.warn("memory", "generateWorldInfoEmbeddings 跳过: 未配置嵌入模型");
+    return entries;
+  }
+  if (!entries || entries.length === 0) {
+    logger.debug("memory", "generateWorldInfoEmbeddings 跳过: 无条目");
+    return entries;
+  }
+
+  logger.info("memory", `generateWorldInfoEmbeddings 启动: 条目数=${entries.length}`);
+
+  // 筛选需要生成 embedding 的条目（无 embedding 或内容为空跳过）
+  const toProcess = entries.filter(
+    (e) => e.content && e.content.trim() && (!e.embedding || e.embedding.length === 0),
+  );
+  if (toProcess.length === 0) {
+    logger.debug("memory", "generateWorldInfoEmbeddings: 所有条目已有 embedding，跳过");
+    return entries;
+  }
+
+  logger.info("memory", `generateWorldInfoEmbeddings: 需处理 ${toProcess.length} 条`);
+
+  // 批量生成 embedding（逐条调用以复用缓存）
+  const updated = [...entries];
+  let successCount = 0;
+  let failCount = 0;
+  for (const entry of toProcess) {
+    try {
+      const vector = await getEmbedding(
+        entry.content,
+        settings,
+        apiSettings,
+        providers,
+        providerKeys,
+      );
+      const idx = updated.findIndex((e) => e.id === entry.id);
+      if (idx >= 0) {
+        updated[idx] = { ...updated[idx], embedding: vector };
+        successCount++;
+      }
+    } catch (e) {
+      failCount++;
+      logger.warn("memory", `generateWorldInfoEmbeddings: 条目 ${entry.id} 生成失败: ${(e as Error).message}`);
+    }
+  }
+
+  logger.info("memory", `generateWorldInfoEmbeddings 完成: 成功=${successCount} 失败=${failCount}`);
+
+  // 持久化 embedding 到 IndexedDB worldInfo store
+  try {
+    const allEntries = await getItem<WorldInfoEntry[]>('worldInfo', 'worldInfo');
+    if (allEntries) {
+      const merged = allEntries.map((wi) => {
+        const match = updated.find((e) => e.id === wi.id);
+        return match && match.embedding ? { ...wi, embedding: match.embedding } : wi;
+      });
+      await setItem('worldInfo', 'worldInfo', merged);
+    }
+  } catch (e) {
+    logger.warn("memory", `generateWorldInfoEmbeddings: 持久化 worldInfo 失败: ${(e as Error).message}`);
+  }
+
+  // 按 bookId 分组保存为向量分片
+  const bookGroups = new Map<string, WorldInfoEntry[]>();
+  for (const entry of updated) {
+    const bid = entry.bookId?.trim();
+    if (!bid || !entry.embedding || entry.embedding.length === 0) continue;
+    const existing = bookGroups.get(bid);
+    if (existing) {
+      existing.push(entry);
+    } else {
+      bookGroups.set(bid, [entry]);
+    }
+  }
+
+  for (const [bookId, groupEntries] of bookGroups) {
+    try {
+      const shards: VectorMemoryShard[] = groupEntries.map((entry, idx) => ({
+        id: uuidv4(),
+        content: entry.content,
+        turn: idx + 1,
+        embedding: entry.embedding!,
+        createdAt: Date.now(),
+      }));
+      await saveWorldVectorMemoryShards(bookId, shards);
+      logger.info("memory", `generateWorldInfoEmbeddings: 保存世界书 ${bookId} 分片数=${shards.length}`);
+    } catch (e) {
+      logger.warn("memory", `generateWorldInfoEmbeddings: 保存世界书 ${bookId} 分片失败: ${(e as Error).message}`);
+    }
+  }
+
+  return updated;
+};
+
+// ============================================================================
 // 记忆压缩
 // ============================================================================
 
@@ -775,273 +937,275 @@ export const compressContext = (
   return messages.filter((_, index) => !removableIndices.has(index));
 };
 
+// v0.5.9-locked: 长期记忆功能锁定 ===================================================
 // ============================================================================
 // 长期记忆（跨会话）
 // ============================================================================
 
-/** 统一记忆搜索结果条目 */
-export interface MemorySearchResult {
-  /** 记忆来源作用域 */
-  scope: MemoryScope;
-  /** 记忆内容 */
-  content: string;
-  /** 相似度/匹配分数 */
-  score: number;
-  /** 所属角色 ID */
-  characterId?: string;
-  /** 所属会话 ID（仅 session 作用域） */
-  sessionId?: string;
-  /** 对话轮次 */
-  turn?: number;
-}
+// /** 统一记忆搜索结果条目 */
+// export interface MemorySearchResult {
+//   /** 记忆来源作用域 */
+//   scope: MemoryScope;
+//   /** 记忆内容 */
+//   content: string;
+//   /** 相似度/匹配分数 */
+//   score: number;
+//   /** 所属角色 ID */
+//   characterId?: string;
+//   /** 所属会话 ID（仅 session 作用域） */
+//   sessionId?: string;
+//   /** 对话轮次 */
+//   turn?: number;
+// }
 
-/**
- * 从 IndexedDB 加载角色的长期记忆条目
- *
- * @param characterId - 角色 ID
- * @returns 长期记忆条目数组，不存在则返回空数组
- */
-export const loadLongTermMemory = async (
-  characterId: string,
-): Promise<MemoryEntry[]> => {
-  if (!characterId) return [];
-  const key = `${LONG_TERM_MEMORY_STORAGE_KEY_PREFIX}${characterId}`;
-  const data = await getItem<MemoryEntry[]>('longTermMemory', key);
-  return data ?? [];
-};
+// /**
+//  * 从 IndexedDB 加载角色的长期记忆条目
+//  *
+//  * @param characterId - 角色 ID
+//  * @returns 长期记忆条目数组，不存在则返回空数组
+//  */
+// export const loadLongTermMemory = async (
+//   characterId: string,
+// ): Promise<MemoryEntry[]> => {
+//   if (!characterId) return [];
+//   const key = `${LONG_TERM_MEMORY_STORAGE_KEY_PREFIX}${characterId}`;
+//   const data = await getItem<MemoryEntry[]>('longTermMemory', key);
+//   return data ?? [];
+// };
 
-/**
- * 保存角色的长期记忆条目到 IndexedDB
- *
- * @param characterId - 角色 ID
- * @param entries - 长期记忆条目数组
- */
-export const saveLongTermMemory = async (
-  characterId: string,
-  entries: MemoryEntry[],
-): Promise<void> => {
-  if (!characterId) return;
-  const key = `${LONG_TERM_MEMORY_STORAGE_KEY_PREFIX}${characterId}`;
-  await setItem('longTermMemory', key, entries);
-};
+// /**
+//  * 保存角色的长期记忆条目到 IndexedDB
+//  *
+//  * @param characterId - 角色 ID
+//  * @param entries - 长期记忆条目数组
+//  */
+// export const saveLongTermMemory = async (
+//   characterId: string,
+//   entries: MemoryEntry[],
+// ): Promise<void> => {
+//   if (!characterId) return;
+//   const key = `${LONG_TERM_MEMORY_STORAGE_KEY_PREFIX}${characterId}`;
+//   await setItem('longTermMemory', key, entries);
+// };
 
-/**
- * 构建角色的长期记忆（跨会话）
- *
- * 与 buildVectorMemory 类似，但生成的记忆条目作用域为 'long-term'，
- * 存储在独立的 longTermMemory store 中，用于跨会话的记忆召回。
- *
- * @param characterId - 角色 ID
- * @param messages - 聚合后的跨会话消息列表
- * @param settings - 记忆设置
- * @param apiSettings - API 设置
- * @param providers - 供应商列表
- * @param providerKeys - 供应商 ID 到 API Key 的映射
- * @returns 长期记忆条目数组
- */
-export const buildLongTermMemory = async (
-  characterId: string,
-  messages: ChatMessage[],
-  settings: MemorySettings,
-  apiSettings: ApiSettings,
-  providers: ApiProvider[],
-  providerKeys: Record<string, string>,
-): Promise<MemoryEntry[]> => {
-  if (!characterId || messages.length === 0) return [];
+// /**
+//  * 构建角色的长期记忆（跨会话）
+//  *
+//  * 与 buildVectorMemory 类似，但生成的记忆条目作用域为 'long-term'，
+//  * 存储在独立的 longTermMemory store 中，用于跨会话的记忆召回。
+//  *
+//  * @param characterId - 角色 ID
+//  * @param messages - 聚合后的跨会话消息列表
+//  * @param settings - 记忆设置
+//  * @param apiSettings - API 设置
+//  * @param providers - 供应商列表
+//  * @param providerKeys - 供应商 ID 到 API Key 的映射
+//  * @returns 长期记忆条目数组
+//  */
+// export const buildLongTermMemory = async (
+//   characterId: string,
+//   messages: ChatMessage[],
+//   settings: MemorySettings,
+//   apiSettings: ApiSettings,
+//   providers: ApiProvider[],
+//   providerKeys: Record<string, string>,
+// ): Promise<MemoryEntry[]> => {
+//   if (!characterId || messages.length === 0) return [];
+//
+//   const turns = groupMessagesByTurn(messages);
+//   if (turns.length === 0) return [];
+//
+//   const entries: MemoryEntry[] = [];
+//
+//   // 分批请求嵌入向量
+//   for (let i = 0; i < turns.length; i += MEMORY_VECTOR_BATCH_SIZE) {
+//     const batch = turns.slice(i, i + MEMORY_VECTOR_BATCH_SIZE);
+//     const vectors = await requestEmbeddings(
+//       batch.map((t) => t.content),
+//       settings,
+//       apiSettings,
+//       providers,
+//       providerKeys,
+//     );
+//     for (let j = 0; j < batch.length; j++) {
+//       entries.push({
+//         id: uuidv4(),
+//         scope: 'long-term',
+//         characterId,
+//         content: batch[j].content,
+//         turn: batch[j].turn,
+//         embedding: vectors[j],
+//         createdAt: Date.now(),
+//       });
+//     }
+//   }
+//
+//   return entries;
+// };
 
-  const turns = groupMessagesByTurn(messages);
-  if (turns.length === 0) return [];
+// /**
+//  * 搜索角色的长期记忆
+//  *
+//  * 使用余弦相似度计算查询与各长期记忆条目的相似度，返回最相关的 Top-K 条目。
+//  *
+//  * @param characterId - 角色 ID
+//  * @param query - 查询文本
+//  * @param topK - 返回的最大条目数
+//  * @param settings - 记忆设置
+//  * @param apiSettings - API 设置
+//  * @param providers - 供应商列表
+//  * @param providerKeys - 供应商 ID 到 API Key 的映射
+//  * @returns 按相似度降序排列的 Top-K 记忆搜索结果
+//  */
+// export const searchLongTermMemory = async (
+//   characterId: string,
+//   query: string,
+//   topK: number,
+//   settings: MemorySettings,
+//   apiSettings: ApiSettings,
+//   providers: ApiProvider[],
+//   providerKeys: Record<string, string>,
+// ): Promise<MemorySearchResult[]> => {
+//   if (!query.trim() || !characterId) return [];
+//
+//   const entries = await loadLongTermMemory(characterId);
+//   if (entries.length === 0) return [];
+//
+//   // 过滤有嵌入向量的条目
+//   const embedded = entries.filter(
+//     (e) => Array.isArray(e.embedding) && e.embedding.length > 0,
+//   );
+//   if (embedded.length === 0) return [];
+//
+//   const queryVector = await getEmbedding(
+//     query,
+//     settings,
+//     apiSettings,
+//     providers,
+//     providerKeys,
+//   );
+//
+//   const scored = embedded
+//     .map((entry) => ({
+//       entry,
+//       score: cosineSimilarity(queryVector, entry.embedding!),
+//     }))
+//     .filter((item) => Number.isFinite(item.score));
+//
+//   scored.sort((a, b) => b.score - a.score);
+//
+//   return scored
+//     .slice(0, Math.max(1, topK))
+//     .map((item) => ({
+//       scope: 'long-term' as MemoryScope,
+//       content: item.entry.content,
+//       score: item.score,
+//       characterId: item.entry.characterId,
+//       turn: item.entry.turn,
+//     }));
+// };
 
-  const entries: MemoryEntry[] = [];
-
-  // 分批请求嵌入向量
-  for (let i = 0; i < turns.length; i += MEMORY_VECTOR_BATCH_SIZE) {
-    const batch = turns.slice(i, i + MEMORY_VECTOR_BATCH_SIZE);
-    const vectors = await requestEmbeddings(
-      batch.map((t) => t.content),
-      settings,
-      apiSettings,
-      providers,
-      providerKeys,
-    );
-    for (let j = 0; j < batch.length; j++) {
-      entries.push({
-        id: uuidv4(),
-        scope: 'long-term',
-        characterId,
-        content: batch[j].content,
-        turn: batch[j].turn,
-        embedding: vectors[j],
-        createdAt: Date.now(),
-      });
-    }
-  }
-
-  return entries;
-};
-
-/**
- * 搜索角色的长期记忆
- *
- * 使用余弦相似度计算查询与各长期记忆条目的相似度，返回最相关的 Top-K 条目。
- *
- * @param characterId - 角色 ID
- * @param query - 查询文本
- * @param topK - 返回的最大条目数
- * @param settings - 记忆设置
- * @param apiSettings - API 设置
- * @param providers - 供应商列表
- * @param providerKeys - 供应商 ID 到 API Key 的映射
- * @returns 按相似度降序排列的 Top-K 记忆搜索结果
- */
-export const searchLongTermMemory = async (
-  characterId: string,
-  query: string,
-  topK: number,
-  settings: MemorySettings,
-  apiSettings: ApiSettings,
-  providers: ApiProvider[],
-  providerKeys: Record<string, string>,
-): Promise<MemorySearchResult[]> => {
-  if (!query.trim() || !characterId) return [];
-
-  const entries = await loadLongTermMemory(characterId);
-  if (entries.length === 0) return [];
-
-  // 过滤有嵌入向量的条目
-  const embedded = entries.filter(
-    (e) => Array.isArray(e.embedding) && e.embedding.length > 0,
-  );
-  if (embedded.length === 0) return [];
-
-  const queryVector = await getEmbedding(
-    query,
-    settings,
-    apiSettings,
-    providers,
-    providerKeys,
-  );
-
-  const scored = embedded
-    .map((entry) => ({
-      entry,
-      score: cosineSimilarity(queryVector, entry.embedding!),
-    }))
-    .filter((item) => Number.isFinite(item.score));
-
-  scored.sort((a, b) => b.score - a.score);
-
-  return scored
-    .slice(0, Math.max(1, topK))
-    .map((item) => ({
-      scope: 'long-term' as MemoryScope,
-      content: item.entry.content,
-      score: item.score,
-      characterId: item.entry.characterId,
-      turn: item.entry.turn,
-    }));
-};
-
-/**
- * 搜索所有记忆（会话 + 长期 + 全局）
- *
- * 根据搜索类型（关键词或语义）跨作用域检索记忆，返回合并后的结果。
- *
- * - keyword：对会话向量记忆分片、长期记忆、全局记忆进行关键词包含匹配
- * - semantic：对会话向量记忆分片和长期记忆进行嵌入相似度搜索，全局记忆做关键词匹配
- *
- * @param query - 查询文本
- * @param type - 搜索类型（'keyword' 或 'semantic'）
- * @param characterId - 角色 ID
- * @param sessionId - 会话 ID（可选，用于会话级记忆搜索）
- * @param settings - 记忆设置
- * @param apiSettings - API 设置
- * @param providers - 供应商列表
- * @param providerKeys - 供应商 ID 到 API Key 的映射
- * @returns 合并后的记忆搜索结果列表
- */
-export const searchAllMemory = async (
-  query: string,
-  type: 'keyword' | 'semantic',
-  characterId: string,
-  sessionId: string | undefined,
-  settings: MemorySettings,
-  apiSettings: ApiSettings,
-  providers: ApiProvider[],
-  providerKeys: Record<string, string>,
-): Promise<MemorySearchResult[]> => {
-  const q = query.trim();
-  if (!q) return [];
-
-  const results: MemorySearchResult[] = [];
-  const qLower = q.toLowerCase();
-
-  // 加载会话向量记忆分片
-  const sessionShards = await loadVectorMemoryShards(characterId, sessionId);
-  // 加载长期记忆
-  const longTermEntries = await loadLongTermMemory(characterId);
-
-  if (type === 'keyword') {
-    // 关键词匹配：会话记忆
-    for (const shard of sessionShards) {
-      if (shard.content.toLowerCase().includes(qLower)) {
-        results.push({
-          scope: 'session',
-          content: shard.content,
-          score: 1,
-          characterId,
-          sessionId,
-          turn: shard.turn,
-        });
-      }
-    }
-    // 关键词匹配：长期记忆
-    for (const entry of longTermEntries) {
-      if (entry.content.toLowerCase().includes(qLower)) {
-        results.push({
-          scope: 'long-term',
-          content: entry.content,
-          score: 1,
-          characterId: entry.characterId,
-          turn: entry.turn,
-        });
-      }
-    }
-  } else {
-    // 语义搜索：会话向量记忆
-    if (sessionShards.length > 0) {
-      const sessionResults = await searchVectorMemoryWithScore(
-        q,
-        sessionShards,
-        settings,
-        apiSettings,
-        providers,
-        providerKeys,
-      );
-      for (const item of sessionResults) {
-        results.push({
-          scope: 'session',
-          content: item.shard.content,
-          score: item.score,
-          characterId,
-          sessionId,
-          turn: item.shard.turn,
-        });
-      }
-    }
-    // 语义搜索：长期记忆
-    const topK = Math.max(1, settings.vectorTopK ?? 15);
-    const longTermResults = await searchLongTermMemory(
-      characterId,
-      q,
-      topK,
-      settings,
-      apiSettings,
-      providers,
-      providerKeys,
-    );
-    results.push(...longTermResults);
-  }
-
-  return results;
-};
+// /**
+//  * 搜索所有记忆（会话 + 长期 + 全局）
+//  *
+//  * 根据搜索类型（关键词或语义）跨作用域检索记忆，返回合并后的结果。
+//  *
+//  * - keyword：对会话向量记忆分片、长期记忆、全局记忆进行关键词包含匹配
+//  * - semantic：对会话向量记忆分片和长期记忆进行嵌入相似度搜索，全局记忆做关键词匹配
+//  *
+//  * @param query - 查询文本
+//  * @param type - 搜索类型（'keyword' 或 'semantic'）
+//  * @param characterId - 角色 ID
+//  * @param sessionId - 会话 ID（可选，用于会话级记忆搜索）
+//  * @param settings - 记忆设置
+//  * @param apiSettings - API 设置
+//  * @param providers - 供应商列表
+//  * @param providerKeys - 供应商 ID 到 API Key 的映射
+//  * @returns 合并后的记忆搜索结果列表
+//  */
+// export const searchAllMemory = async (
+//   query: string,
+//   type: 'keyword' | 'semantic',
+//   characterId: string,
+//   sessionId: string | undefined,
+//   settings: MemorySettings,
+//   apiSettings: ApiSettings,
+//   providers: ApiProvider[],
+//   providerKeys: Record<string, string>,
+// ): Promise<MemorySearchResult[]> => {
+//   const q = query.trim();
+//   if (!q) return [];
+//
+//   const results: MemorySearchResult[] = [];
+//   const qLower = q.toLowerCase();
+//
+//   // 加载会话向量记忆分片
+//   const sessionShards = await loadVectorMemoryShards(characterId, sessionId);
+//   // 加载长期记忆
+//   const longTermEntries = await loadLongTermMemory(characterId);
+//
+//   if (type === 'keyword') {
+//     // 关键词匹配：会话记忆
+//     for (const shard of sessionShards) {
+//       if (shard.content.toLowerCase().includes(qLower)) {
+//         results.push({
+//           scope: 'session',
+//           content: shard.content,
+//           score: 1,
+//           characterId,
+//           sessionId,
+//           turn: shard.turn,
+//         });
+//       }
+//     }
+//     // 关键词匹配：长期记忆
+//     for (const entry of longTermEntries) {
+//       if (entry.content.toLowerCase().includes(qLower)) {
+//         results.push({
+//           scope: 'long-term',
+//           content: entry.content,
+//           score: 1,
+//           characterId: entry.characterId,
+//           turn: entry.turn,
+//         });
+//       }
+//     }
+//   } else {
+//     // 语义搜索：会话向量记忆
+//     if (sessionShards.length > 0) {
+//       const sessionResults = await searchVectorMemoryWithScore(
+//         q,
+//         sessionShards,
+//         settings,
+//         apiSettings,
+//         providers,
+//         providerKeys,
+//       );
+//       for (const item of sessionResults) {
+//         results.push({
+//           scope: 'session',
+//           content: item.shard.content,
+//           score: item.score,
+//           characterId,
+//           sessionId,
+//           turn: item.shard.turn,
+//         });
+//       }
+//     }
+//     // 语义搜索：长期记忆
+//     const topK = Math.max(1, settings.vectorTopK ?? 15);
+//     const longTermResults = await searchLongTermMemory(
+//       characterId,
+//       q,
+//       topK,
+//       settings,
+//       apiSettings,
+//       providers,
+//       providerKeys,
+//     );
+//     results.push(...longTermResults);
+//   }
+//
+//   return results;
+// };
+// =================================================================== v0.5.9-locked

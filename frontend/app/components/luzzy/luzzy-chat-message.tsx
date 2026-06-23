@@ -376,11 +376,17 @@ function RetryVersionSwitcher({
 function TranslationCard({
   translatedContent,
   language,
+  highlightSettings,
 }: {
   translatedContent: string;
   language?: string;
+  highlightSettings?: { enabled: boolean; color: string };
 }) {
   const [expanded, setExpanded] = React.useState(true);
+  // v0.5.9: 翻译全文高亮 - 启用时对翻译内容容器应用高亮颜色
+  const translationStyle = highlightSettings?.enabled
+    ? { color: highlightSettings.color, fontWeight: 500 } as React.CSSProperties
+    : undefined;
   return (
     <div className="w-full rounded-md border border-primary/20 bg-primary/5 text-sm">
       <button
@@ -392,7 +398,10 @@ function TranslationCard({
         <span>翻译（{language || "简体中文"}）</span>
       </button>
       {expanded && (
-        <div className="border-t border-primary/20 px-3 py-2 text-foreground">
+        <div
+          className="border-t border-primary/20 px-3 py-2 text-foreground"
+          style={translationStyle}
+        >
           <Markdown content={translatedContent} />
         </div>
       )}
@@ -577,6 +586,7 @@ function LuzzyChatMessageImpl({
           <TranslationCard
             translatedContent={message.translatedContent!}
             language={message.translationLanguage}
+            highlightSettings={highlightSettings}
           />
         )}
 

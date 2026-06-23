@@ -32,7 +32,6 @@ import {
   saveVectorMemoryShards,
   compressContext,
 } from '~/services/memoryService';
-import { LUXI_CHARACTER_NAME } from '~/services/presetContent';
 import { logger } from '~/services/logger';
 
 // ============================================================================
@@ -633,26 +632,9 @@ export const buildContext = async (
   // 3.1 预设内容（保持 NSFW 预设内容完整）
   // v0.5.1: phase=1（工具决策）时跳过角色扮演相关段落
   if (phase !== 1) {
-  // v0.4.1-fix: 非鹿溪角色卡时,仅注入鹿溪预设的 CoT 框架部分,不注入身份锚定
-  // 避免鹿溪预设的"身份锚定"覆盖其他角色卡的设定
-  // CoT 框架部分从 "## 角色扮演通用 CoT 推理框架" 开始,到预设末尾
-  const isLuxiCharacter = character?.name === LUXI_CHARACTER_NAME;
   const presetContents = presets
     .filter((p) => p.enabled !== false && p.content && p.content.trim())
-    .map((p) => {
-      // 非鹿溪角色卡时,对鹿溪预设仅保留 CoT 框架部分
-      if (!isLuxiCharacter && p.name === 'Luzzy' && p.isBuiltin) {
-        // v0.5.6-fix: 修正边界字符串为实际预设内容中的标题
-        // 保留 preamble（"你仅被允许..."）+ Step 2-7（CoT 框架），跳过 Step 1（NSFW/越狱协议）
-        const step1Idx = p.content.indexOf('### Step 1');
-        const step2Idx = p.content.indexOf('### Step 2');
-        if (step1Idx >= 0 && step2Idx > step1Idx) {
-          return p.content.slice(0, step1Idx) + p.content.slice(step2Idx);
-        }
-        return p.content; // 找不到分界线，注入完整预设（不跳过）
-      }
-      return p.content;
-    })
+    .map((p) => p.content)
     .filter((content) => content.trim())
     .join('\n\n---\n\n');
   if (presetContents) {
@@ -1225,20 +1207,44 @@ export const extractMemory = async (
     sessionId,
   } = params;
 
+  // v0.5.9: pipeline 诊断日志 - 每个 early return 记录具体原因
   // 检查记忆功能是否启用
-  if (!memorySettings.enabled) return;
+  if (!memorySettings.enabled) {
+    logger.debug("memory", "extractMemory 跳过: 记忆功能未启用");
+    return;
+  }
 
   // 检查是否有角色和足够的消息
-  if (!character || messages.length < 2) return;
+  if (!character) {
+    logger.debug("memory", "extractMemory 跳过: 无当前角色卡");
+    return;
+  }
+  if (messages.length < 2) {
+    logger.debug("memory", `extractMemory 跳过: 消息不足 2 条 (实际 ${messages.length} 条)`);
+    return;
+  }
 
   // 获取最新的完整对话轮次（用户 + AI）
   const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
-  if (lastUserIndex === -1 || lastUserIndex >= messages.length - 1) return;
+  if (lastUserIndex === -1) {
+    logger.debug("memory", "extractMemory 跳过: 未找到用户消息");
+    return;
+  }
+  if (lastUserIndex >= messages.length - 1) {
+    logger.debug("memory", "extractMemory 跳过: 用户消息后无 assistant 消息");
+    return;
+  }
 
   const userMessage = messages[lastUserIndex];
   const assistantMessage = messages[lastUserIndex + 1];
-  if (!userMessage || !assistantMessage) return;
-  if (assistantMessage.role !== 'assistant') return;
+  if (!userMessage || !assistantMessage) {
+    logger.debug("memory", "extractMemory 跳过: 用户或 assistant 消息对象为空");
+    return;
+  }
+  if (assistantMessage.role !== 'assistant') {
+    logger.debug("memory", `extractMemory 跳过: 最后一条消息非 assistant (实际 ${assistantMessage.role})`);
+    return;
+  }
 
   // 异步提取记忆（不阻塞主流程）
   try {
@@ -1249,12 +1255,17 @@ export const extractMemory = async (
     const userContent = userMessage.content || '';
     const assistantContent = assistantMessage.content || '';
 
-    if (!userContent.trim() || !assistantContent.trim()) return;
+    if (!userContent.trim() || !assistantContent.trim()) {
+      logger.debug("memory", "extractMemory 跳过: 消息内容为空");
+      return;
+    }
 
     // 计算当前轮次号（用户消息的序号，从 1 开始）
     const turnNumber = messages
       .slice(0, lastUserIndex + 1)
       .filter((m) => m.role === 'user').length;
+
+    logger.info("memory", `extractMemory 启动: turn=${turnNumber} character=${character.uuid} sessionId=${sessionId ?? "无"}`);
 
     // 使用 buildVectorMemory 生成本轮的向量记忆分片
     // buildVectorMemory 内部会调用嵌入 API 生成向量
@@ -1271,7 +1282,10 @@ export const extractMemory = async (
       apiProviderKeys,
     );
 
-    if (newShards.length === 0) return;
+    if (newShards.length === 0) {
+      logger.debug("memory", "extractMemory: buildVectorMemory 返回 0 个分片");
+      return;
+    }
 
     // 调整轮次号（buildVectorMemory 从 1 开始编号，需修正为实际轮次）
     const adjustedShards: VectorMemoryShard[] = newShards.map((s) => ({
@@ -1290,7 +1304,9 @@ export const extractMemory = async (
     const allShards = [...dedupedExisting, ...adjustedShards];
 
     await saveVectorMemoryShards(character.uuid, allShards, sessionId);
+    logger.info("memory", `extractMemory 完成: 新增=${adjustedShards.length}个 总计=${allShards.length}个 turn=${turnNumber}`);
   } catch (e) {
     console.warn('[Memory] 记忆提取失败:', e);
+    logger.warn("memory", `extractMemory 异常: ${(e as Error).message}`);
   }
 };

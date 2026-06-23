@@ -15,17 +15,17 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   IconBook,
   IconSave,
-  IconSearch,
   IconClock,
   IconInfo,
   IconRefresh,
+  IconLock,
+  IconExclamation,
 } from "~/components/luzzy/luzzy-icons";
 
 import type {
   MemorySettings,
   VectorMemoryShard,
-  MemoryEntry,
-  ApiSettings,
+  WorldInfoEntry,
   ApiProvider,
   Character,
 } from "~/types/luzzy";
@@ -34,12 +34,13 @@ import { getItem, setItem } from "~/services/storage";
 import { logger } from "~/services/logger";
 import {
   loadVectorMemoryShards,
-  loadLongTermMemory,
-  searchAllMemory,
-  type MemorySearchResult,
+  loadWorldVectorMemoryShards,
+  // v0.5.9-locked: 长期记忆功能锁定
+  // loadLongTermMemory,
+  // searchAllMemory,
+  // type MemorySearchResult,
 } from "~/services/memoryService";
 import { useAppStore } from "~/stores";
-import { parseModelName } from "~/services/providerService";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -135,6 +136,15 @@ export default function MemoryPage() {
   const providers = React.useMemo(() => getAllProviders(), [getAllProviders]);
   const characters = useAppStore((s) => s.characters);
 
+  // v0.5.9: 记忆设置卡片 ref，用于子组件滚动跳转
+  const settingsCardRef = React.useRef<HTMLDivElement>(null);
+  const scrollToSettings = React.useCallback(() => {
+    settingsCardRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, []);
+
   /** 页面加载时读取记忆设置 */
   React.useEffect(() => {
     void (async () => {
@@ -181,11 +191,10 @@ export default function MemoryPage() {
       <ScrollArea className="h-full w-full">
         <div className="flex min-w-0 flex-col">
           {/* 记忆设置卡片（可展开，展开后页面整体可滚动） */}
-          <div className="border-b border-border/50 px-4 py-3">
+          <div ref={settingsCardRef} className="border-b border-border/50 px-4 py-3 scroll-mt-2">
             <MemorySettingsCard
               settings={settings}
               providers={providers}
-              characters={characters}
               onUpdate={updateField}
               onSave={handleSaveSettings}
             />
@@ -225,9 +234,18 @@ export default function MemoryPage() {
           <div className="min-h-[50vh]">
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} {...fadeSlide}>
-                {activeTab === "session" && <SessionMemoryTab settings={settings} />}
+                {activeTab === "session" && (
+                  <SessionMemoryTab
+                    settings={settings}
+                    onScrollToSettings={scrollToSettings}
+                  />
+                )}
                 {activeTab === "long-term" && (
-                  <LongTermMemoryTab settings={settings} />
+                  <LongTermMemoryTab
+                    settings={settings}
+                    characters={characters}
+                    onUpdate={updateField}
+                  />
                 )}
               </motion.div>
             </AnimatePresence>
@@ -245,8 +263,6 @@ export default function MemoryPage() {
 interface MemorySettingsCardProps {
   settings: MemorySettings;
   providers: ApiProvider[];
-  /** v0.4.4: 角色卡列表(用于长期记忆的角色卡启用选择) */
-  characters: Character[];
   onUpdate: <K extends keyof MemorySettings>(
     key: K,
     value: MemorySettings[K],
@@ -257,7 +273,6 @@ interface MemorySettingsCardProps {
 function MemorySettingsCard({
   settings,
   providers,
-  characters,
   onUpdate,
   onSave,
 }: MemorySettingsCardProps) {
@@ -266,6 +281,20 @@ function MemorySettingsCard({
   // v0.3.3: 保存按钮加载状态动画
   const [saving, setSaving] = React.useState(false);
   const hasEmbeddingModel = Boolean(settings.embeddingModel?.trim());
+  // v0.5.9: 嵌入模型选择器 ref，用于横幅快捷跳转
+  const embeddingModelRef = React.useRef<HTMLDivElement>(null);
+
+  /** v0.5.9: 滚动到嵌入模型选择器 */
+  const scrollToEmbeddingModel = React.useCallback(() => {
+    if (!expanded) setExpanded(true);
+    // 等待展开动画完成后滚动
+    setTimeout(() => {
+      embeddingModelRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 250);
+  }, [expanded]);
 
   /** 保存设置（带加载动画 + 嵌入模型空值提示） */
   const handleSave = React.useCallback(async () => {
@@ -312,6 +341,45 @@ function MemorySettingsCard({
             className="overflow-hidden"
           >
             <CardContent className="grid gap-4 pt-0">
+              {/* v0.5.9: 嵌入模型未配置时的醒目横幅 */}
+              <AnimatePresence>
+                {!hasEmbeddingModel && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3"
+                  >
+                    <motion.div
+                      initial={{ scale: 0, rotate: -10 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                    >
+                      <IconExclamation className="size-4" />
+                    </motion.div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                        请先配置嵌入模型
+                      </span>
+                      <span className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                        以启用向量记忆和语义检索功能
+                      </span>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={scrollToEmbeddingModel}
+                      className="shrink-0 border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                      {...pressable}
+                    >
+                      前往配置
+                    </Button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* 系统自动启用说明 */}
               <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
                 <IconInfo className="mt-0.5 size-3.5 shrink-0" />
@@ -319,7 +387,7 @@ function MemorySettingsCard({
               </div>
 
               {/* 嵌入模型（v0.3.4: 改为下拉框+手动输入） */}
-              <div className="grid gap-2 min-w-0">
+              <div ref={embeddingModelRef} className="grid gap-2 min-w-0 scroll-mt-4">
                 <label className="text-sm font-medium">嵌入模型</label>
                 {(() => {
                   // v0.3.4: 从所有供应商中筛选 supportsEmbedding=true 的模型
@@ -410,50 +478,7 @@ function MemorySettingsCard({
                 />
               </div>
 
-              {/* v0.4.4: 长期记忆角色卡启用选择 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">
-                  长期记忆启用角色卡
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {(settings.longTermMemoryCharacterIds ?? []).length === 0
-                      ? "全部启用"
-                      : `${(settings.longTermMemoryCharacterIds ?? []).length} 个角色卡`}
-                  </span>
-                </label>
-                <p className="text-xs text-muted-foreground">
-                  选择要限制的角色卡（不选则全部角色卡均启用长期记忆）
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {characters.length === 0 ? (
-                    <span className="text-xs text-muted-foreground">暂无角色卡</span>
-                  ) : (
-                    characters.map((c) => {
-                      const selected = (settings.longTermMemoryCharacterIds ?? []).includes(c.uuid);
-                      return (
-                        <button
-                          key={c.uuid}
-                          type="button"
-                          onClick={() => {
-                            const current = settings.longTermMemoryCharacterIds ?? [];
-                            const next = selected
-                              ? current.filter((id) => id !== c.uuid)
-                              : [...current, c.uuid];
-                            onUpdate("longTermMemoryCharacterIds", next);
-                          }}
-                          className={cn(
-                            "rounded-md border px-2 py-1 text-xs transition-colors",
-                            selected
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border bg-background text-muted-foreground hover:bg-muted/50",
-                          )}
-                        >
-                          {c.name}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+              {/* v0.5.9: 长期记忆角色卡选择已移至 LongTermMemoryTab */}
 
               <div className="flex justify-end">
                 <Button onClick={handleSave} disabled={saving} {...pressable}>
@@ -484,12 +509,19 @@ function MemorySettingsCard({
 
 interface SessionMemoryTabProps {
   settings: MemorySettings;
+  /** v0.5.9: 滚动到记忆设置卡片的回调（嵌入模型未配置时引导跳转） */
+  onScrollToSettings?: () => void;
 }
 
-function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
+function SessionMemoryTab({
+  settings,
+  onScrollToSettings,
+}: SessionMemoryTabProps) {
   const characters = useAppStore((s) => s.characters);
   const sessions = useAppStore((s) => s.sessions);
   const currentCharacterUuid = useAppStore((s) => s.currentCharacterUuid);
+
+  const hasEmbeddingModel = Boolean(settings.embeddingModel?.trim());
 
   const [selectedUuid, setSelectedUuid] = React.useState<string>(
     currentCharacterUuid ?? "",
@@ -497,6 +529,18 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
   const [selectedSessionId, setSelectedSessionId] = React.useState<string>("");
   const [shards, setShards] = React.useState<VectorMemoryShard[]>([]);
   const [loaded, setLoaded] = React.useState(false);
+
+  // v0.5.9: 世界书选择器状态
+  const [worldBooks, setWorldBooks] = React.useState<
+    Array<{ bookId: string; bookName: string; count: number }>
+  >([]);
+  const [selectedBookId, setSelectedBookId] = React.useState<string>("");
+  const [worldShards, setWorldShards] = React.useState<VectorMemoryShard[]>([]);
+  const [worldLoaded, setWorldLoaded] = React.useState(false);
+  /** 当前激活的数据源：session | world（最近操作的选择器优先显示） */
+  const [activeSource, setActiveSource] = React.useState<"session" | "world">(
+    "session",
+  );
 
   /** 当前角色的会话列表（按最近更新排序） */
   const characterSessions = React.useMemo(() => {
@@ -554,6 +598,76 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
     })();
   }, [selectedUuid, selectedSessionId]);
 
+  /** v0.5.9: 加载世界书列表（从 IndexedDB 提取唯一 bookId/bookName） */
+  React.useEffect(() => {
+    void (async () => {
+      try {
+        const allEntries = await getItem<WorldInfoEntry[]>(
+          "worldInfo",
+          "worldInfo",
+        );
+        if (!allEntries || allEntries.length === 0) {
+          setWorldBooks([]);
+          return;
+        }
+        // 提取唯一 bookId 并统计条目数
+        const bookMap = new Map<string, { bookName: string; count: number }>();
+        for (const entry of allEntries) {
+          const bid = entry.bookId?.trim();
+          if (!bid) continue;
+          const existing = bookMap.get(bid);
+          if (existing) {
+            existing.count += 1;
+          } else {
+            bookMap.set(bid, {
+              bookName: entry.bookName?.trim() || bid,
+              count: 1,
+            });
+          }
+        }
+        const books = Array.from(bookMap.entries()).map(([bookId, info]) => ({
+          bookId,
+          bookName: info.bookName,
+          count: info.count,
+        }));
+        setWorldBooks(books);
+      } catch (e) {
+        logger.warn(
+          "memory",
+          "加载世界书列表失败：" + (e as Error).message,
+        );
+        setWorldBooks([]);
+      }
+    })();
+  }, []);
+
+  /** v0.5.9: 加载世界书向量分片 */
+  React.useEffect(() => {
+    if (!selectedBookId) {
+      setWorldShards([]);
+      setWorldLoaded(true);
+      return;
+    }
+    setWorldLoaded(false);
+    void (async () => {
+      try {
+        const list = await loadWorldVectorMemoryShards(selectedBookId);
+        setWorldShards(list);
+      } catch (e) {
+        toast.error("加载世界书向量记忆失败：" + (e as Error).message);
+        setWorldShards([]);
+      } finally {
+        setWorldLoaded(true);
+      }
+    })();
+  }, [selectedBookId]);
+
+  /** 当前显示的分片列表和状态（根据 activeSource 切换） */
+  const displayShards =
+    activeSource === "world" ? worldShards : shards;
+  const displayLoaded =
+    activeSource === "world" ? worldLoaded : loaded;
+
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
       <Card>
@@ -561,51 +675,56 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
           <CardTitle className="flex items-center justify-between">
             <span>向量记忆分片</span>
             <Badge variant="secondary" className="text-xs">
-              {shards.length} 条
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {/* 角色选择 */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">选择角色卡</label>
-              <Select value={selectedUuid} onValueChange={setSelectedUuid}>
-                <SelectTrigger>
-                  <SelectValue placeholder="选择角色卡查看向量记忆" />
-                </SelectTrigger>
-                <SelectContent>
-                  {characters.length === 0 ? (
-                    <SelectItem value="__none__" disabled>
-                      暂无角色卡
+              {displayShards.length} 条
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-3">
+          {/* 角色卡选择（一级） */}
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">选择角色卡</label>
+            <Select
+              value={selectedUuid}
+              onValueChange={(v) => {
+                setSelectedUuid(v);
+                setActiveSource("session");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="选择角色卡查看向量记忆" />
+              </SelectTrigger>
+              <SelectContent>
+                {characters.length === 0 ? (
+                  <SelectItem value="__none__" disabled>
+                    暂无角色卡
+                  </SelectItem>
+                ) : (
+                  characters.map((c) => (
+                    <SelectItem key={c.uuid} value={c.uuid}>
+                      <span className="truncate">{c.name}</span>
                     </SelectItem>
-                  ) : (
-                    characters.map((c) => (
-                      <SelectItem key={c.uuid} value={c.uuid}>
-                        <span className="truncate">{c.name}</span>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
 
-            {/* 会话选择（可选） */}
+            {/* 会话选择（二级缩进，移除"全部会话"选项） */}
             {selectedUuid && characterSessions.length > 0 && (
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">
-                  选择会话（默认打开最近会话，可切换为全部会话）
+              <div className="ml-4 grid gap-2 border-l border-border/40 pl-3">
+                <label className="text-xs font-medium text-muted-foreground">
+                  选择会话
                 </label>
                 <Select
-                  value={selectedSessionId || "__all__"}
-                  onValueChange={(v) =>
-                    setSelectedSessionId(v === "__all__" ? "" : v)
-                  }
+                  value={selectedSessionId}
+                  onValueChange={(v) => {
+                    setSelectedSessionId(v);
+                    setActiveSource("session");
+                  }}
                 >
-                  <SelectTrigger>
-                    <SelectValue />
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="选择会话" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__">全部会话（角色级）</SelectItem>
                     {characterSessions.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.title || `会话 ${s.id.slice(0, 8)}`}
@@ -615,341 +734,235 @@ function SessionMemoryTab({ settings: _settings }: SessionMemoryTabProps) {
                 </Select>
               </div>
             )}
+          </div>
 
-            {/* 分片列表 */}
-            {!selectedUuid ? (
-              <EmptyState
-                icon={<IconBook className="size-6" />}
-                title="选择角色卡查看记忆"
-                description="向量记忆按角色卡分别存储，选择后可查看对应分片"
-              />
-            ) : loaded && shards.length === 0 ? (
-              <EmptyState
-                icon={<IconBook className="size-6" />}
-                title="暂无向量记忆分片"
-                description="对话后将自动生成向量记忆"
-              />
-            ) : (
-              <ScrollArea className="h-96 rounded-lg border">
-                <div className="flex flex-col gap-2 p-2">
-                  <AnimatePresence initial={false}>
-                    {shards.map((s, idx) => (
-                      <motion.div
-                        key={s.id}
-                        {...springEnter}
-                        custom={idx}
-                        className="rounded-md border bg-muted/30 p-2.5"
-                      >
-                        <div className="mb-1.5 flex items-center gap-1.5">
-                          <Badge variant="outline" className="text-xs">
-                            轮次 {s.turn}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {s.embedding.length} 维
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTime(s.createdAt)}
-                          </span>
-                        </div>
-                        <p className="line-clamp-3 whitespace-pre-wrap break-words text-xs">
-                          {s.content || "(空)"}
-                        </p>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+          {/* 世界书选择（一级，与角色卡平级） */}
+          <div className="grid gap-2 border-t border-border/30 pt-3">
+            <label className="text-sm font-medium">选择世界书</label>
+            <Select
+              value={selectedBookId}
+              onValueChange={(v) => {
+                setSelectedBookId(v);
+                setActiveSource("world");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="选择世界书查看向量分片" />
+              </SelectTrigger>
+              <SelectContent>
+                {worldBooks.length === 0 ? (
+                  <SelectItem value="__none__" disabled>
+                    暂无世界书
+                  </SelectItem>
+                ) : (
+                  worldBooks.map((b) => (
+                    <SelectItem key={b.bookId} value={b.bookId}>
+                      <span className="flex items-center gap-2">
+                        <span className="truncate">{b.bookName}</span>
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] leading-none"
+                        >
+                          {b.count}
+                        </Badge>
+                      </span>
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 分片列表 */}
+          {!hasEmbeddingModel && (activeSource === "session" ? !selectedUuid || (displayLoaded && displayShards.length === 0) : !selectedBookId || (displayLoaded && displayShards.length === 0)) ? (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              className="flex flex-col items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 py-8 text-center"
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -10 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                className="flex size-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400"
+              >
+                <IconExclamation className="size-6" />
+              </motion.div>
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                  尚未配置嵌入模型
+                </span>
+                <span className="text-xs text-amber-600/80 dark:text-amber-400/80">
+                  向量记忆和语义检索功能需要嵌入模型支持
+                </span>
+              </div>
+              {onScrollToSettings && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={onScrollToSettings}
+                  className="border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+                  {...pressable}
+                >
+                  前往配置
+                </Button>
+              )}
+            </motion.div>
+          ) : activeSource === "session" && !selectedUuid ? (
+            <EmptyState
+              icon={<IconBook className="size-6" />}
+              title="选择角色卡查看记忆"
+              description="向量记忆按角色卡分别存储，选择后可查看对应分片"
+            />
+          ) : activeSource === "session" && displayLoaded && displayShards.length === 0 ? (
+            <EmptyState
+              icon={<IconBook className="size-6" />}
+              title="暂无向量记忆分片"
+              description="对话后将自动生成向量记忆"
+            />
+          ) : activeSource === "world" && !selectedBookId ? (
+            <EmptyState
+              icon={<IconBook className="size-6" />}
+              title="选择世界书查看分片"
+              description="世界书条目导入后将自动生成向量分片"
+            />
+          ) : activeSource === "world" && displayLoaded && displayShards.length === 0 ? (
+            <EmptyState
+              icon={<IconBook className="size-6" />}
+              title="暂无世界书向量分片"
+              description="导入或创建世界书条目后将自动生成嵌入向量"
+            />
+          ) : (
+            <ScrollArea className="h-96 rounded-lg border">
+              <div className="flex flex-col gap-2 p-2">
+                <AnimatePresence initial={false}>
+                  {displayShards.map((s, idx) => (
+                    <motion.div
+                      key={s.id}
+                      {...springEnter}
+                      custom={idx}
+                      className="rounded-md border bg-muted/30 p-2.5"
+                    >
+                      <div className="mb-1.5 flex items-center gap-1.5">
+                        <Badge variant="outline" className="text-xs">
+                          轮次 {s.turn}
+                        </Badge>
+                        <Badge variant="outline" className="text-xs">
+                          {s.embedding.length} 维
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {formatTime(s.createdAt)}
+                        </span>
+                      </div>
+                      <p className="line-clamp-3 whitespace-pre-wrap break-words text-xs">
+                        {s.content || "(空)"}
+                      </p>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
 // ============================================================================
-// 长期记忆 Tab
+// 长期记忆 Tab（v0.5.9: 功能锁定，仅保留角色卡启用选择）
 // ============================================================================
 
 interface LongTermMemoryTabProps {
   settings: MemorySettings;
+  characters: Character[];
+  onUpdate: <K extends keyof MemorySettings>(
+    key: K,
+    value: MemorySettings[K],
+  ) => void;
 }
 
-function LongTermMemoryTab({ settings }: LongTermMemoryTabProps) {
-  const characters = useAppStore((s) => s.characters);
-  const currentCharacterUuid = useAppStore((s) => s.currentCharacterUuid);
-  const getAllProviders = useAppStore((s) => s.getAllProviders);
-  const providers = React.useMemo(() => getAllProviders(), [getAllProviders]);
-  const apiProviderKeys = useAppStore((s) => s.apiProviderKeys);
-
-  const [selectedUuid, setSelectedUuid] = React.useState<string>(
-    currentCharacterUuid ?? "",
-  );
-  const [entries, setEntries] = React.useState<MemoryEntry[]>([]);
-  const [loaded, setLoaded] = React.useState(false);
-
-  // 搜索状态
-  const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchType, setSearchType] = React.useState<"keyword" | "semantic">(
-    "keyword",
-  );
-  const [searchResults, setSearchResults] = React.useState<MemorySearchResult[] | null>(
-    null,
-  );
-  const [searching, setSearching] = React.useState(false);
-
-  /** 当 currentCharacterUuid 变化且尚未手动选择时同步 */
-  React.useEffect(() => {
-    if (currentCharacterUuid && !selectedUuid) {
-      setSelectedUuid(currentCharacterUuid);
-    }
-  }, [currentCharacterUuid, selectedUuid]);
-
-  /** 加载长期记忆 */
-  React.useEffect(() => {
-    if (!selectedUuid) {
-      setEntries([]);
-      setLoaded(true);
-      return;
-    }
-    setLoaded(false);
-    void (async () => {
-      try {
-        const list = await loadLongTermMemory(selectedUuid);
-        setEntries(list);
-      } catch (e) {
-        toast.error("加载长期记忆失败：" + (e as Error).message);
-        setEntries([]);
-      } finally {
-        setLoaded(true);
-      }
-    })();
-  }, [selectedUuid]);
-
-  /** 执行搜索 */
-  const handleSearch = React.useCallback(async () => {
-    if (!searchQuery.trim() || !selectedUuid) return;
-    setSearching(true);
-    try {
-      const state = useAppStore.getState();
-      // v0.3.4: enableThinking 从当前模型的 supportsReasoning 派生
-      const allProviders = state.getAllProviders();
-      const currentProvider = allProviders.find((p) => p.id === state.apiProviderId);
-      const { providerId, modelName: actualModelName } = parseModelName(state.modelName);
-      const targetProvider = providerId
-        ? allProviders.find((p) => p.id === providerId)
-        : currentProvider;
-      const currentModel = targetProvider?.models?.find((m) => m.name === actualModelName);
-      const enableThinking = !!currentModel?.supportsReasoning;
-      const apiSettings: ApiSettings = {
-        apiUrl: state.apiUrl,
-        apiKey: state.apiKey,
-        modelName: state.modelName,
-        stream: state.stream,
-        enableThinking,
-        customRequestBody: state.customRequestBody,
-      };
-      const results = await searchAllMemory(
-        searchQuery,
-        searchType,
-        selectedUuid,
-        undefined,
-        settings,
-        apiSettings,
-        providers,
-        apiProviderKeys,
-      );
-      setSearchResults(results);
-      if (results.length === 0) {
-        toast.info("未找到匹配的记忆");
-      }
-    } catch (e) {
-      toast.error("搜索失败：" + (e as Error).message);
-    } finally {
-      setSearching(false);
-    }
-  }, [
-    searchQuery,
-    searchType,
-    selectedUuid,
-    settings,
-    providers,
-    apiProviderKeys,
-  ]);
-
+function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTabProps) {
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span>长期记忆</span>
-              <Badge variant="secondary" className="text-xs">
-                {entries.length} 条
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <p className="text-xs text-muted-foreground">
-              长期记忆为跨会话级别的记忆条目，由系统在对话中自动聚合生成，
-              可通过下方搜索框进行关键词或语义检索。
-            </p>
-
-            {/* 角色选择 */}
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">选择角色卡</label>
-              <Select value={selectedUuid} onValueChange={setSelectedUuid}>
-                <SelectTrigger>
-                  <SelectValue placeholder="选择角色卡查看长期记忆" />
-                </SelectTrigger>
-                <SelectContent>
-                  {characters.length === 0 ? (
-                    <SelectItem value="__none__" disabled>
-                      暂无角色卡
-                    </SelectItem>
-                  ) : (
-                    characters.map((c) => (
-                      <SelectItem key={c.uuid} value={c.uuid}>
-                        <span className="truncate">{c.name}</span>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <IconLock className="size-4 text-muted-foreground" />
+            长期记忆
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {/* 锁定提示卡片 */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="flex flex-col items-center gap-3 rounded-xl border border-border/50 bg-muted/30 py-8 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+              className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
+            >
+              <IconLock className="size-6" />
+            </motion.div>
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-foreground">功能开发中，敬请期待</span>
+              <span className="text-xs text-muted-foreground">
+                长期记忆功能正在重构中，暂不可用
+              </span>
             </div>
+          </motion.div>
 
-            {/* 搜索框 */}
-            {selectedUuid && (
-              <div className="grid gap-2 rounded-lg border p-3">
-                <label className="text-sm font-medium">记忆检索</label>
-                <div className="flex gap-2">
-                  <Input
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="输入关键词或语义查询..."
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        void handleSearch();
-                      }
-                    }}
-                  />
-                  <Select
-                    value={searchType}
-                    onValueChange={(v: "keyword" | "semantic") =>
-                      setSearchType(v)
-                    }
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="keyword">关键词</SelectItem>
-                      <SelectItem value="semantic">语义</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    onClick={() => void handleSearch()}
-                    disabled={searching || !searchQuery.trim()}
-                    {...pressable}
-                  >
-                    <IconSearch className="size-4" />
-                  </Button>
-                </div>
-
-                {/* 搜索结果 */}
-                {searchResults !== null && (
-                  <div className="mt-2 grid gap-1.5">
-                    <div className="text-xs text-muted-foreground">
-                      找到 {searchResults.length} 条结果
-                    </div>
-                    <ScrollArea className="h-48 rounded-md border">
-                      <div className="flex flex-col gap-1.5 p-2">
-                        {searchResults.length === 0 ? (
-                          <div className="py-4 text-center text-xs text-muted-foreground">
-                            无匹配结果
-                          </div>
-                        ) : (
-                          searchResults.map((r, idx) => (
-                            <div
-                              key={idx}
-                              className="rounded-md border bg-muted/30 p-2"
-                            >
-                              <div className="mb-1 flex items-center gap-1.5">
-                                <Badge variant="outline" className="text-xs">
-                                  {r.scope === "session"
-                                    ? "会话"
-                                    : r.scope === "long-term"
-                                      ? "长期"
-                                      : "全局"}
-                                </Badge>
-                                {r.turn !== undefined && (
-                                  <Badge variant="outline" className="text-xs">
-                                    轮次 {r.turn}
-                                  </Badge>
-                                )}
-                                <Badge variant="secondary" className="text-xs">
-                                  {r.score.toFixed(3)}
-                                </Badge>
-                              </div>
-                              <p className="line-clamp-2 whitespace-pre-wrap break-words text-xs">
-                                {r.content}
-                              </p>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </ScrollArea>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 长期记忆列表 */}
-            {!selectedUuid ? (
-              <EmptyState
-                icon={<IconClock className="size-6" />}
-                title="选择角色卡查看长期记忆"
-                description="长期记忆按角色卡分别存储，跨会话聚合"
-              />
-            ) : loaded && entries.length === 0 ? (
-              <EmptyState
-                icon={<IconClock className="size-6" />}
-                title="暂无长期记忆"
-                description="系统将在多会话对话中自动聚合生成长期记忆"
-              />
-            ) : (
-              <ScrollArea className="h-96 rounded-lg border">
-                <div className="flex flex-col gap-2 p-2">
-                  <AnimatePresence initial={false}>
-                    {entries.map((e, idx) => (
-                      <motion.div
-                        key={e.id}
-                        {...springEnter}
-                        custom={idx}
-                        className="rounded-md border bg-muted/30 p-2.5"
-                      >
-                        <div className="mb-1.5 flex items-center gap-1.5">
-                          {e.turn !== undefined && (
-                            <Badge variant="outline" className="text-xs">
-                              轮次 {e.turn}
-                            </Badge>
-                          )}
-                          <Badge variant="outline" className="text-xs">
-                            {e.embedding?.length ?? 0} 维
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {formatTime(e.createdAt)}
-                          </span>
-                        </div>
-                        <p className="line-clamp-3 whitespace-pre-wrap break-words text-xs">
-                          {e.content || "(空)"}
-                        </p>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
+          {/* 角色卡启用选择（保留设置项供将来解锁后使用） */}
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">
+              长期记忆启用角色卡
+              <span className="ml-2 text-xs text-muted-foreground">
+                {(settings.longTermMemoryCharacterIds ?? []).length === 0
+                  ? "全部禁用"
+                  : `${(settings.longTermMemoryCharacterIds ?? []).length} 个角色卡`}
+              </span>
+            </label>
+            <p className="text-xs text-muted-foreground">
+              选择要启用长期记忆的角色卡（不选则全部禁用）
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {characters.length === 0 ? (
+                <span className="text-xs text-muted-foreground">暂无角色卡</span>
+              ) : (
+                characters.map((c) => {
+                  const selected = (settings.longTermMemoryCharacterIds ?? []).includes(c.uuid);
+                  return (
+                    <button
+                      key={c.uuid}
+                      type="button"
+                      onClick={() => {
+                        const current = settings.longTermMemoryCharacterIds ?? [];
+                        const next = selected
+                          ? current.filter((id) => id !== c.uuid)
+                          : [...current, c.uuid];
+                        onUpdate("longTermMemoryCharacterIds", next);
+                      }}
+                      className={cn(
+                        "rounded-md border px-2 py-1 text-xs transition-colors",
+                        selected
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border bg-background text-muted-foreground hover:bg-muted/50",
+                      )}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

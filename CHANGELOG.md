@@ -1,5 +1,101 @@
 # Changelog
 
+## v0.5.9
+
+### 🎯 记忆系统重构 + 向量分片修复 + 翻译高亮
+
+> 修复向量记忆分片失效问题，重构记忆页面结构，增强嵌入引导，世界书预生成嵌入向量，翻译全文高亮。
+
+#### 锁定长期记忆功能
+
+- **`memory.tsx`**：`LongTermMemoryTab` 替换为锁定提示卡片（IconLock + "功能开发中，敬请期待"）
+  - 保留 tab 入口但内容不可交互，约 280 行缩减为占位卡片
+  - 角色卡启用选择保留在锁定卡片下方，供将来解锁后使用
+- **`memoryService.ts`**：长期记忆后端代码全部用 `// v0.5.9-locked` 行注释标记
+  - `LONG_TERM_MEMORY_STORAGE_KEY_PREFIX` 常量
+  - `loadLongTermMemory` / `saveLongTermMemory` / `buildLongTermMemory` / `searchLongTermMemory` / `searchAllMemory`
+  - `MemorySearchResult` 接口
+- **`types/luzzy.ts`**：`MemoryScope` 和 `MemoryEntry` 类型用 `// v0.5.9-locked` 注释
+
+#### longTermMemoryCharacterIds 逻辑反转
+
+- **`chat-slice.ts`**：`longTermMemoryEnabledForCharacter` 空列表语义从"全部启用"反转为"全部禁用"
+  - 旧：`if (!ids || ids.length === 0) return true;`
+  - 新：`if (!ids || ids.length === 0) return false;`（需手动勾选才能启用）
+- **`memory.tsx`**：`longTermMemoryCharacterIds` 选择器从 `MemorySettingsCard` 移到 `LongTermMemoryTab`
+  - 标签文案更新：空列表显示"全部禁用"，非空显示"N 个角色卡"
+  - 提示文案："选择要启用长期记忆的角色卡（不选则全部禁用）"
+
+#### 重构向量记忆选择器
+
+- **`memory.tsx` `SessionMemoryTab`**：
+  - 移除"全部会话（角色级）"选项（`SelectItem value="__all__"`）
+  - 会话选择器缩进为角色选择器的二级选项（`ml-4` + `border-l` 视觉缩进 + 字号略小）
+  - 默认自动选中最近会话（保持 v0.5.7 行为）
+  - 新增"选择世界书"一级 `Select`，与角色卡平级
+    - 数据源：从 `worldInfo` IndexedDB 提取唯一 `bookId`/`bookName` 并统计条目数
+    - 选择后加载键 `vector_memory_world_<bookId>` 的分片
+- **`memoryService.ts`**：新增 `loadWorldVectorMemoryShards` / `saveWorldVectorMemoryShards` 函数
+  - 新增 `WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX = 'vector_memory_world_'` 常量
+
+#### 嵌入模型未配置时引导提示
+
+- **`memory.tsx` `MemorySettingsCard`**：顶部添加 amber 色调醒目横幅
+  - "⚠️ 请先配置嵌入模型以启用向量记忆和语义检索功能"
+  - 横幅内含"前往配置"按钮，点击平滑滚动到嵌入模型选择器
+  - 使用 `AnimatePresence` + `motion.div` 实现进入/退出动画
+- **`memory.tsx` `SessionMemoryTab`**：无嵌入模型且无分片时显示空状态引导
+  - "尚未配置嵌入模型" + "前往配置" 按钮
+  - 替代原泛化的"暂无向量记忆分片"空状态
+
+#### 世界书导入/创建时预生成嵌入向量
+
+- **`memoryService.ts`**：新增 `generateWorldInfoEmbeddings` 函数
+  - 批量调用 `getEmbedding`（复用现有缓存）
+  - 写回 `entry.embedding` 字段并持久化到 IndexedDB
+  - 按 `bookId` 分组保存为向量分片到 `vector_memory_world_<bookId>`
+  - 仅处理无 embedding 或内容变更的条目
+- **`world-info.tsx`**：
+  - `handleSaveEntry`：保存条目后清除已有 embedding 并异步调用 `generateWorldInfoEmbeddings()`
+  - `handleFileImport`：导入世界书后异步调用 `generateWorldInfoEmbeddings()`
+  - 仅当 `memorySettings.embeddingModel` 已配置时触发
+  - toast 提示："已开始为 N 条世界书条目生成嵌入向量..."
+
+#### pipeline 诊断日志增强
+
+- **`chatService.ts` `extractMemory`**：每个 early return 添加 `logger.debug` 诊断日志
+  - `!memorySettings.enabled` → "记忆功能未启用"
+  - `!character` → "无当前角色卡"
+  - `messages.length < 2` → "消息不足 2 条"
+  - `lastUserIndex === -1` → "未找到用户消息"
+  - `lastUserIndex >= messages.length - 1` → "用户消息后无 assistant 消息"
+  - `!userMessage || !assistantMessage` → "用户或 assistant 消息对象为空"
+  - `assistantMessage.role !== 'assistant'` → "最后一条消息非 assistant"
+  - `!userContent.trim() || !assistantContent.trim()` → "消息内容为空"
+  - 入口/出口添加 `logger.info` 日志
+- **`memoryService.ts` `buildVectorMemory`**：
+  - `!embeddingModel` 从 `debug` 升级到 `warn`（便于诊断向量记忆失效问题）
+  - 入口日志增加轮次信息：`buildVectorMemory: turns=N 分M 批请求嵌入`
+
+#### 翻译文本全文高亮
+
+- **`luzzy-chat-message.tsx` `TranslationCard`**：
+  - 读取 `highlightSettings.enabled` 和 `highlightSettings.color`
+  - 启用时翻译内容容器设置 `style={{ color: highlightSettings.color, fontWeight: 500 }}`
+  - 翻译为独立样式，不受原文正则高亮干扰
+  - `fontWeight: 500` 使其与原文视觉区分
+
+#### 版本号更新
+
+- `frontend/package.json`: `0.5.8` → `0.5.9`
+- `android/app/build.gradle`: `versionCode 31` → `32`, `versionName "0.5.8"` → `"0.5.9"`
+- `android-patches/build.gradle`: 同步更新
+- `luzzy-global-trpg-iframe.tsx`: `?_v=0.5.8` → `?_v=0.5.9`（TRPG 模式缓存版本号同步）
+- `about.tsx`: `APP_VERSION "v0.5.8"` → `"v0.5.9"`
+- `README.md`: 版本徽章 `v0.5.8` → `v0.5.9`
+
+---
+
 ## v0.5.8
 
 ### 🎯 用户需求闭环：15 项修复与增强

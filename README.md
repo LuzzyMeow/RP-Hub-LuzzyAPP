@@ -8,7 +8,7 @@
 > 
 > *Every conversation feels like a novel with you in it.*
 
-[![Version](https://img.shields.io/badge/version-v0.5.8-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.5.9-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
@@ -104,8 +104,7 @@ pnpm run build       # 生产构建
 # 1. 同步构建产物到 android/
 npm run sync
 
-# 2. 应用 Android 补丁
-Copy-Item -Path "android-patches\MainActivity.java" -Destination "android\app\src\main\java\com\luzzymeow\luzzy\MainActivity.java" -Force
+# 2. 应用 Android 补丁（纯 Kotlin 架构，无需复制 MainActivity）
 Copy-Item -Path "android-patches\AndroidManifest.xml" -Destination "android\app\src\main\AndroidManifest.xml" -Force
 Copy-Item -Path "android-patches\build.gradle" -Destination "android\app\build.gradle" -Force
 
@@ -114,7 +113,7 @@ cd android
 .\gradlew.bat assembleDebug
 ```
 
-📦 **输出路径**: `android/app/build/outputs/apk/debug/LUZZY-v0.5.4-debug.apk`
+📦 **输出路径**: `android/app/build/outputs/apk/debug/LUZZY-v0.5.9-debug.apk`
 
 ---
 

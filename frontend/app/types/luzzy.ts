@@ -611,21 +611,22 @@ export interface KnowledgeBaseFile {
   uploadedAt: number;
 }
 
-/** 记忆作用域 */
-export type MemoryScope = 'session' | 'long-term' | 'global';
-
-/** 记忆条目 */
-export interface MemoryEntry {
-  id: string;
-  scope: MemoryScope;
-  characterId: string;
-  /** session 记忆关联会话 */
-  sessionId?: string;
-  content: string;
-  turn?: number;
-  embedding?: number[];
-  createdAt: number;
-}
+// v0.5.9-locked: 长期记忆类型锁定
+// /** 记忆作用域 */
+// export type MemoryScope = 'session' | 'long-term' | 'global';
+//
+// /** 记忆条目 */
+// export interface MemoryEntry {
+//   id: string;
+//   scope: MemoryScope;
+//   characterId: string;
+//   /** session 记忆关联会话 */
+//   sessionId?: string;
+//   content: string;
+//   turn?: number;
+//   embedding?: number[];
+//   createdAt: number;
+// }
 
 /** 工具全局模式 */
 export type ToolGlobalMode = 'force' | 'active' | 'adaptive';
