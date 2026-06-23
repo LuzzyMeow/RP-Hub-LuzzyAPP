@@ -807,17 +807,33 @@ export const buildContext = async (
   }
 
   // 4.4 聊天记录（移除 CoT 内容）
-  // v0.5.4-fix: phase=1 时仅保留最后一条 user 消息，避免完整历史对话引导模型续写正文
-  // v0.5.5-arch-fix: phase=2（CoT）时同样高度截断历史，不暴露 assistant 剧情回复，
-  //   避免模型把前文的剧情文本当作续写模板。CoT 阶段只需要用户输入和工具结果。
+  // v0.6.4: Phase 1 需要最近 2 轮 assistant + 1 轮 user 的完整内容，
+  //   让模型理解对话上下文以做出更精准的工具决策。
+  //   Phase 2（CoT）保留 3 条 user 消息 + 工具结果 + memory_recall_result。
   // v0.6.2-fix: 排除 memory_recall_result 注入的 user 消息，优先保留真实用户输入
-  //   （memory_recall_result 在 chat-slice.ts 中作为 user 消息 push 到 contextMessages 末尾，
-  //    若不排除会挤掉原始用户消息，导致 Phase 1 工具决策只能看到召回结果）
-  if (phase === 1 || phase === 2) {
+  if (phase === 1) {
+    // v0.6.4: Phase 1 提取最近 2 条 assistant + 1 条 user 消息
+    const recentAssistantMsgs = [...limitedMessages]
+      .reverse()
+      .filter((m) => m.role === "assistant")
+      .slice(0, 2)
+      .reverse();
+    const recentUserMsgs = [...limitedMessages]
+      .reverse()
+      .filter((m) => m.role === "user" && !m.content.startsWith("<memory_recall_result>"))
+      .slice(0, 1)
+      .reverse();
+    // 按 createdAt 排序合并，保持对话顺序
+    const phase1Msgs = [...recentUserMsgs, ...recentAssistantMsgs]
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    for (const msg of phase1Msgs) {
+      apiMessages.push({ role: msg.role as 'user' | 'assistant', content: msg.content });
+    }
+  } else if (phase === 2) {
     const realUserMsgs = [...limitedMessages]
       .reverse()
       .filter((m) => m.role === "user" && !m.content.startsWith("<memory_recall_result>"))
-      .slice(0, phase === 1 ? 1 : 3)
+      .slice(0, 3)
       .reverse();
     for (const msg of realUserMsgs) {
       apiMessages.push({ role: "user", content: msg.content });
@@ -1313,7 +1329,9 @@ export const extractMemory = async (
     await saveVectorMemoryShards(character.uuid, allShards, sessionId);
     logger.info("memory", `extractMemory 完成: 新增=${adjustedShards.length}个 总计=${allShards.length}个 turn=${turnNumber}`);
   } catch (e) {
-    console.warn('[Memory] 记忆提取失败:', e);
+    // v0.6.4-fix: 重新 throw，让外层 chat-slice.ts 的 .catch 能捕获到并 toast.error 通知用户
+    // 之前只 logger.warn 不 throw，导致 401 等错误被静默吞掉，外层 .catch 永远不触发
     logger.warn("memory", `extractMemory 异常: ${(e as Error).message}`);
+    throw e;
   }
 };

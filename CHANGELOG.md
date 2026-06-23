@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.6.4
+
+### 🐛 修复
+
+> 修复向量切片异常被静默吞掉（致命根因）+ Phase 1 上下文增强。
+
+- **extractMemory catch 吞掉异常**（致命）
+  - `extractMemory` 内部 try/catch 只 `logger.warn` 不 `throw`，导致 401 等错误被静默吞掉
+  - 外层 `chat-slice.ts` 的 `.catch` 永远不触发，v0.6.3 的 `toast.error` 修复实际无效
+  - 修复：catch 中 `throw e` 重新抛出，让外层 `.catch` 能捕获并 `toast.error` 通知用户
+- **Phase 1 上下文增强**（高）
+  - Phase 1 工具决策阶段只给 1 条 user 消息，模型无法理解对话上下文
+  - 修复：Phase 1 现在提供最近 2 条 assistant + 1 条 user 的完整内容
+  - 让模型能基于最近对话判断是否需要调用工具
+
 ## v0.6.3
 
 ### 🐛 修复
