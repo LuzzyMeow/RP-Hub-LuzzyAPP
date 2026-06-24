@@ -2,15 +2,15 @@
 
 <table align="center">
   <tr valign="middle">
-    <td><img src="frontend/public/brand-logos/deepseek.png" width="66" height="66" alt="DeepSeek" /></td>
+    <td><img src="frontend/public/brand-logos/deepseek.png" width="75" height="75" alt="DeepSeek" /></td>
     <td>&nbsp;&nbsp;&nbsp;</td>
     <td><img src="frontend/public/brand-logos/zai.png" width="56" height="56" alt="Z.ai · 智谱清言" /></td>
     <td>&nbsp;&nbsp;&nbsp;</td>
     <td><img src="frontend/public/brand-logos/luzzy.png" width="72" height="72" alt="LUZZY" /></td>
     <td>&nbsp;&nbsp;&nbsp;</td>
-    <td><img src="frontend/public/brand-logos/kimi.png" width="58" height="58" alt="Kimi · 月之暗面" /></td>
+    <td><img src="frontend/public/brand-logos/kimi.png" width="52" height="52" alt="Kimi · 月之暗面" /></td>
     <td>&nbsp;&nbsp;&nbsp;</td>
-    <td><img src="frontend/public/brand-logos/trae.png" width="72" height="72" alt="Trae" /></td>
+    <td><img src="frontend/public/brand-logos/trae.png" width="75" height="75" alt="Trae" /></td>
   </tr>
 </table>
 
