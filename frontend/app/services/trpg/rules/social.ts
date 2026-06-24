@@ -45,22 +45,27 @@ export function resolveSocial(
     };
   }
 
-  // 根据行动类型选择技能
   let skill: 'persuasion' | 'deception' | 'intimidation' = 'persuasion';
   if (args.action_type === 'deceive') skill = 'deception';
   else if (args.action_type === 'intimidate') skill = 'intimidation';
 
   const bonus = skillBonus(character, skill);
-  const dc = 10 + (ATTITUDE_ORDER.indexOf(npc.attitude) * 2);
+
+  const ATTITUDE_DC_MOD: Record<NpcAttitude, number> = {
+    hostile: 5,
+    unfriendly: 0,
+    neutral: -5,
+    friendly: -10,
+    helpful: -15,
+  };
+  const baseDc = 13;
+  const dc = Math.max(3, baseDc + (ATTITUDE_DC_MOD[npc.attitude] ?? 0));
   const check = d20Check(bonus, dc);
 
-  // 态度调整
-  let attitudeShift = 0;
-  if (check.success) {
-    attitudeShift = check.critical === 'success' ? 2 : 1;
-  } else {
-    attitudeShift = check.critical === 'failure' ? -2 : -1;
-  }
+  let attitudeShift = Math.floor((check.total - dc) / 5);
+  attitudeShift = Math.max(-2, Math.min(2, attitudeShift));
+  if (check.critical === 'success') attitudeShift = Math.max(attitudeShift, 2);
+  else if (check.critical === 'failure') attitudeShift = Math.min(attitudeShift, -2);
 
   const currentIdx = ATTITUDE_ORDER.indexOf(npc.attitude);
   const newIdx = Math.max(0, Math.min(ATTITUDE_ORDER.length - 1, currentIdx + attitudeShift));
@@ -77,7 +82,7 @@ export function resolveSocial(
       check,
       attitudeShift,
       newAttitude,
-      log: `${skill}检定: d20=${check.roll}+${bonus}=${check.total} (DC ${dc}) ${check.success ? '成功' : '失败'}，态度从${npc.attitude}变为${newAttitude}`,
+      log: `${skill}检定: d20=${check.roll}+${bonus}=${check.total} (DC ${dc}, ${npc.attitude}修正${ATTITUDE_DC_MOD[npc.attitude] ?? 0}) ${check.success ? '成功' : '失败'}，态度从${npc.attitude}变为${newAttitude}（变化${attitudeShift > 0 ? '+' : ''}${attitudeShift}）`,
     },
     stateOps,
   };

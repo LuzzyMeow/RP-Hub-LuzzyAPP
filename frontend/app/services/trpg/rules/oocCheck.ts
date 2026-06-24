@@ -78,52 +78,14 @@ function simpleSimilarity(a: string, b: string): number {
  * 检查元游戏（玩家是否使用角色不应知道的信息）
  */
 function checkMetaGame(input: string): OocCheckItem {
-  const lowerInput = input.toLowerCase();
-  const found = META_GAME_KEYWORDS.find((kw) =>
-    lowerInput.includes(kw.toLowerCase()),
-  );
-
-  if (found) {
-    return {
-      id: 1,
-      name: '元游戏',
-      result: 'soft_warn',
-      reason: `检测到元游戏词汇: "${found}"，玩家可能在使用角色不应知道的信息`,
-    };
-  }
-  return { id: 1, name: '元游戏', result: 'pass' };
+  return { id: 1, name: '元游戏', result: 'pass', reason: '由 LLM 审查（reasoning_content OOC JSON）' };
 }
 
-/**
- * 检查知识越界（角色是否超出其背景/技能的知识范围）
- */
 function checkKnowledgeBoundary(
   input: string,
   character: TrpgCharacter,
 ): OocCheckItem {
-  // 检测是否涉及专业知识领域
-  const knowledgeSkills: Record<string, string[]> = {
-    arcana: ['魔法', '法术', '奥术', '符文', '咒语', '魔法阵'],
-    history: ['历史', '古代', '王朝', '战争', '传说', '遗迹'],
-    nature: ['自然', '植物', '动物', '草药', '生态', '地理'],
-    religion: ['神', '宗教', '信仰', '神殿', '祭司', '神术'],
-  };
-
-  for (const [skill, keywords] of Object.entries(knowledgeSkills)) {
-    const hasKnowledge = keywords.some((kw) => input.includes(kw));
-    if (hasKnowledge) {
-      const isProficient = character.proficientSkills.includes(skill as never);
-      if (!isProficient && character.abilities.int < 12) {
-        return {
-          id: 2,
-          name: '知识越界',
-          result: 'soft_warn',
-          reason: `角色未熟练掌握 ${skill}，智力 ${character.abilities.int} 较低，可能无法准确使用相关知识`,
-        };
-      }
-    }
-  }
-  return { id: 2, name: '知识越界', result: 'pass' };
+  return { id: 2, name: '知识越界', result: 'pass', reason: '由 LLM 审查（reasoning_content OOC JSON）' };
 }
 
 /**
@@ -230,32 +192,7 @@ function checkRolePlay(
   input: string,
   character: TrpgCharacter,
 ): OocCheckItem {
-  // 检测是否严重偏离阵营
-  const alignmentConflicts: Record<string, string[]> = {
-    '守序善良': ['杀戮', '偷窃', '欺骗', '背叛'],
-    '中立善良': ['无端杀戮', '背叛'],
-    '混乱善良': ['背叛', '压迫'],
-    '守序中立': ['破坏秩序', '混乱'],
-    '绝对中立': [],
-    '混乱中立': ['守序', '服从'],
-    '守序邪恶': ['善良', '帮助弱者'],
-    '中立邪恶': ['善良', '正义'],
-    '混乱邪恶': ['善良', '正义', '帮助'],
-  };
-
-  const conflicts = alignmentConflicts[character.alignment];
-  if (conflicts && conflicts.length > 0) {
-    const found = conflicts.find((kw) => input.includes(kw));
-    if (found) {
-      return {
-        id: 7,
-        name: '角色扮演',
-        result: 'soft_warn',
-        reason: `行动 "${found}" 与角色阵营 "${character.alignment}" 冲突`,
-      };
-    }
-  }
-  return { id: 7, name: '角色扮演', result: 'pass' };
+  return { id: 7, name: '角色扮演', result: 'pass', reason: '由 LLM 审查（reasoning_content OOC JSON）' };
 }
 
 /**

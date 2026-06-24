@@ -57,6 +57,7 @@ import { CharacterSheet } from "~/components/trpg/sheets/character-sheet";
 import { MapSheet } from "~/components/trpg/sheets/map-sheet";
 import { TrpgSettingsPanel } from "~/components/trpg/trpg-settings-panel";
 import { NarratorMessage } from "~/components/trpg/narrator-message";
+import type { CombatState, GameNpc, TrpgCharacter } from "~/types/trpg";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "TRPG - LUZZY" }];
@@ -81,6 +82,14 @@ export default function TrpgPage() {
   // ===== 本地状态 =====
   const [showInfo, setShowInfo] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
+  const [displayCount, setDisplayCount] = React.useState(40);
+  const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+
+  // ===== 可见消息（分页加载） =====
+  const visibleMessages = React.useMemo(
+    () => trpgMessages.slice(-displayCount),
+    [trpgMessages, displayCount],
+  );
 
   // ===== 初始化 =====
   React.useEffect(() => {
@@ -115,6 +124,21 @@ export default function TrpgPage() {
       }
     },
     [handleSend],
+  );
+
+  // ===== 滚动分页加载 =====
+  const handleScroll = React.useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget;
+      if (target.scrollTop < 50 && displayCount < trpgMessages.length && !isLoadingMore) {
+        setIsLoadingMore(true);
+        setTimeout(() => {
+          setDisplayCount((prev) => Math.min(prev + 40, trpgMessages.length));
+          setIsLoadingMore(false);
+        }, 500);
+      }
+    },
+    [displayCount, trpgMessages.length, isLoadingMore],
   );
 
   // ===== Sheet 开关 =====
@@ -216,15 +240,36 @@ export default function TrpgPage() {
           </motion.button>
         </motion.div>
 
+        {/* ===== 战斗状态栏 ===== */}
+        {trpgSave?.gameState.phase === 'combat' && trpgSave?.gameState.combat && (
+          <CombatStatusBar combat={trpgSave.gameState.combat} npcs={trpgSave.gameState.npcs} character={trpgSave.character} />
+        )}
+
         {/* ===== 区域 2：中部剧情正文区 ===== */}
         <div className="relative flex-1 overflow-hidden">
-          <div className="h-full overflow-y-auto px-4 py-3">
+          <div className="h-full overflow-y-auto px-4 py-3" onScroll={handleScroll}>
             {trpgMessages.length === 0 ? (
               <EmptyState onCreateSave={() => openSheet("save")} />
             ) : (
               <div className="mx-auto max-w-3xl space-y-4">
+                {isLoadingMore && (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground"
+                  >
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    >
+                      <IconDice className="size-3.5" />
+                    </motion.div>
+                    加载更多...
+                  </motion.div>
+                )}
                 <AnimatePresence mode="popLayout">
-                  {trpgMessages.map((msg) => (
+                  {visibleMessages.map((msg) => (
                     <motion.div
                       key={msg.id}
                       layout
@@ -236,7 +281,10 @@ export default function TrpgPage() {
                       {msg.role === "user" ? (
                         <UserMessage content={msg.content} />
                       ) : (
-                        <NarratorMessage message={msg} />
+                        <NarratorMessage
+                          message={msg}
+                          onSelectAction={(option) => setTrpgInputDraft(option.description)}
+                        />
                       )}
                     </motion.div>
                   ))}
@@ -521,5 +569,99 @@ function ToolbarButton({
       {icon}
       <span className="text-[10px] font-medium">{label}</span>
     </motion.button>
+  );
+}
+
+/** 战斗状态栏（可折叠） */
+function CombatStatusBar({
+  combat,
+  character,
+}: {
+  combat: CombatState;
+  npcs?: GameNpc[];
+  character?: TrpgCharacter;
+}) {
+  const [expanded, setExpanded] = React.useState(true);
+  const currentTurnId = combat.turnOrder[combat.currentTurnIndex];
+  const currentParticipant = currentTurnId
+    ? combat.participants[currentTurnId]
+    : undefined;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={springSnappy}
+      className="shrink-0 border-b border-red-500/20 bg-red-500/5"
+    >
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-3 px-4 py-1.5"
+      >
+        <IconDice className="size-3.5 shrink-0 text-red-500" />
+        <span className="text-xs font-medium text-foreground">
+          战斗 · 第 {combat.round} 轮
+        </span>
+        {currentParticipant && (
+          <span className="text-xs text-muted-foreground">
+            当前回合:{" "}
+            <span className="font-medium text-foreground">
+              {currentParticipant.name}
+            </span>
+          </span>
+        )}
+        {character && (
+          <span className="ml-auto flex items-center gap-2 text-[11px]">
+            <span className="text-red-500/80">
+              HP {character.hp.current}/{character.hp.max}
+            </span>
+            <span className="text-blue-500/80">AC {character.ac}</span>
+          </span>
+        )}
+        <IconChevronRight
+          className={`size-3 shrink-0 text-muted-foreground transition-transform ${
+            expanded ? "rotate-90" : ""
+          }`}
+        />
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={springSoft}
+            className="overflow-hidden"
+          >
+            <div className="flex flex-wrap gap-1.5 px-4 pb-2">
+              {combat.turnOrder.map((id, idx) => {
+                const p = combat.participants[id];
+                if (!p) return null;
+                const isCurrent = idx === combat.currentTurnIndex;
+                return (
+                  <span
+                    key={id}
+                    className={`rounded px-1.5 py-0.5 text-[10px] ${
+                      isCurrent
+                        ? "bg-red-500/20 font-medium text-red-600 dark:text-red-400"
+                        : "bg-muted/30 text-muted-foreground"
+                    }`}
+                  >
+                    {p.name}
+                    {p.hp && (
+                      <span className="ml-1 opacity-70">
+                        {p.hp.current}/{p.hp.max}
+                      </span>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   );
 }

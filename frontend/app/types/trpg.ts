@@ -138,6 +138,7 @@ export interface GameNpc {
   presence: NpcPresence;
   attitude: NpcAttitude;
   hp: { current: number; max: number };
+  ac?: number;
   revealedFields: string[];
   customFields: Record<string, string>;
 }

@@ -33,24 +33,26 @@ export function resolveCombat(
 ): { result: CombatResolveResult; stateOps: StateOperation[] } {
   const stateOps: StateOperation[] = [];
   const isPlayerAttacker = args.attacker_id === character.charId;
+  const targetNpc = gameState.npcs.find((n) => n.npcId === args.target_id);
+  const targetAc = targetNpc?.ac ?? 15;
 
   if (args.action_type === 'attack') {
-    // 攻击检定
     const weapon = character.equipment.weapon ?? '徒手';
+    const isFinesse = ['匕首', '短剑', '细剑', '鞭子'].some((w) => weapon.includes(w));
     const strMod = abilityModifier(character.abilities.str);
+    const dexMod = abilityModifier(character.abilities.dex);
+    const attackMod = isFinesse ? Math.max(strMod, dexMod) : strMod;
     const profBonus = proficiencyBonus(character.level);
-    const attackBonus = strMod + profBonus;
+    const attackBonus = attackMod + profBonus;
 
-    const attackRoll = d20Check(attackBonus, 15);
+    const attackRoll = d20Check(attackBonus, targetAc);
 
     let damage: DamageResult | undefined;
     if (attackRoll.success) {
-      // 伤害掷骰（默认 1d8 + 力量调整值）
-      damage = rollDamage('1d8+' + strMod, attackRoll.critical === 'success');
+      const weaponDice = character.inventory.find((i) => i.name === weapon)?.damageDice ?? '1d8';
+      damage = rollDamage(`${weaponDice}+${attackMod}`, attackRoll.critical === 'success');
     }
 
-    // 如果目标是 NPC，计算 HP 变更
-    const targetNpc = gameState.npcs.find((n) => n.npcId === args.target_id);
     let targetHp: number | undefined;
     if (targetNpc && damage) {
       targetHp = Math.max(0, targetNpc.hp.current - damage.total);
@@ -66,14 +68,41 @@ export function resolveCombat(
         attackRoll,
         damage,
         targetHp,
-        log: `攻击检定: d20=${attackRoll.roll}+${attackBonus}=${attackRoll.total} (DC ${attackRoll.dc}) ${attackRoll.success ? '命中' : '未命中'}${damage ? `，伤害 ${damage.total}` : ''}`,
+        log: `攻击检定: d20=${attackRoll.roll}+${attackBonus}=${attackRoll.total} (AC ${targetAc}) ${attackRoll.success ? '命中' : '未命中'}${damage ? `，伤害 ${damage.total}` : ''}`,
       },
       stateOps,
     };
   }
 
+  if (args.action_type === 'cast') {
+    return {
+      result: { log: '施法行动：消耗法术位并执行法术效果（具体效果由 GM 在叙事中描述）' },
+      stateOps,
+    };
+  }
+
+  if (args.action_type === 'use_item') {
+    return {
+      result: { log: '使用物品行动：消耗品/道具使用（具体效果由 GM 在叙事中描述）' },
+      stateOps,
+    };
+  }
+
+  if (args.action_type === 'help') {
+    return {
+      result: { log: '协助行动：为友方单位的下一次攻击检定提供优势条件' },
+      stateOps,
+    };
+  }
+
+  if (args.action_type === 'ready') {
+    return {
+      result: { log: '准备动作：设定触发条件和响应动作，在触发时以反应执行' },
+      stateOps,
+    };
+  }
+
   if (args.action_type === 'dodge') {
-    // 闪避：获得优势对抗攻击
     stateOps.push({
       type: 'condition_add',
       target: 'character',

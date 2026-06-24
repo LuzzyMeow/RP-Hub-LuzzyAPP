@@ -19,6 +19,9 @@ import type {
   WorldCard,
   NarratorSections,
   TrpgMode,
+  Think4Result,
+  OocResult,
+  OocCheckItem,
 } from '~/types/trpg';
 import type {
   MemorySettings,
@@ -29,6 +32,16 @@ import type { AppStoreState, TrpgSlice } from '~/stores/slices/types';
 import { buildTrpgContext } from '~/services/trpg/trpgContextService';
 import { executeTrpgToolCall, type StateOperation, type TrpgToolContext } from '~/services/trpg/trpgTools';
 import { applyStateOperations, applyStateOperationsToCharacter } from '~/services/trpg/rules/stateOperations';
+import {
+  parseThinkSections,
+  parseNarratorSections,
+  parseOocFromReasoning,
+  parseThink1FromReasoning,
+  parseThink2FromReasoning,
+} from '~/services/trpg/parseThinkSections';
+import { checkAndGenerateSummaries } from '~/services/trpg/memoryCompression';
+import { scoreAction } from '~/services/trpg/rules/think4Scoring';
+import { runOocCheck } from '~/services/trpg/rules/oocCheck';
 import {
   getSave,
   getAllSaves,
@@ -555,10 +568,46 @@ export const createTrpgSlice: StateCreator<
       // === 第三阶段：后处理 ===
       logger.info('trpg', 'Stage 3: 后处理开始');
 
-      // 3.1 解析 Narrator 7 段输出
-      const narratorSections = parseNarratorSections(fullContent);
+      // 3.1 解析思考链（Think-1/2/OOC/Narrator）
+      const parsedChain = parseThinkSections(fullContent);
+      const narratorSections = parsedChain.narrator;
 
-      // 3.2 更新消息
+      // 3.2 从 reasoning_content 解析 OOC LLM 端审查（审查项 1/2/7）
+      const llmOocChecks = parseOocFromReasoning(fullReasoning);
+
+      // 3.3 从 reasoning_content 解析 Think-1/Think-2（用于 category 路由和状态路由）
+      const think1Result = parseThink1FromReasoning(fullReasoning);
+      const think2Result = parseThink2FromReasoning(fullReasoning);
+      if (think1Result) {
+        logger.info('trpg', `Think-1 解析: category=${think1Result.category}, skill=${think1Result.skillRequired}, dc=${think1Result.estimatedDc}`);
+      }
+      if (think2Result) {
+        logger.info('trpg', `Think-2 解析: paths=${think2Result.paths.length}, recommended=${think2Result.recommended}`);
+      }
+
+      // 3.4 执行 OOC TS 端审查（审查项 3/4/6），与 LLM 端审查合并
+      const tsOocResult = runOocCheck(
+        {
+          player_input: input,
+          recent_inputs: messagesWithUser.filter((m) => m.role === 'user').slice(-5).map((m) => m.content),
+          phase: trpgSave.gameState.phase,
+        },
+        trpgSave.character,
+        trpgSave.gameState,
+        trpgWorldCard,
+      );
+
+      const mergedChecks: OocCheckItem[] = tsOocResult.checks.map((tc) => {
+        const llmCheck = llmOocChecks.find((lc) => lc.id === tc.id);
+        return llmCheck ?? tc;
+      });
+      const hasHardBlock = mergedChecks.some((c) => c.result === 'hard_block');
+      const hasSoftWarn = mergedChecks.some((c) => c.result === 'soft_warn');
+      const oocAction: OocResult['action'] = hasHardBlock ? 'blocked' : hasSoftWarn ? 'partial' : 'resolved';
+      const mergedOoc: OocResult = { checks: mergedChecks, hasHardBlock, hasSoftWarn, action: oocAction };
+      logger.info('trpg', `OOC 审查合并完成: action=${oocAction}, hardBlock=${hasHardBlock}, softWarn=${hasSoftWarn}`);
+
+      // 3.5 更新消息
       const finalMessages = get().trpgMessages.map((m) =>
         m.id === assistantMessage.id
           ? { ...m, content: fullContent, reasoningContent: fullReasoning, narratorSections }
@@ -566,7 +615,7 @@ export const createTrpgSlice: StateCreator<
       );
       set({ trpgMessages: finalMessages });
 
-      // 3.3 更新 GameState（应用工具返回的状态变更 + roundNumber+1）
+      // 3.6 更新 GameState（应用工具返回的状态变更 + roundNumber+1）
       const updatedGameState = applyStateOperations(
         trpgSave.gameState,
         trpgSave.character,
@@ -580,11 +629,61 @@ export const createTrpgSlice: StateCreator<
         collectedStateOps,
       );
 
+      // 3.7 Think-4 评分
+      let think4Result: Think4Result | undefined;
+      try {
+        think4Result = scoreAction(
+          {
+            diceResult: collectedStateOps.find((op) => op.type === 'hp_change') ? undefined : undefined,
+            narratorSections,
+            stateOps: collectedStateOps,
+            aSummaryCount: trpgSave.aSummaries.length,
+          },
+          updatedCharacter,
+          updatedGameState,
+          trpgWorldCard,
+        );
+        logger.info('trpg', `Think-4 评分: total=${think4Result.total}, verdict=${think4Result.verdict}`);
+      } catch (e) {
+        logger.warn('trpg', 'Think-4 评分失败: ' + String(e));
+      }
+
+      // 3.8 A/B/C 记忆摘要生成
+      const newRound = updatedGameState.roundNumber;
+      const summaryResult = checkAndGenerateSummaries(
+        newRound,
+        [userMessage, { id: assistantMessage.id, role: 'assistant', content: fullContent, reasoningContent: fullReasoning, narratorSections, createdAt: Date.now() } as TrpgMessage],
+        trpgSave.aSummaries,
+        trpgSave.bSummaries,
+        trpgSave.cSummaries,
+      );
+
+      const updatedASummaries = [...trpgSave.aSummaries];
+      const updatedBSummaries = [...trpgSave.bSummaries];
+      const updatedCSummaries = [...trpgSave.cSummaries];
+      if (summaryResult.newASummary) {
+        updatedASummaries.push(summaryResult.newASummary);
+        while (updatedASummaries.length > 50) updatedASummaries.shift();
+        logger.info('trpg', `A 级摘要生成: round ${newRound}`);
+      }
+      if (summaryResult.newBSummary) {
+        updatedBSummaries.push(summaryResult.newBSummary);
+        while (updatedBSummaries.length > 10) updatedBSummaries.shift();
+        logger.info('trpg', `B 级摘要生成: round ${newRound}`);
+      }
+      if (summaryResult.newCSummary) {
+        updatedCSummaries.push(summaryResult.newCSummary);
+        logger.info('trpg', `C 级摘要生成: round ${newRound}`);
+      }
+
       const updatedSave: SaveSlot = {
         ...trpgSave,
         gameState: updatedGameState,
         character: updatedCharacter,
         messages: finalMessages,
+        aSummaries: updatedASummaries,
+        bSummaries: updatedBSummaries,
+        cSummaries: updatedCSummaries,
         updatedAt: Date.now(),
       };
 
@@ -647,69 +746,3 @@ export const createTrpgSlice: StateCreator<
   },
 });
 
-// ============================================================================
-// Narrator 7 段解析
-// ============================================================================
-
-/**
- * 解析 Narrator 7 段输出
- * 从 LLM content 中提取结构化的 7 段内容
- */
-function parseNarratorSections(content: string): NarratorSections | undefined {
-  try {
-    const sections: Partial<NarratorSections> = {};
-
-    // 匹配 ## 1. 记忆引用 等标题
-    const sectionRegex = /##\s*\d+\.\s*(.+?)\n([\s\S]*?)(?=##\s*\d+\.|$)/g;
-    let match: RegExpExecArray | null;
-
-    while ((match = sectionRegex.exec(content)) !== null) {
-      const title = match[1].trim();
-      const body = match[2].trim();
-
-      if (title.includes('记忆引用')) sections.memoryRef = body;
-      else if (title.includes('剧情分析')) sections.plotAnalysis = body;
-      else if (title.includes('判定汇总')) sections.checkSummary = body;
-      else if (title.includes('剧情正文')) sections.narrative = body;
-      else if (title.includes('行动选项')) {
-        // 解析 A-E 选项
-        const options: NarratorSections['actionOptions'] = [];
-        const optRegex = /^([A-E])[.、]\s*(.+)$/gm;
-        let optMatch: RegExpExecArray | null;
-        while ((optMatch = optRegex.exec(body)) !== null) {
-          options.push({
-            label: optMatch[1] as 'A' | 'B' | 'C' | 'D' | 'E',
-            description: optMatch[2].trim(),
-          });
-        }
-        sections.actionOptions = options;
-      } else if (title.includes('状态信息')) sections.statusInfo = body;
-      else if (title.includes('ReAct') || title.includes('反思')) sections.reactReflection = body;
-    }
-
-    // 只要解析到任意一段即返回（不再要求 narrative 必须存在）
-    const hasAny = (sections.memoryRef ?? '') !== '' ||
-      (sections.plotAnalysis ?? '') !== '' ||
-      (sections.checkSummary ?? '') !== '' ||
-      (sections.narrative ?? '') !== '' ||
-      (sections.actionOptions ?? []).length > 0 ||
-      (sections.statusInfo ?? '') !== '' ||
-      (sections.reactReflection ?? '') !== '';
-
-    if (hasAny) {
-      return {
-        memoryRef: sections.memoryRef ?? '',
-        plotAnalysis: sections.plotAnalysis ?? '',
-        checkSummary: sections.checkSummary ?? '',
-        narrative: sections.narrative ?? '',
-        actionOptions: sections.actionOptions ?? [],
-        statusInfo: sections.statusInfo ?? '',
-        reactReflection: sections.reactReflection ?? '',
-      };
-    }
-
-    return undefined;
-  } catch {
-    return undefined;
-  }
-}

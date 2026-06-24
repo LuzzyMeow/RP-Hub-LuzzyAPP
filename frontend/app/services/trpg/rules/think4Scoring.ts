@@ -113,43 +113,22 @@ function scoreConsistency(
  * 评分后果性
  * 基于状态变更数量和影响范围
  */
-function scoreConsequence(stateOps?: StateOperation[]): number {
+function scoreConsequence(stateOps?: StateOperation[], stateDelta?: StateDelta): number {
+  if (stateDelta) {
+    const trueCount = Object.values(stateDelta).filter(Boolean).length;
+    return Math.min(10, trueCount * 2);
+  }
   if (!stateOps || stateOps.length === 0) {
-    return 5; // 无状态变更，后果性中等
+    return 5;
   }
-
-  let score = 6;
-  const impactWeights: Record<string, number> = {
-    hp_change: 2,
-    condition_add: 1.5,
-    condition_remove: 1.5,
-    inventory_add: 1,
-    inventory_remove: 1,
-    inventory_use: 0.5,
-    equipment_equip: 1,
-    location_change: 2,
-    npc_update: 1.5,
-    npc_reveal: 1,
-    map_discover: 1,
-    map_archive: 0.5,
-    time_advance: 1,
-    xp_add: 1.5,
-    phase_change: 2,
-  };
-
-  let totalImpact = 0;
-  for (const op of stateOps) {
-    totalImpact += impactWeights[op.type] ?? 1;
-  }
-
-  // 影响范围越大，后果性越高
-  if (totalImpact >= 10) score = 10;
-  else if (totalImpact >= 7) score = 9;
-  else if (totalImpact >= 5) score = 8;
-  else if (totalImpact >= 3) score = 7;
-  else if (totalImpact >= 1) score = 6;
-
-  return Math.max(0, Math.min(10, score));
+  const trackedTypes = new Set([
+    'hp_change', 'xp_add', 'condition_add', 'condition_remove',
+    'inventory_add', 'inventory_remove', 'equipment_equip',
+    'location_change', 'npc_update', 'npc_reveal',
+    'map_discover', 'map_archive', 'phase_change', 'time_advance',
+  ]);
+  const changeCount = new Set(stateOps.map((op) => op.type).filter((t) => trackedTypes.has(t))).size;
+  return Math.min(10, changeCount * 2);
 }
 
 /**
@@ -211,18 +190,18 @@ export function scoreAction(
 ): Think4Result {
   const fairness = scoreFairness(args.diceResult, args.narratorSections);
   const consistency = scoreConsistency(worldCard, args.aSummaryCount ?? 0, args.stateOps);
-  const consequence = scoreConsequence(args.stateOps);
+  const consequence = scoreConsequence(args.stateOps, args.stateDelta);
   const coherence = scoreCoherence(args.narratorSections);
 
-  const total = (fairness + consistency + consequence + coherence) / 4;
+  const total = Math.round((fairness * 0.35 + consistency * 0.25 + consequence * 0.25 + coherence * 0.15) * 10) / 10;
 
   let verdict: Think4Result['verdict'];
-  if (total >= 7.5) {
+  if (total >= 6.0) {
     verdict = 'pass';
-  } else if (total >= 5) {
-    verdict = 'warn';
-  } else {
+  } else if (total >= 3.0) {
     verdict = 'retry';
+  } else {
+    verdict = 'warn';
   }
 
   return {
@@ -230,7 +209,7 @@ export function scoreAction(
     consistency,
     consequence,
     coherence,
-    total: Math.round(total * 10) / 10,
+    total,
     verdict,
   };
 }

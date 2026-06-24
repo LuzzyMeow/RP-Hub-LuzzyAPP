@@ -13,6 +13,8 @@
  * 兼容 <cot> 标签降级模式
  */
 
+import type { Think1Result, Think2Result } from '~/types/trpg';
+
 // ============================================================================
 // 类型定义
 // ============================================================================
@@ -71,16 +73,22 @@ export function parseThinkSections(content: string): ParsedThinkChain {
   const sections: ThinkSection[] = [];
   let narrator: NarratorSections | undefined;
 
-  // 检测是否使用 <cot> 标签模式
-  if (content.includes('<cot>')) {
+  if (content.includes('[THINK-') || content.includes('[OOC-REVIEW]')) {
+    const bracketResult = parseBracketMode(content);
+    sections.push(...bracketResult.sections);
+    if (bracketResult.narrator) narrator = bracketResult.narrator;
+  } else if (content.includes('<cot>')) {
     const cotResult = parseCotTagMode(content);
     sections.push(...cotResult.sections);
     if (cotResult.narrator) narrator = cotResult.narrator;
   } else {
-    // 使用 ## 标题模式
     const headerResult = parseHeaderMode(content);
     sections.push(...headerResult.sections);
     if (headerResult.narrator) narrator = headerResult.narrator;
+  }
+
+  if (!narrator) {
+    narrator = parseNarratorSections(content);
   }
 
   return {
@@ -88,6 +96,72 @@ export function parseThinkSections(content: string): ParsedThinkChain {
     narrator,
     rawContent: content,
   };
+}
+
+function parseBracketMode(content: string): { sections: ThinkSection[]; narrator?: NarratorSections } {
+  const sections: ThinkSection[] = [];
+  const now = Date.now();
+
+  const thinkRegex = /\[THINK-(\d)(?::\s*[^\]]*)?\]([\s\S]*?)\[\/THINK-\1\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = thinkRegex.exec(content)) !== null) {
+    const num = match[1];
+    const body = match[2].trim();
+    const type = num === '1' ? 'think1' : num === '2' ? 'think2' : num === '4' ? 'think4' : 'tool_call';
+    const title = num === '1' ? 'Think-1：意图分析' : num === '2' ? 'Think-2：路径规划' : num === '4' ? 'Think-4：评审' : `Think-${num}`;
+    sections.push({ type, title, content: body, status: 'completed', startedAt: now, endedAt: now });
+  }
+
+  const oocRegex = /\[OOC-REVIEW\]([\s\S]*?)\[\/OOC-REVIEW\]/g;
+  while ((match = oocRegex.exec(content)) !== null) {
+    sections.push({ type: 'ooc', title: 'OOC 审查', content: match[1].trim(), status: 'completed', startedAt: now, endedAt: now });
+  }
+
+  const cleanedContent = content
+    .replace(/\[THINK-\d(?::\s*[^\]]*)?\][\s\S]*?\[\/THINK-\d\]/g, '')
+    .replace(/\[OOC-REVIEW\][\s\S]*?\[\/OOC-REVIEW\]/g, '')
+    .trim();
+
+  const narrator = parseNarratorSections(cleanedContent);
+  if (narrator) {
+    sections.push({ type: 'narrator', title: 'Narrator', content: cleanedContent, status: 'completed', startedAt: now, endedAt: now });
+  }
+
+  return { sections, narrator };
+}
+
+export function parseOocFromReasoning(reasoningContent: string): Array<{ id: number; name: string; result: 'pass' | 'soft_warn' | 'hard_block'; reason?: string }> {
+  const oocMatch = reasoningContent.match(/\[OOC-REVIEW\]\s*([\s\S]*?)\[\/OOC-REVIEW\]/);
+  if (!oocMatch) return [];
+
+  try {
+    const json = JSON.parse(oocMatch[1].trim());
+    if (Array.isArray(json.checks)) return json.checks;
+    if (json.id !== undefined) return [json];
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function parseThink1FromReasoning(reasoningContent: string): Think1Result | null {
+  const match = reasoningContent.match(/\[THINK-1(?::\s*[^\]]*)?\]([\s\S]*?)\[\/THINK-1\]/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1].trim());
+  } catch {
+    return null;
+  }
+}
+
+export function parseThink2FromReasoning(reasoningContent: string): Think2Result | null {
+  const match = reasoningContent.match(/\[THINK-2(?::\s*[^\]]*)?\]([\s\S]*?)\[\/THINK-2\]/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1].trim());
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================

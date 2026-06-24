@@ -87,6 +87,21 @@ export function InventorySheet() {
         </div>
       </div>
 
+      {/* 货币 */}
+      <div className="grid grid-cols-4 gap-2 px-4 pb-2">
+        {(['cp', 'sp', 'gp', 'pp'] as const).map((cur) => {
+          const value = (trpgSave?.gameState.world?.[cur] as number) ?? 0;
+          const labels = { cp: '铜币', sp: '银币', gp: '金币', pp: '铂币' };
+          return (
+            <div key={cur} className="flex flex-col items-center rounded-md border border-border/20 bg-muted/10 p-1.5">
+              <IconCoin className="size-3 text-amber-500/70" />
+              <span className="text-[9px] text-muted-foreground">{labels[cur]}</span>
+              <span className="text-xs font-bold text-foreground">{value}</span>
+            </div>
+          );
+        })}
+      </div>
+
       {/* ===== 分隔线 ===== */}
       <div className="mx-4 border-t border-border/20" />
 

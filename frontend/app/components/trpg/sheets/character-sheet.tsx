@@ -16,7 +16,7 @@
  */
 
 import * as React from "react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import {
   IconCharacter,
   IconLevel,
@@ -29,12 +29,21 @@ import {
   IconInfo,
   IconExclamation,
   IconCrown,
+  IconUserGroup,
+  IconClose,
+  IconLock,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { springSoft } from "~/lib/motion-presets";
-import type { AbilityName, SkillName, TrpgCharacter } from "~/types/trpg";
+import type {
+  AbilityName,
+  SkillName,
+  TrpgCharacter,
+  GameNpc,
+  NpcAttitude,
+} from "~/types/trpg";
 
 // ============================================================================
 // 主组件
@@ -43,13 +52,38 @@ import type { AbilityName, SkillName, TrpgCharacter } from "~/types/trpg";
 export function CharacterSheet() {
   const trpgSave = useAppStore((s) => s.trpgSave);
   const character = trpgSave?.character;
+  const npcs = trpgSave?.gameState?.npcs ?? trpgSave?.npcs ?? [];
 
-  if (!character) {
+  const [tab, setTab] = React.useState<"self" | "npc">("self");
+  const [selectedNpcId, setSelectedNpcId] = React.useState<string | null>(null);
+
+  if (!trpgSave) {
     return <EmptyCharacter />;
   }
 
+  const selectedNpc = npcs.find((n) => n.npcId === selectedNpcId) ?? null;
+
   return (
-    <ScrollArea className="flex-1">
+    <>
+      {/* ===== Tab 切换 ===== */}
+      <div className="flex gap-1 border-b border-border/20 px-3 pt-2">
+        <TabButton
+          active={tab === "self"}
+          onClick={() => setTab("self")}
+          icon={<IconCharacter className="size-3.5" />}
+          label="自己"
+        />
+        <TabButton
+          active={tab === "npc"}
+          onClick={() => setTab("npc")}
+          icon={<IconUserGroup className="size-3.5" />}
+          label="NPC"
+        />
+      </div>
+
+      {/* ===== 自己 Tab ===== */}
+      {tab === "self" && character && (
+        <ScrollArea className="flex-1">
       {/* ===== 角色头部 ===== */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -211,7 +245,27 @@ export function CharacterSheet() {
           </div>
         </motion.div>
       )}
-    </ScrollArea>
+      </ScrollArea>
+      )}
+
+      {/* ===== NPC Tab ===== */}
+      {tab === "npc" && (
+        <ScrollArea className="flex-1">
+          <NpcListView npcs={npcs} onSelect={setSelectedNpcId} />
+        </ScrollArea>
+      )}
+
+      {/* ===== NPC 详情弹层 ===== */}
+      <AnimatePresence>
+        {selectedNpc && (
+          <NpcDetailModal
+            key={selectedNpc.npcId}
+            npc={selectedNpc}
+            onClose={() => setSelectedNpcId(null)}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
@@ -381,5 +435,283 @@ function EmptyCharacter() {
         请先创建或加载一个存档
       </p>
     </div>
+  );
+}
+
+// ============================================================================
+// Tab 按钮
+// ============================================================================
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      whileTap={{ scale: 0.95 }}
+      transition={springSoft}
+      className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {icon}
+      <span>{label}</span>
+    </motion.button>
+  );
+}
+
+// ============================================================================
+// NPC 态度信息（五级制）
+// ============================================================================
+
+const ATTITUDE_INFO: Record<NpcAttitude, { label: string; className: string }> = {
+  hostile: { label: "敌对", className: "bg-red-500/10 text-red-600 dark:text-red-400" },
+  unfriendly: { label: "不友善", className: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  neutral: { label: "中立", className: "bg-muted/30 text-muted-foreground" },
+  friendly: { label: "友善", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  helpful: { label: "乐于助人", className: "bg-green-500/10 text-green-600 dark:text-green-400" },
+};
+
+// ============================================================================
+// NPC 列表视图
+// ============================================================================
+
+function NpcListView({
+  npcs,
+  onSelect,
+}: {
+  npcs: GameNpc[];
+  onSelect: (id: string) => void;
+}) {
+  if (npcs.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+        <IconUserGroup className="size-10 text-muted-foreground/40" />
+        <p className="text-sm text-muted-foreground">暂无 NPC</p>
+        <p className="text-xs text-muted-foreground/60">
+          NPC 将在游戏进程中出现
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSoft}
+      className="space-y-2 p-3"
+    >
+      {npcs.map((npc, i) => (
+        <NpcListItem
+          key={npc.npcId}
+          npc={npc}
+          delay={i * 0.03}
+          onClick={() => onSelect(npc.npcId)}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+// ============================================================================
+// NPC 列表项
+// ============================================================================
+
+function NpcListItem({
+  npc,
+  delay,
+  onClick,
+}: {
+  npc: GameNpc;
+  delay: number;
+  onClick: () => void;
+}) {
+  const present = npc.presence === "present";
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ ...springSoft, delay }}
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.98 }}
+      className="flex w-full items-center gap-3 rounded-lg border border-border/20 bg-background/40 p-2.5 text-left"
+    >
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/5">
+        <IconCharacter className="size-4 text-primary" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-foreground">{npc.name}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {npc.gender} · {npc.age}岁
+        </p>
+      </div>
+      <span
+        className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+          present
+            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            : "bg-muted/30 text-muted-foreground"
+        }`}
+      >
+        {present ? "在场" : "离场"}
+      </span>
+    </motion.button>
+  );
+}
+
+// ============================================================================
+// NPC 详情弹层（渐进式解锁：未揭示字段显示 ???）
+// ============================================================================
+
+function NpcDetailModal({
+  npc,
+  onClose,
+}: {
+  npc: GameNpc;
+  onClose: () => void;
+}) {
+  const revealed = new Set(npc.revealedFields);
+  const isRevealed = (key: string) => revealed.has(key);
+  const attitude = ATTITUDE_INFO[npc.attitude] ?? ATTITUDE_INFO.neutral;
+  const hpPct =
+    npc.hp.max > 0
+      ? Math.max(0, Math.min(100, (npc.hp.current / npc.hp.max) * 100))
+      : 0;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={springSoft}
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
+    >
+      <motion.div
+        initial={{ y: 40, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 40, opacity: 0 }}
+        transition={springSoft}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-2xl border border-border/30 bg-background p-4 shadow-xl sm:max-w-md sm:rounded-2xl"
+      >
+        {/* 头部 */}
+        <div className="mb-3 flex items-start justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex size-10 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5">
+              <IconCharacter className="size-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-base font-semibold text-foreground">
+                {npc.name}
+              </h3>
+              <p className="text-[11px] text-muted-foreground">
+                {isRevealed("gender") ? npc.gender : "???"} ·{" "}
+                {isRevealed("age") ? `${npc.age}岁` : "???"}
+              </p>
+            </div>
+          </div>
+          <motion.button
+            type="button"
+            onClick={onClose}
+            whileTap={{ scale: 0.9 }}
+            className="rounded-full p-1 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+          >
+            <IconClose className="size-4" />
+          </motion.button>
+        </div>
+
+        {/* 在场 + 态度 徽章 */}
+        <div className="mb-3 flex flex-wrap gap-1.5">
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+              npc.presence === "present"
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                : "bg-muted/30 text-muted-foreground"
+            }`}
+          >
+            {npc.presence === "present" ? "在场" : "离场"}
+          </span>
+          {isRevealed("attitude") ? (
+            <span
+              className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${attitude.className}`}
+            >
+              {attitude.label}
+            </span>
+          ) : (
+            <span className="rounded-full bg-muted/30 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+              ??? 态度
+            </span>
+          )}
+        </div>
+
+        {/* HP */}
+        <div className="mb-3 rounded-md border border-border/20 bg-muted/10 p-2.5">
+          <div className="mb-1 flex items-center justify-between text-xs">
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <IconHeart className="size-3 text-red-500" />
+              生命值
+            </span>
+            <span className="font-mono font-medium text-foreground">
+              {isRevealed("hp") ? `${npc.hp.current}/${npc.hp.max}` : "???/???"}
+            </span>
+          </div>
+          {isRevealed("hp") && (
+            <div className="h-1.5 overflow-hidden rounded-full bg-muted/40">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${hpPct}%` }}
+                transition={springSoft}
+                className="h-full rounded-full bg-red-500"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* 自定义字段（渐进式解锁） */}
+        {Object.keys(npc.customFields).length > 0 && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
+              <IconInfo className="size-3 text-primary" />
+              <span>详情</span>
+            </div>
+            {Object.entries(npc.customFields).map(([key, value]) => {
+              const revealedField = isRevealed(key);
+              return (
+                <div
+                  key={key}
+                  className="flex items-center justify-between rounded-md border border-border/20 bg-muted/5 px-2.5 py-1.5 text-xs"
+                >
+                  <span className="text-muted-foreground">{key}</span>
+                  {revealedField ? (
+                    <span className="max-w-[60%] truncate text-foreground">
+                      {value}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-muted-foreground/60">
+                      <IconLock className="size-3" />
+                      <span>???</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   );
 }
