@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.7.2-hotfix
+
+### 🐛 修复
+
+- **修复工具页崩溃**（致命）：用户 IndexedDB 中持久化的旧 `builtinToolConfigs` 包含已删除的 `world-search` 类型，加载后 `BUILTIN_TOOL_RANGES["world-search"]` 返回 `undefined`，访问 `range.min` 抛出 TypeError 触发 ErrorBoundary。修复：`settings-slice.ts` 加载时过滤无效类型并补全缺失的默认配置项
+- **修复角色卡导入未生成世界书向量**（高）：`characters.tsx` 导入角色卡时只保存世界书条目到 IndexedDB，未调用 `generateWorldInfoEmbeddings` 生成嵌入向量。修复：导入世界书后自动读取记忆设置和 API 设置，异步触发嵌入生成，含 toast 进度提示和错误通知
+
+---
+
 ## v0.7.2
 
 > v0.7.1 + v0.7.2 合并发布。两阶段请求架构正式重构为**单阶段架构**——合并工具决策与 CoT/正文为单次 API 调用，模型通过原生 `tool_calls`（function calling）自行决定调用工具。世界书召回重构为三策略混合召回，新增三级卡片 UI、Token 计数增强、会话自动命名等 20+ 项改进。

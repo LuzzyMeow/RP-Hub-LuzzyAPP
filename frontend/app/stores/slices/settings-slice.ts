@@ -19,6 +19,7 @@ import type {
   HighlightSettings,
   ToolGlobalSettings,
   BuiltinToolConfig,
+  BuiltinToolType,
   ThinkingDepth,
   ModelConfig,
 } from "~/types/luzzy";
@@ -170,6 +171,14 @@ export const DEFAULT_BUILTIN_TOOL_CONFIGS: BuiltinToolConfig[] = [
     anysearchToken: "",
   },
 ];
+
+/**
+ * v0.7.2-fix: 有效的内置工具类型集合
+ * 用于过滤持久化数据中已删除的旧类型（如 world-search），防止 tools.tsx 渲染时 BUILTIN_TOOL_RANGES[toolType] 返回 undefined 导致崩溃
+ */
+const VALID_BUILTIN_TOOL_TYPES: ReadonlySet<BuiltinToolType> = new Set(
+  DEFAULT_BUILTIN_TOOL_CONFIGS.map((c) => c.type),
+);
 
 // ============================================================================
 // 辅助函数
@@ -857,7 +866,17 @@ export const createSettingsSlice: StateCreator<
         builtinToolConfigs:
           Array.isArray(data.builtinToolConfigs) &&
           data.builtinToolConfigs.length > 0
-            ? (data.builtinToolConfigs as BuiltinToolConfig[])
+            ? (() => {
+                // v0.7.2-fix: 过滤掉已删除的旧类型（如 world-search），防止 tools.tsx 渲染崩溃
+                const persisted = (data.builtinToolConfigs as BuiltinToolConfig[])
+                  .filter((c) => VALID_BUILTIN_TOOL_TYPES.has(c.type));
+                // 合并：以持久化数据为基础，补全缺失的默认配置项
+                const persistedTypes = new Set(persisted.map((c) => c.type));
+                const missing = DEFAULT_BUILTIN_TOOL_CONFIGS.filter(
+                  (c) => !persistedTypes.has(c.type),
+                );
+                return [...persisted, ...missing];
+              })()
             : state.builtinToolConfigs,
         splashShown:
           typeof data.splashShown === "boolean"

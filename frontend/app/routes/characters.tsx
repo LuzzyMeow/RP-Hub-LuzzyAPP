@@ -30,7 +30,7 @@ import {
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
-import type { Character, WorldInfoEntry, RegexScriptGroup, UiTemplate } from "~/types/luzzy";
+import type { Character, WorldInfoEntry, RegexScriptGroup, UiTemplate, MemorySettings, ApiSettings, ApiProvider } from "~/types/luzzy";
 import { logger } from "~/services/logger";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { SwipeCard } from "~/components/luzzy/swipe-card";
@@ -79,6 +79,9 @@ import {
   extractRegexScriptsFromCard,
   extractUiTemplatesFromCard,
 } from "~/services/characterCardImport";
+// v0.7.2-fix: 导入角色卡时自动触发世界书向量嵌入生成
+import { generateWorldInfoEmbeddings } from "~/services/memoryService";
+import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
 // v0.4.4: 鹿溪角色保护 - 禁止编辑/删除/分享
 import { LUXI_CHARACTER_NAME } from "~/services/presetContent";
 import { toast } from "sonner";
@@ -692,6 +695,51 @@ export default function CharactersPage() {
                 useAppStore.setState({ characters: updatedCharacters });
                 await useAppStore.getState().saveCharacters();
                 toast.success(`已自动关联 ${worldInfoEntries.length} 条世界书`);
+
+                // v0.7.2-fix: 导入世界书后自动触发向量嵌入生成
+                void (async () => {
+                  try {
+                    const memorySettings = await getItem<MemorySettings>("memory", "memorySettings");
+                    if (!memorySettings || !memorySettings.embeddingModel?.trim()) {
+                      logger.debug("world", "角色卡导入: 嵌入模型未配置，跳过世界书向量生成");
+                      return;
+                    }
+                    const st = useAppStore.getState();
+                    const allProviders: ApiProvider[] = [
+                      ...BUILTIN_PROVIDERS,
+                      ...st.customApiProviders,
+                    ];
+                    const apiSettings: ApiSettings = {
+                      apiUrl: st.apiUrl,
+                      apiKey: st.apiKey,
+                      modelName: st.modelName,
+                      stream: st.stream,
+                      enableThinking: false,
+                      customRequestBody: st.customRequestBody,
+                    };
+                    const count = worldInfoEntries.filter(
+                      (e) => e.content?.trim() && (!e.embedding || e.embedding.length === 0),
+                    ).length;
+                    if (count > 0) {
+                      toast.info(`正在为 ${count} 条世界书条目生成嵌入向量...`);
+                    }
+                    const result = await generateWorldInfoEmbeddings(
+                      worldInfoEntries,
+                      memorySettings,
+                      apiSettings,
+                      allProviders,
+                      st.apiProviderKeys,
+                    );
+                    if (result.failed > 0) {
+                      toast.error(`${result.failed} 条世界书条目嵌入生成失败，请检查嵌入模型配置`);
+                    } else if (result.success > 0) {
+                      toast.success(`已为 ${result.success} 条世界书条目生成嵌入向量`);
+                    }
+                  } catch (embErr) {
+                    logger.warn("world", `角色卡导入: 世界书向量生成失败: ${(embErr as Error).message}`);
+                    toast.error(`世界书向量生成失败：${(embErr as Error).message}`);
+                  }
+                })();
               } catch (wiErr) {
                 console.warn("[Characters] 世界书导入失败:", wiErr);
               }
