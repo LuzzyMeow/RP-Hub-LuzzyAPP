@@ -2,8 +2,8 @@
 
 <img src="frontend/public/brand-logos/deepseek.png" width="72" height="72" style="vertical-align: middle" alt="DeepSeek" />&nbsp;&nbsp;&nbsp;
 <img src="frontend/public/brand-logos/zai.png" width="72" height="72" style="vertical-align: middle" alt="Z.ai · 智谱清言" />&nbsp;&nbsp;&nbsp;
-<img src="frontend/public/brand-logos/luzzy.png" width="78" height="78" style="vertical-align: middle" alt="LUZZY" />&nbsp;&nbsp;&nbsp;
-<img src="frontend/public/brand-logos/kimi.png" width="65" height="65" style="vertical-align: middle" alt="Kimi · 月之暗面" />&nbsp;&nbsp;&nbsp;
+<img src="frontend/public/brand-logos/luzzy.png" width="72" height="72" style="vertical-align: middle" alt="LUZZY" />&nbsp;&nbsp;&nbsp;
+<img src="frontend/public/brand-logos/kimi.png" width="72" height="72" style="vertical-align: middle" alt="Kimi · 月之暗面" />&nbsp;&nbsp;&nbsp;
 <img src="frontend/public/brand-logos/trae.png" width="72" height="72" style="vertical-align: middle" alt="Trae" />
 
 # LUZZY · 鹿溪
