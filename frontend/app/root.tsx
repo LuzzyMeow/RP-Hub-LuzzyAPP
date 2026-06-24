@@ -15,6 +15,7 @@ import "./app.css";
 import "./i18n";
 import { Toaster } from "./components/ui/sonner";
 import { ThemeProvider } from "./components/theme-provider";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { LuzzySplash } from "./components/luzzy/luzzy-splash";
 import { ConfirmProvider } from "./components/luzzy/luzzy-confirm";
 import { BindingDeleteConfirmProvider } from "./components/luzzy/luzzy-binding-delete-dialog";
@@ -32,7 +33,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <html lang="zh-CN">
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+        />
         <Meta />
         <Links />
         {/* v0.4.1: 提前设置主题 class,避免 hydration 阶段白屏闪烁 */}
@@ -92,7 +96,9 @@ function AppContent() {
   const apiUrl = useAppStore((s) => s.apiUrl);
   const apiKey = useAppStore((s) => s.apiKey);
   useEffect(() => {
-    const androidProxy = (window as unknown as { AndroidProxy?: { setApiConfig: (url: string, key: string) => void } }).AndroidProxy;
+    const androidProxy = (
+      window as unknown as { AndroidProxy?: { setApiConfig: (url: string, key: string) => void } }
+    ).AndroidProxy;
     if (androidProxy && typeof androidProxy.setApiConfig === "function") {
       androidProxy.setApiConfig(apiUrl ?? "", apiKey ?? "");
       logger.info("app", `已推送 API 配置到原生代理（url=${apiUrl ? "已设置" : "空"}）`);
@@ -108,17 +114,25 @@ function AppContent() {
   const getAllProviders = useAppStore((s) => s.getAllProviders);
   const builtinModelOverrides = useAppStore((s) => s.builtinModelOverrides);
   useEffect(() => {
-    const androidProxy = (window as unknown as { AndroidProxy?: { setAdvancedSettings: (thinking: string, body: string) => void } }).AndroidProxy;
+    const androidProxy = (
+      window as unknown as {
+        AndroidProxy?: { setAdvancedSettings: (thinking: string, body: string) => void };
+      }
+    ).AndroidProxy;
     if (!androidProxy || typeof androidProxy.setAdvancedSettings !== "function") return;
 
     // 派生 enableThinking:从当前模型的 supportsReasoning 属性(与 chat-slice.ts extractApiSettings 一致)
     const allProviders = getAllProviders();
     const currentProvider = allProviders.find((p) => p.id === apiProviderId);
     // parseModelName 逻辑:支持 "providerId/modelName" 格式
-    const slashIdx = modelName.indexOf('/');
-    const { providerId, modelName: actualModelName } = slashIdx >= 0
-      ? { providerId: modelName.substring(0, slashIdx), modelName: modelName.substring(slashIdx + 1) }
-      : { providerId: undefined, modelName };
+    const slashIdx = modelName.indexOf("/");
+    const { providerId, modelName: actualModelName } =
+      slashIdx >= 0
+        ? {
+            providerId: modelName.substring(0, slashIdx),
+            modelName: modelName.substring(slashIdx + 1),
+          }
+        : { providerId: undefined, modelName };
     const targetProvider = providerId
       ? allProviders.find((p) => p.id === providerId)
       : currentProvider;
@@ -126,7 +140,10 @@ function AppContent() {
     const enableThinking = !!currentModel?.supportsReasoning;
 
     androidProxy.setAdvancedSettings(enableThinking ? "true" : "false", customRequestBody ?? "");
-    logger.info("app", `已推送高级设置到原生代理（thinking=${enableThinking}, customBody=${customRequestBody ? "已设置" : "空"}）`);
+    logger.info(
+      "app",
+      `已推送高级设置到原生代理（thinking=${enableThinking}, customBody=${customRequestBody ? "已设置" : "空"}）`,
+    );
   }, [customRequestBody, apiProviderId, modelName, getAllProviders, builtinModelOverrides]);
 
   // v0.3.2: 路由变化时记录日志
@@ -134,43 +151,59 @@ function AppContent() {
     if (showSplash) return;
     const path = location.pathname;
     const routeName =
-      path === "/" ? "聊天"
-      : path.startsWith("/characters") ? "角色卡"
-      : path.startsWith("/settings") ? "设置"
-      : path.startsWith("/tools") ? "工具"
-      : path.startsWith("/memory") ? "记忆"
-      : path.startsWith("/trpg") ? "TRPG"
-      : path.startsWith("/about") ? "关于"
-      : path.startsWith("/preset") ? "预设"
-      : path.startsWith("/world-info") ? "世界书"
-      : path.startsWith("/knowledge-base") ? "知识库"
-      : path.startsWith("/regex") ? "正则"
-      : path.startsWith("/ui-template") ? "UI模板"
-      : path.startsWith("/profile") ? "用户档案"
-      : path.startsWith("/skill") ? "技能"
-      : "未知";
+      path === "/"
+        ? "聊天"
+        : path.startsWith("/characters")
+          ? "角色卡"
+          : path.startsWith("/settings")
+            ? "设置"
+            : path.startsWith("/tools")
+              ? "工具"
+              : path.startsWith("/memory")
+                ? "记忆"
+                : path.startsWith("/trpg")
+                  ? "TRPG"
+                  : path.startsWith("/about")
+                    ? "关于"
+                    : path.startsWith("/preset")
+                      ? "预设"
+                      : path.startsWith("/world-info")
+                        ? "世界书"
+                        : path.startsWith("/knowledge-base")
+                          ? "知识库"
+                          : path.startsWith("/regex")
+                            ? "正则"
+                            : path.startsWith("/ui-template")
+                              ? "UI模板"
+                              : path.startsWith("/profile")
+                                ? "用户档案"
+                                : path.startsWith("/skill")
+                                  ? "技能"
+                                  : "未知";
     logger.info("user", `进入${routeName}页`);
   }, [location.pathname, showSplash]);
 
   return (
     <ThemeProvider defaultTheme="system">
-      <ConfirmProvider>
-        <BindingDeleteConfirmProvider>
-          {showSplash ? (
-            <LuzzySplash
-              onComplete={() => {
-                setShowSplash(false);
-                sessionStorage.setItem("luzzy-splash-shown", "1");
-              }}
-            />
-          ) : (
-            <>
-              <Outlet />
-              <Toaster position="top-center" />
-            </>
-          )}
-        </BindingDeleteConfirmProvider>
-      </ConfirmProvider>
+      <TooltipProvider delayDuration={300}>
+        <ConfirmProvider>
+          <BindingDeleteConfirmProvider>
+            {showSplash ? (
+              <LuzzySplash
+                onComplete={() => {
+                  setShowSplash(false);
+                  sessionStorage.setItem("luzzy-splash-shown", "1");
+                }}
+              />
+            ) : (
+              <>
+                <Outlet />
+                <Toaster position="top-center" />
+              </>
+            )}
+          </BindingDeleteConfirmProvider>
+        </ConfirmProvider>
+      </TooltipProvider>
     </ThemeProvider>
   );
 }

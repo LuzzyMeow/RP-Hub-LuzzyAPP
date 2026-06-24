@@ -34,14 +34,19 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
       <motion.div
         className="absolute -left-1/4 -top-1/4 h-[150%] w-[150%]"
         style={{
-          background: "radial-gradient(ellipse at 30% 30%, rgba(139, 92, 246, 0.18) 0%, rgba(139, 92, 246, 0.08) 35%, transparent 65%)",
+          background:
+            "radial-gradient(ellipse at 30% 30%, rgba(139, 92, 246, 0.18) 0%, rgba(139, 92, 246, 0.08) 35%, transparent 65%)",
         }}
-        animate={reduceMotion ? {} : {
-          x: ["-8%", "5%", "-8%"],
-          y: ["-5%", "8%", "-5%"],
-          scale: [1, 1.08, 1],
-          opacity: [0.7, 1, 0.7],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                x: ["-8%", "5%", "-8%"],
+                y: ["-5%", "8%", "-5%"],
+                scale: [1, 1.08, 1],
+                opacity: [0.7, 1, 0.7],
+              }
+        }
         transition={{
           duration: 14,
           repeat: Infinity,
@@ -53,14 +58,19 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
       <motion.div
         className="absolute -right-1/4 top-0 h-[150%] w-[150%]"
         style={{
-          background: "radial-gradient(ellipse at 70% 40%, rgba(236, 72, 153, 0.15) 0%, rgba(236, 72, 153, 0.06) 35%, transparent 65%)",
+          background:
+            "radial-gradient(ellipse at 70% 40%, rgba(236, 72, 153, 0.15) 0%, rgba(236, 72, 153, 0.06) 35%, transparent 65%)",
         }}
-        animate={reduceMotion ? {} : {
-          x: ["8%", "-5%", "8%"],
-          y: ["5%", "-8%", "5%"],
-          scale: [1, 1.1, 1],
-          opacity: [0.6, 0.9, 0.6],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                x: ["8%", "-5%", "8%"],
+                y: ["5%", "-8%", "5%"],
+                scale: [1, 1.1, 1],
+                opacity: [0.6, 0.9, 0.6],
+              }
+        }
         transition={{
           duration: 18,
           repeat: Infinity,
@@ -73,12 +83,17 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
       <motion.div
         className="absolute left-1/2 -top-1/4 h-[100%] w-[120%] -translate-x-1/2"
         style={{
-          background: "radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.12) 0%, rgba(34, 211, 238, 0.06) 40%, transparent 70%)",
+          background:
+            "radial-gradient(ellipse at 50% 0%, rgba(0, 101, 253, 0.12) 0%, rgba(85, 127, 255, 0.06) 40%, transparent 70%)",
         }}
-        animate={reduceMotion ? {} : {
-          opacity: [0.5, 0.8, 0.5],
-          scale: [1, 1.15, 1],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                opacity: [0.5, 0.8, 0.5],
+                scale: [1, 1.15, 1],
+              }
+        }
         transition={{
           duration: 12,
           repeat: Infinity,
@@ -91,13 +106,18 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
       <motion.div
         className="absolute left-1/2 top-1/2 h-[80%] w-[200%] -translate-x-1/2 -translate-y-1/2 rotate-12"
         style={{
-          background: "linear-gradient(90deg, transparent 0%, rgba(168, 85, 247, 0.08) 25%, rgba(236, 72, 153, 0.1) 50%, rgba(59, 130, 246, 0.08) 75%, transparent 100%)",
+          background:
+            "linear-gradient(90deg, transparent 0%, rgba(168, 85, 247, 0.08) 25%, rgba(236, 72, 153, 0.1) 50%, rgba(0, 101, 253, 0.08) 75%, transparent 100%)",
           filter: "blur(40px)",
         }}
-        animate={reduceMotion ? {} : {
-          x: ["-30%", "30%", "-30%"],
-          opacity: [0.3, 0.6, 0.3],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                x: ["-30%", "30%", "-30%"],
+                opacity: [0.3, 0.6, 0.3],
+              }
+        }
         transition={{
           duration: 20,
           repeat: Infinity,
@@ -112,10 +132,14 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
         style={{
           background: "radial-gradient(circle, rgba(168, 85, 247, 0.12) 0%, transparent 70%)",
         }}
-        animate={reduceMotion ? {} : {
-          x: [0, 40, 0],
-          y: [0, -30, 0],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                x: [0, 40, 0],
+                y: [0, -30, 0],
+              }
+        }
         transition={{
           duration: 22,
           repeat: Infinity,
@@ -129,10 +153,14 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
         style={{
           background: "radial-gradient(circle, rgba(236, 72, 153, 0.1) 0%, transparent 70%)",
         }}
-        animate={reduceMotion ? {} : {
-          x: [0, -30, 0],
-          y: [0, 25, 0],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                x: [0, -30, 0],
+                y: [0, 25, 0],
+              }
+        }
         transition={{
           duration: 20,
           repeat: Infinity,
@@ -145,12 +173,16 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
       <motion.div
         className="absolute left-[45%] top-[75%] size-64 rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(0, 101, 253, 0.1) 0%, transparent 70%)",
         }}
-        animate={reduceMotion ? {} : {
-          x: [0, 25, -15, 0],
-          y: [0, -30, 15, 0],
-        }}
+        animate={
+          reduceMotion
+            ? {}
+            : {
+                x: [0, 25, -15, 0],
+                y: [0, -30, 15, 0],
+              }
+        }
         transition={{
           duration: 28,
           repeat: Infinity,
@@ -163,8 +195,7 @@ export function LuzzyAuroraBackground({ className }: LuzzyAuroraBackgroundProps)
       <div
         className="absolute inset-0 text-foreground opacity-[0.03]"
         style={{
-          backgroundImage:
-            "radial-gradient(circle at center, currentColor 1px, transparent 1px)",
+          backgroundImage: "radial-gradient(circle at center, currentColor 1px, transparent 1px)",
           backgroundSize: "32px 32px",
         }}
       />

@@ -40,11 +40,7 @@ const BindingDeleteContext = React.createContext<{
  * BindingDeleteConfirmProvider - 在 root.tsx 中包裹应用
  * 提供 confirmBindingDelete() 方法，用于角色卡/世界书绑定删除确认
  */
-export function BindingDeleteConfirmProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function BindingDeleteConfirmProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<BindingDeleteState>({
     open: false,
     description: "",
@@ -52,31 +48,25 @@ export function BindingDeleteConfirmProvider({
     bindingType: "世界书",
   });
 
-  const confirmBindingDelete = React.useCallback(
-    (options: BindingDeleteOptions) => {
-      return new Promise<BindingDeleteAction>((resolve) => {
-        setState({
-          open: true,
-          resolve,
-          title: options.title ?? "确认删除",
-          description: options.description,
-          bindingName: options.bindingName,
-          bindingType: options.bindingType,
-        });
+  const confirmBindingDelete = React.useCallback((options: BindingDeleteOptions) => {
+    return new Promise<BindingDeleteAction>((resolve) => {
+      setState({
+        open: true,
+        resolve,
+        title: options.title ?? "确认删除",
+        description: options.description,
+        bindingName: options.bindingName,
+        bindingType: options.bindingType,
       });
-    },
-    [],
-  );
+    });
+  }, []);
 
-  const handleClose = React.useCallback(
-    (result: BindingDeleteAction) => {
-      setState((prev) => {
-        prev.resolve?.(result);
-        return { ...prev, open: false, resolve: undefined };
-      });
-    },
-    [],
-  );
+  const handleClose = React.useCallback((result: BindingDeleteAction) => {
+    setState((prev) => {
+      prev.resolve?.(result);
+      return { ...prev, open: false, resolve: undefined };
+    });
+  }, []);
 
   return (
     <BindingDeleteContext.Provider value={{ confirmBindingDelete }}>

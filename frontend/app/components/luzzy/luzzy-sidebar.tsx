@@ -164,11 +164,7 @@ function MobileSidebar() {
           >
             <div className="flex items-center justify-between border-b px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
               <span className="text-lg font-bold">LUZZY</span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setSideMenuOpen(false)}
-              >
+              <Button variant="ghost" size="icon-sm" onClick={() => setSideMenuOpen(false)}>
                 <IconClose className="size-4" />
               </Button>
             </div>

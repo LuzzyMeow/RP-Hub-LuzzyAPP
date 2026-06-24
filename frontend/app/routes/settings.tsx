@@ -45,13 +45,7 @@ import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "~/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "~/components/ui/card";
 import { Switch } from "~/components/ui/switch";
 import { Slider } from "~/components/ui/slider";
 import { Badge } from "~/components/ui/badge";
@@ -72,12 +66,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "~/components/ui/dialog";
-import {
-  springEnter,
-  pressableSubtle,
-  pressable,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressableSubtle, pressable, fadeSlide } from "~/lib/motion-presets";
 import { toast } from "sonner";
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 
@@ -120,8 +109,7 @@ function parseLength(value: string): number | undefined {
 /** 格式化长度为显示字符串 */
 function formatLength(length?: number): string {
   if (!length || length <= 0) return "";
-  if (length >= 1000000 && length % 1000000 === 0)
-    return `${length / 1000000}M`;
+  if (length >= 1000000 && length % 1000000 === 0) return `${length / 1000000}M`;
   if (length >= 1000 && length % 1000 === 0) return `${length / 1000}K`;
   return String(length);
 }
@@ -140,9 +128,7 @@ export default function SettingsPage() {
   const setApiUrl = useAppStore((s) => s.setApiUrl);
   const setStream = useAppStore((s) => s.setStream);
   const setCustomRequestBody = useAppStore((s) => s.setCustomRequestBody);
-  const validateCustomRequestBody = useAppStore(
-    (s) => s.validateCustomRequestBody,
-  );
+  const validateCustomRequestBody = useAppStore((s) => s.validateCustomRequestBody);
   const selectApiProvider = useAppStore((s) => s.selectApiProvider);
   const addCustomProvider = useAppStore((s) => s.addCustomProvider);
   const removeCustomProvider = useAppStore((s) => s.removeCustomProvider);
@@ -178,9 +164,7 @@ export default function SettingsPage() {
   const setHighlightSettings = useAppStore((s) => s.setHighlightSettings);
   const [translatingSaving, setTranslatingSaving] = React.useState(false);
   // 本地编辑态（提示词模板），保存时才写入 store
-  const [promptDraft, setPromptDraft] = React.useState(
-    translationSettings.promptTemplate,
-  );
+  const [promptDraft, setPromptDraft] = React.useState(translationSettings.promptTemplate);
   // 同步外部变更（如加载持久化数据后）
   React.useEffect(() => {
     setPromptDraft(translationSettings.promptTemplate);
@@ -198,9 +182,7 @@ export default function SettingsPage() {
   );
 
   // 新增供应商弹窗
-  const [newProvider, setNewProvider] = React.useState<ApiProvider | null>(
-    null,
-  );
+  const [newProvider, setNewProvider] = React.useState<ApiProvider | null>(null);
   // v0.4.6: 新增供应商弹窗扩展字段
   const [newProviderApiKey, setNewProviderApiKey] = React.useState("");
   const [newProviderModel, setNewProviderModel] = React.useState({
@@ -234,11 +216,7 @@ export default function SettingsPage() {
   /** 新增自定义供应商 */
   const handleAddProvider = React.useCallback(async () => {
     if (!newProvider) return;
-    if (
-      !newProvider.id.trim() ||
-      !newProvider.name.trim() ||
-      !newProvider.apiUrl.trim()
-    ) {
+    if (!newProvider.id.trim() || !newProvider.name.trim() || !newProvider.apiUrl.trim()) {
       toast.warning("请填写完整供应商信息");
       return;
     }
@@ -271,7 +249,14 @@ export default function SettingsPage() {
     } catch (e) {
       toast.error("添加失败：" + (e as Error).message);
     }
-  }, [newProvider, newProviderApiKey, newProviderModel, addCustomProvider, setProviderKey, addModelToProvider]);
+  }, [
+    newProvider,
+    newProviderApiKey,
+    newProviderModel,
+    addCustomProvider,
+    setProviderKey,
+    addModelToProvider,
+  ]);
 
   /** 处理 API 地址变更 */
   const handleApiUrlChange = React.useCallback(
@@ -398,9 +383,7 @@ export default function SettingsPage() {
   ];
 
   /** 当前语言选择值：v0.3.6 改用 isCustomMode 状态判断 */
-  const currentLanguageValue = isCustomMode
-    ? "__custom__"
-    : translationSettings.targetLanguage;
+  const currentLanguageValue = isCustomMode ? "__custom__" : translationSettings.targetLanguage;
 
   /** 切换语言快速选项（v0.3.6 重构：使用 isCustomMode 状态） */
   const handleLanguageChange = React.useCallback(
@@ -487,9 +470,7 @@ export default function SettingsPage() {
                   <IconKey className="size-4" />
                   API 连接与服务
                 </CardTitle>
-                <CardDescription>
-                  配置 AI 接口的连接参数与供应商
-                </CardDescription>
+                <CardDescription>配置 AI 接口的连接参数与供应商</CardDescription>
               </CardHeader>
               <CardContent className="grid min-w-0 gap-4">
                 {/* 供应商选择（一级入口） */}
@@ -499,24 +480,22 @@ export default function SettingsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() =>
-                        {
-                          setNewProvider({
-                            id: "",
-                            name: "",
-                            apiUrl: "",
-                            isBuiltin: false,
-                            apiType: "openai-compatible",
-                          });
-                          setNewProviderApiKey("");
-                          setNewProviderModel({
-                            modelId: "",
-                            displayName: "",
-                            contextLength: 128000,
-                            supportsReasoning: false,
-                          });
-                        }
-                      }
+                      onClick={() => {
+                        setNewProvider({
+                          id: "",
+                          name: "",
+                          apiUrl: "",
+                          isBuiltin: false,
+                          apiType: "openai-compatible",
+                        });
+                        setNewProviderApiKey("");
+                        setNewProviderModel({
+                          modelId: "",
+                          displayName: "",
+                          contextLength: 128000,
+                          supportsReasoning: false,
+                        });
+                      }}
                       {...pressableSubtle}
                     >
                       <IconPlus className="mr-1 size-4" />
@@ -541,10 +520,7 @@ export default function SettingsPage() {
                         <SelectItem key={p.id} value={p.id}>
                           {p.displayName ?? p.name}
                           {p.isBuiltin && (
-                            <Badge
-                              variant="secondary"
-                              className="ml-2 text-xs"
-                            >
+                            <Badge variant="secondary" className="ml-2 text-xs">
                               内置
                             </Badge>
                           )}
@@ -556,10 +532,7 @@ export default function SettingsPage() {
 
                 {/* 二级内容：选择供应商后显示 */}
                 {currentProvider && (
-                  <motion.div
-                    {...fadeSlide}
-                    className="grid min-w-0 gap-4 rounded-lg border p-3"
-                  >
+                  <motion.div {...fadeSlide} className="grid min-w-0 gap-4 rounded-lg border p-3">
                     {/* API 地址 */}
                     <div className="grid min-w-0 gap-2">
                       <label className="text-sm font-medium">
@@ -586,18 +559,14 @@ export default function SettingsPage() {
                       <Input
                         type="password"
                         value={apiProviderKeys[apiProviderId] ?? apiKey}
-                        onChange={(e) =>
-                          setProviderKey(apiProviderId, e.target.value)
-                        }
+                        onChange={(e) => setProviderKey(apiProviderId, e.target.value)}
                         onBlur={() => {
                           logger.info("user", `保存 API Key（供应商: ${apiProviderId}）`);
                         }}
                         placeholder="sk-..."
                         className="max-w-full"
                       />
-                      <p className="text-xs text-muted-foreground">
-                        每个供应商可独立配置 API Key
-                      </p>
+                      <p className="text-xs text-muted-foreground">每个供应商可独立配置 API Key</p>
                     </div>
 
                     {/* API 类型 */}
@@ -611,21 +580,15 @@ export default function SettingsPage() {
                         )}
                       </label>
                       <Select
-                        value={
-                          currentProvider.apiType ?? "openai-compatible"
-                        }
-                        onValueChange={(v) =>
-                          handleApiTypeChange(v as ApiType)
-                        }
+                        value={currentProvider.apiType ?? "openai-compatible"}
+                        onValueChange={(v) => handleApiTypeChange(v as ApiType)}
                         disabled={isCurrentBuiltin}
                       >
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {(
-                            Object.keys(API_TYPE_LABELS) as ApiType[]
-                          ).map((t) => (
+                          {(Object.keys(API_TYPE_LABELS) as ApiType[]).map((t) => (
                             <SelectItem key={t} value={t}>
                               {API_TYPE_LABELS[t]}
                             </SelectItem>
@@ -643,14 +606,8 @@ export default function SettingsPage() {
                     {/* 自定义请求体 JSON */}
                     <div className="grid min-w-0 gap-2">
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium">
-                          自定义请求体 JSON
-                        </label>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleValidateCustomBody}
-                        >
+                        <label className="text-sm font-medium">自定义请求体 JSON</label>
+                        <Button variant="ghost" size="sm" onClick={handleValidateCustomBody}>
                           <IconCheck className="mr-1 size-4" />
                           校验
                         </Button>
@@ -663,8 +620,8 @@ export default function SettingsPage() {
                         className="max-w-full font-mono text-xs break-all"
                       />
                       <p className="text-xs text-muted-foreground">
-                        每供应商独立设置。仅可设置 thinking /
-                        reasoning_effort / 自定义字段，messages 数组不可修改
+                        每供应商独立设置。仅可设置 thinking / reasoning_effort /
+                        自定义字段，messages 数组不可修改
                       </p>
                     </div>
 
@@ -674,19 +631,12 @@ export default function SettingsPage() {
                         <label className="text-sm font-medium">
                           模型配置
                           {currentModels.length > 0 && (
-                            <Badge
-                              variant="secondary"
-                              className="ml-2 text-xs"
-                            >
+                            <Badge variant="secondary" className="ml-2 text-xs">
                               {currentModels.length}
                             </Badge>
                           )}
                         </label>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleNewModel}
-                        >
+                        <Button variant="ghost" size="sm" onClick={handleNewModel}>
                           <IconPlus className="mr-1 size-4" />
                           添加模型
                         </Button>
@@ -767,9 +717,7 @@ export default function SettingsPage() {
                                     variant="ghost"
                                     size="icon"
                                     className="size-8 text-destructive"
-                                    onClick={() =>
-                                      handleDeleteModel(m.id, m.name)
-                                    }
+                                    onClick={() => handleDeleteModel(m.id, m.name)}
                                     title="删除"
                                     {...pressableSubtle}
                                   >
@@ -788,9 +736,7 @@ export default function SettingsPage() {
                 {/* 自定义供应商列表 */}
                 {customApiProviders.length > 0 && (
                   <div className="grid min-w-0 gap-2">
-                    <label className="text-sm font-medium">
-                      自定义供应商
-                    </label>
+                    <label className="text-sm font-medium">自定义供应商</label>
                     <div className="min-w-0 space-y-1">
                       {customApiProviders.map((p) => (
                         <div
@@ -840,9 +786,7 @@ export default function SettingsPage() {
                   <ToggleGroup
                     type="single"
                     value={theme}
-                    onValueChange={(v) =>
-                      v && setTheme(v as "light" | "dark" | "system")
-                    }
+                    onValueChange={(v) => v && setTheme(v as "light" | "dark" | "system")}
                     variant="outline"
                     className="flex flex-wrap"
                   >
@@ -866,9 +810,7 @@ export default function SettingsPage() {
                   <IconBook className="size-4" />
                   翻译功能
                 </CardTitle>
-                <CardDescription>
-                  配置消息翻译的目标语言与助手提示词
-                </CardDescription>
+                <CardDescription>配置消息翻译的目标语言与助手提示词</CardDescription>
               </CardHeader>
               <CardContent className="grid min-w-0 gap-4">
                 {/* 启用开关 */}
@@ -876,9 +818,7 @@ export default function SettingsPage() {
                   <label className="text-sm font-medium">启用翻译功能</label>
                   <Switch
                     checked={translationSettings.enabled}
-                    onCheckedChange={(v) =>
-                      setTranslationSettings({ enabled: v })
-                    }
+                    onCheckedChange={(v) => setTranslationSettings({ enabled: v })}
                   />
                 </div>
 
@@ -926,9 +866,7 @@ export default function SettingsPage() {
                         {/* v0.3.6 C6: 药丸形状语言按钮 + 独立自定义按钮 */}
                         <div className="flex flex-wrap gap-2">
                           {LANGUAGE_OPTIONS.map((opt) => {
-                            const isSelected =
-                              !isCustomMode &&
-                              currentLanguageValue === opt.value;
+                            const isSelected = !isCustomMode && currentLanguageValue === opt.value;
                             return (
                               <motion.button
                                 key={opt.value}
@@ -986,9 +924,7 @@ export default function SettingsPage() {
                         </label>
                         <Select
                           value={translationSettings.translationModelId || ""}
-                          onValueChange={(v) =>
-                            setTranslationSettings({ translationModelId: v })
-                          }
+                          onValueChange={(v) => setTranslationSettings({ translationModelId: v })}
                         >
                           <SelectTrigger className="w-full">
                             <SelectValue placeholder="使用主模型" />
@@ -1021,16 +957,15 @@ export default function SettingsPage() {
                           className="max-w-full font-mono text-xs break-all"
                         />
                         <p className="text-xs text-muted-foreground">
-                          仅作用于翻译请求。支持 thinking / reasoning_effort 等自定义字段，messages 数组不可修改
+                          仅作用于翻译请求。支持 thinking / reasoning_effort 等自定义字段，messages
+                          数组不可修改
                         </p>
                       </div>
 
                       {/* 翻译提示词模板 */}
                       <div className="grid min-w-0 gap-2">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm font-medium">
-                            翻译助手提示词
-                          </label>
+                          <label className="text-sm font-medium">翻译助手提示词</label>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1050,20 +985,14 @@ export default function SettingsPage() {
                         />
                         <p className="text-xs text-muted-foreground">
                           支持占位符：
-                          <code className="mx-1 rounded bg-muted px-1 py-0.5">
-                            {"{message}"}
-                          </code>
+                          <code className="mx-1 rounded bg-muted px-1 py-0.5">{"{message}"}</code>
                           （待翻译文本）和
-                          <code className="mx-1 rounded bg-muted px-1 py-0.5">
-                            {"{language}"}
-                          </code>
+                          <code className="mx-1 rounded bg-muted px-1 py-0.5">{"{language}"}</code>
                           （目标语言）。修改后请点击保存按钮生效。
                         </p>
                         <div className="flex min-w-0 items-center gap-2">
                           <Button
-                            onClick={() =>
-                              void handleSaveTranslationPrompt()
-                            }
+                            onClick={() => void handleSaveTranslationPrompt()}
                             disabled={translatingSaving}
                             {...pressable}
                           >
@@ -1079,8 +1008,7 @@ export default function SettingsPage() {
                               </>
                             )}
                           </Button>
-                          {promptDraft !==
-                            translationSettings.promptTemplate && (
+                          {promptDraft !== translationSettings.promptTemplate && (
                             <motion.span
                               initial={{ opacity: 0, x: -5 }}
                               animate={{ opacity: 1, x: 0 }}
@@ -1106,9 +1034,7 @@ export default function SettingsPage() {
                   <IconText className="size-4" />
                   高亮显示
                 </CardTitle>
-                <CardDescription>
-                  高亮显示消息中引号内的文字内容
-                </CardDescription>
+                <CardDescription>高亮显示消息中引号内的文字内容</CardDescription>
               </CardHeader>
               <CardContent className="grid min-w-0 gap-4">
                 {/* 启用开关 */}
@@ -1173,10 +1099,10 @@ export default function SettingsPage() {
                               className="size-full cursor-pointer"
                               style={{
                                 padding: 0,
-                                border: 'none',
-                                background: 'transparent',
-                                appearance: 'none',
-                                WebkitAppearance: 'none',
+                                border: "none",
+                                background: "transparent",
+                                appearance: "none",
+                                WebkitAppearance: "none",
                                 opacity: 0,
                               }}
                             />
@@ -1222,10 +1148,7 @@ export default function SettingsPage() {
             }}
           />
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setCustomDialogOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setCustomDialogOpen(false)}>
               取消
             </Button>
             <Button onClick={handleConfirmCustomLanguage}>
@@ -1237,42 +1160,35 @@ export default function SettingsPage() {
       </Dialog>
 
       {/* 新增供应商弹窗 */}
-      <Dialog
-        open={!!newProvider}
-        onOpenChange={(o) => !o && setNewProvider(null)}
-      >
+      <Dialog open={!!newProvider} onOpenChange={(o) => !o && setNewProvider(null)}>
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-md flex flex-col gap-0">
           <DialogHeader className="shrink-0">
             <DialogTitle>新增自定义供应商</DialogTitle>
-            <DialogDescription>
-              配置自定义 API 供应商，ID 仅支持英文字母
-            </DialogDescription>
+            <DialogDescription>配置自定义 API 供应商，ID 仅支持英文字母</DialogDescription>
           </DialogHeader>
           {newProvider && (
             <ScrollArea className="flex-1 min-h-0 max-h-[60vh] pr-2">
               <div className="grid gap-4 py-2">
                 <div className="grid min-w-0 gap-2">
-                  <label className="text-sm font-medium">
-                    ID（唯一标识，仅英文字母）
-                  </label>
+                  <label className="text-sm font-medium">ID（唯一标识，仅英文字母）</label>
                   <Input
                     value={newProvider.id}
-                    onChange={(e) =>
-                      setNewProvider({ ...newProvider, id: e.target.value })
-                    }
+                    onChange={(e) => setNewProvider({ ...newProvider, id: e.target.value })}
                     placeholder="myProvider"
                     maxLength={25}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    仅支持英文字母，最大 25 字符
-                  </p>
+                  <p className="text-xs text-muted-foreground">仅支持英文字母，最大 25 字符</p>
                 </div>
                 <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">显示名称</label>
                   <Input
                     value={newProvider.displayName ?? newProvider.name}
                     onChange={(e) =>
-                      setNewProvider({ ...newProvider, displayName: e.target.value.slice(0, 20), name: e.target.value.slice(0, 20) })
+                      setNewProvider({
+                        ...newProvider,
+                        displayName: e.target.value.slice(0, 20),
+                        name: e.target.value.slice(0, 20),
+                      })
                     }
                     placeholder="供应商显示名称（最大 20 字符）"
                     maxLength={20}
@@ -1285,9 +1201,7 @@ export default function SettingsPage() {
                   <label className="text-sm font-medium">API 地址</label>
                   <Input
                     value={newProvider.apiUrl}
-                    onChange={(e) =>
-                      setNewProvider({ ...newProvider, apiUrl: e.target.value })
-                    }
+                    onChange={(e) => setNewProvider({ ...newProvider, apiUrl: e.target.value })}
                     placeholder="https://api.example.com/v1"
                     className="max-w-full break-all font-mono text-xs"
                     maxLength={500}
@@ -1368,15 +1282,10 @@ export default function SettingsPage() {
       </Dialog>
 
       {/* 编辑/新建模型弹窗 */}
-      <Dialog
-        open={!!editingModel}
-        onOpenChange={(o) => !o && setEditingModel(null)}
-      >
+      <Dialog open={!!editingModel} onOpenChange={(o) => !o && setEditingModel(null)}>
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingModel?.isNew ? "添加模型" : "编辑模型"}
-            </DialogTitle>
+            <DialogTitle>{editingModel?.isNew ? "添加模型" : "编辑模型"}</DialogTitle>
             <DialogDescription>
               配置模型名称与能力，长度支持 1000000 / 1000k / 1m 格式
             </DialogDescription>
@@ -1402,54 +1311,48 @@ export default function SettingsPage() {
                     placeholder="deepseek-v4-pro"
                     className="max-w-full"
                   />
-                  <p className="text-xs text-muted-foreground">
-                    实际请求 API 时使用的模型名称
-                  </p>
+                  <p className="text-xs text-muted-foreground">实际请求 API 时使用的模型名称</p>
                 </div>
 
                 {/* v0.3.5: 显示名称（仅前端显示） */}
                 <div className="grid min-w-0 gap-2">
                   <label className="text-sm font-medium">显示名称（可选）</label>
                   <Input
-                  value={editingModel.model.displayName ?? ""}
-                  onChange={(e) =>
-                    setEditingModel({
-                      ...editingModel,
-                      model: {
-                        ...editingModel.model,
-                        displayName: e.target.value,
-                      },
-                    })
-                  }
-                  placeholder="DeepSeek V4 Pro"
-                  className="max-w-full"
-                />
-                  <p className="text-xs text-muted-foreground">
-                    仅用于前端显示，留空则使用模型 ID
-                  </p>
+                    value={editingModel.model.displayName ?? ""}
+                    onChange={(e) =>
+                      setEditingModel({
+                        ...editingModel,
+                        model: {
+                          ...editingModel.model,
+                          displayName: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="DeepSeek V4 Pro"
+                    className="max-w-full"
+                  />
+                  <p className="text-xs text-muted-foreground">仅用于前端显示，留空则使用模型 ID</p>
                 </div>
 
                 {/* 上下文长度 */}
                 <div className="grid min-w-0 gap-2">
-                  <label className="text-sm font-medium">
-                    上下文长度（可选）
-                  </label>
+                  <label className="text-sm font-medium">上下文长度（可选）</label>
                   <Input
-                  value={formatLength(editingModel.model.contextLength)}
-                  onChange={(e) => {
-                    const parsed = parseLength(e.target.value);
-                    setEditingModel({
-                      ...editingModel,
-                      model: {
-                        ...editingModel.model,
-                        contextLength: parsed,
-                      },
-                    });
-                  }}
-                  placeholder="128000 / 128k / 1m"
-                  className="max-w-full"
-                  inputMode="numeric"
-                />
+                    value={formatLength(editingModel.model.contextLength)}
+                    onChange={(e) => {
+                      const parsed = parseLength(e.target.value);
+                      setEditingModel({
+                        ...editingModel,
+                        model: {
+                          ...editingModel.model,
+                          contextLength: parsed,
+                        },
+                      });
+                    }}
+                    placeholder="128000 / 128k / 1m"
+                    className="max-w-full"
+                    inputMode="numeric"
+                  />
                   <p className="text-xs text-muted-foreground">
                     支持数字（1000000）或数字+单位（1000k / 1m）
                   </p>
@@ -1457,33 +1360,29 @@ export default function SettingsPage() {
 
                 {/* 输出长度 */}
                 <div className="grid min-w-0 gap-2">
-                  <label className="text-sm font-medium">
-                    输出长度（可选）
-                  </label>
+                  <label className="text-sm font-medium">输出长度（可选）</label>
                   <Input
-                  value={formatLength(editingModel.model.outputLength)}
-                  onChange={(e) => {
-                    const parsed = parseLength(e.target.value);
-                    setEditingModel({
-                      ...editingModel,
-                      model: {
-                        ...editingModel.model,
-                        outputLength: parsed,
-                      },
-                    });
-                  }}
-                  placeholder="4096 / 4k"
-                  className="max-w-full"
-                  inputMode="numeric"
-                />
+                    value={formatLength(editingModel.model.outputLength)}
+                    onChange={(e) => {
+                      const parsed = parseLength(e.target.value);
+                      setEditingModel({
+                        ...editingModel,
+                        model: {
+                          ...editingModel.model,
+                          outputLength: parsed,
+                        },
+                      });
+                    }}
+                    placeholder="4096 / 4k"
+                    className="max-w-full"
+                    inputMode="numeric"
+                  />
                 </div>
 
                 {/* 历史消息数限制 */}
                 <div className="grid min-w-0 gap-2">
                   <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium">
-                      历史消息数限制
-                    </label>
+                    <label className="text-sm font-medium">历史消息数限制</label>
                     <Input
                       type="number"
                       min={0}
@@ -1523,7 +1422,8 @@ export default function SettingsPage() {
                     }}
                   />
                   <p className="text-xs text-muted-foreground">
-                    仅发送最后的 X 条历史消息注入上下文。0 = 不限制。每条历史消息包括 user 消息 + 工具调用结果 + 思考链 + 模型回复
+                    仅发送最后的 X 条历史消息注入上下文。0 = 不限制。每条历史消息包括 user 消息 +
+                    工具调用结果 + 思考链 + 模型回复
                   </p>
                 </div>
 

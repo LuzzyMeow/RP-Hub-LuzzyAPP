@@ -50,6 +50,7 @@ import {
   getApiKeyForModel,
   getActualModelName,
   getOpenAICompatUrl,
+  getChatCompletionsUrl,
   parseModelName,
 } from "~/services/providerService";
 import { parseCot } from "~/services/markdownService";
@@ -60,7 +61,16 @@ import {
   executeActiveToolCall,
   filterToolsForCharacter,
 } from "~/services/toolService";
-import { loadVectorMemoryShards, searchVectorMemory, searchVectorMemoryWithScore, getEmbedding, cosineSimilarity, removeVectorMemoryShardsByTurn, loadWorldVectorMemoryShards, saveWorldVectorMemoryShards } from "~/services/memoryService";
+import {
+  loadVectorMemoryShards,
+  searchVectorMemory,
+  searchVectorMemoryWithScore,
+  getEmbedding,
+  cosineSimilarity,
+  removeVectorMemoryShardsByTurn,
+  loadWorldVectorMemoryShards,
+  saveWorldVectorMemoryShards,
+} from "~/services/memoryService";
 import { BUILTIN_PRESET_DEFAULTS } from "~/services/presetContent";
 import { generateSessionTitle } from "~/services/sessionService";
 import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
@@ -110,24 +120,7 @@ const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
 
 // v0.7.1: 单阶段架构 — parseToolDecisions 已删除
 // 模型通过原生 tool_calls (function calling) 自行决定调用工具
-
-/**
- * 获取聊天补全 API 的完整 URL
- *
- * 处理两种情况：
- * - apiUrl 已包含完整端点路径（如 .../v1/chat/completions）→ 直接使用
- * - apiUrl 仅为基础地址（如 .../v1 或 https://api.example.com）→ 自动拼接端点
- *
- * @param apiUrl - API 地址（可能为基础地址或完整端点）
- * @returns 完整的 chat/completions 端点 URL
- */
-const getChatCompletionsUrl = (apiUrl: string): string => {
-  const clean = apiUrl.trim().replace(/\/+$/, "");
-  if (clean.endsWith("chat/completions")) {
-    return clean;
-  }
-  return getOpenAICompatUrl(clean, "chat/completions");
-};
+// v0.8.2: getChatCompletionsUrl 已提取至 providerService.ts 作为公共函数
 
 /**
  * 从组合 store 状态中提取 ApiSettings 子集
@@ -145,9 +138,7 @@ const extractApiSettings = (state: AppStoreState): ApiSettings => {
   const targetProvider = providerId
     ? allProviders.find((p) => p.id === providerId)
     : currentProvider;
-  const currentModel = targetProvider?.models?.find(
-    (m) => m.name === actualModelName,
-  );
+  const currentModel = targetProvider?.models?.find((m) => m.name === actualModelName);
   const enableThinking = !!currentModel?.supportsReasoning;
 
   return {
@@ -164,12 +155,7 @@ const extractApiSettings = (state: AppStoreState): ApiSettings => {
 // Slice 实现
 // ============================================================================
 
-export const createChatSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  ChatSlice
-> = (set, get) => {
+export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (set, get) => {
   /**
    * 生成 AI 回复（内部辅助函数）
    *
@@ -184,12 +170,9 @@ export const createChatSlice: StateCreator<
    *
    * @param assistantMessageId - 待填充的 assistant 消息 ID
    */
-  const generateResponse = async (
-    assistantMessageId: string,
-  ): Promise<void> => {
+  const generateResponse = async (assistantMessageId: string): Promise<void> => {
     const state = get();
-    const { messages, currentCharacter, abortController, currentSessionId } =
-      state;
+    const { messages, currentCharacter, abortController, currentSessionId } = state;
 
     if (!abortController) {
       get().updateMessage(assistantMessageId, {
@@ -228,10 +211,7 @@ export const createChatSlice: StateCreator<
 
     try {
       // 构建所有供应商列表（内置 + 自定义），用于多供应商路由和上下文构建
-      const allProviders = [
-        ...BUILTIN_PROVIDERS,
-        ...get().customApiProviders,
-      ];
+      const allProviders = [...BUILTIN_PROVIDERS, ...get().customApiProviders];
 
       // 1. 从 IndexedDB 加载预设、世界书、全局记忆、正则脚本、记忆设置
       // v0.3.0: 正则脚本迁移为 RegexScriptGroup[] 结构
@@ -259,10 +239,13 @@ export const createChatSlice: StateCreator<
       // 导入角色卡时 worldInfoId 设为 characterUuid,条目 bookId 也是 characterUuid,自然匹配
       const worldInfoId = currentCharacter?.extensions?.worldInfoId as string | undefined;
       const worldInfoEntries = worldInfoId
-        ? (worldInfoData ?? []).filter(e => e.bookId === worldInfoId || !e.bookId)
-        : (worldInfoData ?? []).filter(e => !e.bookId);
+        ? (worldInfoData ?? []).filter((e) => e.bookId === worldInfoId || !e.bookId)
+        : (worldInfoData ?? []).filter((e) => !e.bookId);
       // v0.4.3: 日志记录世界书加载
-      logger.info("world", `世界书加载（总条目=${worldInfoData?.length ?? 0}，过滤后=${worldInfoEntries.length}，worldInfoId=${worldInfoId ?? "无"}）`);
+      logger.info(
+        "world",
+        `世界书加载（总条目=${worldInfoData?.length ?? 0}，过滤后=${worldInfoEntries.length}，worldInfoId=${worldInfoId ?? "无"}）`,
+      );
       // v0.3.0: 优先使用新的 regexGroups；若不存在但有旧 regexScripts，则迁移
       let regexGroups: RegexScriptGroup[] = regexGroupsData ?? [];
       if (regexGroups.length === 0 && oldRegexScriptsData && oldRegexScriptsData.length > 0) {
@@ -274,10 +257,11 @@ export const createChatSlice: StateCreator<
       // v0.7.1: 按当前角色过滤正则脚本组（enabledForCharacters 为空或 undefined 时全局生效）
       const currentCharUuid = get().currentCharacterUuid;
       if (currentCharUuid) {
-        regexGroups = regexGroups.filter(g =>
-          !g.enabledForCharacters ||
-          g.enabledForCharacters.length === 0 ||
-          g.enabledForCharacters.includes(currentCharUuid)
+        regexGroups = regexGroups.filter(
+          (g) =>
+            !g.enabledForCharacters ||
+            g.enabledForCharacters.length === 0 ||
+            g.enabledForCharacters.includes(currentCharUuid),
         );
       }
       const memorySettings = memorySettingsData ?? DEFAULT_MEMORY_SETTINGS;
@@ -318,7 +302,12 @@ export const createChatSlice: StateCreator<
           skipToolsInjection?: boolean;
           forceToolCall?: boolean;
         } = {},
-      ): Promise<{ content: string; reasoning: string; cot: string; toolCalls: Array<{ id: string; function: { name: string; arguments: string } }> }> => {
+      ): Promise<{
+        content: string;
+        reasoning: string;
+        cot: string;
+        toolCalls: Array<{ id: string; function: { name: string; arguments: string } }>;
+      }> => {
         const maxRetries = 3;
         const baseDelays = [2000, 4000, 8000]; // 递增退避
         let lastError: unknown;
@@ -326,14 +315,14 @@ export const createChatSlice: StateCreator<
 
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
           if (abortController?.signal.aborted) {
-            throw new DOMException('Aborted', 'AbortError');
+            throw new DOMException("Aborted", "AbortError");
           }
 
           try {
             return await callApiAndUpdate(msgId, contextMsgs, options);
           } catch (err) {
             // 用户取消不重试
-            if (err instanceof DOMException && err.name === 'AbortError') throw err;
+            if (err instanceof DOMException && err.name === "AbortError") throw err;
 
             const errMessage = err instanceof Error ? err.message : String(err);
 
@@ -341,28 +330,31 @@ export const createChatSlice: StateCreator<
             if (
               options.forceToolCall &&
               !triedForceToolCallFallback &&
-              (errMessage.includes('400') ||
-                errMessage.includes('tool_choice') ||
-                errMessage.includes('invalid') ||
-                errMessage.includes('Bad Request'))
+              (errMessage.includes("400") ||
+                errMessage.includes("tool_choice") ||
+                errMessage.includes("invalid") ||
+                errMessage.includes("Bad Request"))
             ) {
-              logger.warn('api', 'tool_choice: "required" 不被支持，回退到 "auto"');
+              logger.warn("api", 'tool_choice: "required" 不被支持，回退到 "auto"');
               triedForceToolCallFallback = true;
               options = { ...options, forceToolCall: false };
               continue; // 立即重试，不等待
             }
 
             // 检查是否为 429 错误
-            const is429 = errMessage.includes('429') ||
-                          errMessage.includes('TooManyRequests') ||
-                          errMessage.includes('ServerOverloaded') ||
-                          errMessage.includes('server overload');
+            const is429 =
+              errMessage.includes("429") ||
+              errMessage.includes("TooManyRequests") ||
+              errMessage.includes("ServerOverloaded") ||
+              errMessage.includes("server overload");
 
             if (!is429 || attempt === maxRetries) throw err;
 
             // 429 错误:显示退避提示并等待
             const delay = baseDelays[attempt];
-            console.warn(`[ChatSlice] API 429 错误,${delay / 1000}秒后重试(${attempt + 1}/${maxRetries})`);
+            console.warn(
+              `[ChatSlice] API 429 错误,${delay / 1000}秒后重试(${attempt + 1}/${maxRetries})`,
+            );
             get().updateMessage(msgId, {
               loading: true,
               error: `服务器繁忙,${delay / 1000}秒后自动重试(${attempt + 1}/${maxRetries})...`,
@@ -373,13 +365,13 @@ export const createChatSlice: StateCreator<
               const timer = setTimeout(resolve, delay);
               const onAbort = (): void => {
                 clearTimeout(timer);
-                reject(new DOMException('Aborted', 'AbortError'));
+                reject(new DOMException("Aborted", "AbortError"));
               };
               if (abortController?.signal.aborted) {
                 onAbort();
                 return;
               }
-              abortController?.signal.addEventListener('abort', onAbort, { once: true });
+              abortController?.signal.addEventListener("abort", onAbort, { once: true });
             });
 
             // 清除错误提示
@@ -397,7 +389,12 @@ export const createChatSlice: StateCreator<
           skipToolsInjection?: boolean;
           forceToolCall?: boolean;
         } = {},
-      ): Promise<{ content: string; reasoning: string; cot: string; toolCalls: Array<{ id: string; function: { name: string; arguments: string } }> }> => {
+      ): Promise<{
+        content: string;
+        reasoning: string;
+        cot: string;
+        toolCalls: Array<{ id: string; function: { name: string; arguments: string } }>;
+      }> => {
         const skipToolsInjection = options.skipToolsInjection ?? false;
         const forceTool = options.forceToolCall ?? false;
         // 构建 API 上下文
@@ -405,10 +402,10 @@ export const createChatSlice: StateCreator<
         const activeUser = (() => {
           const st = get();
           if (st.activeProfileId) {
-            const profile = (st.userProfiles ?? []).find(p => p.uuid === st.activeProfileId);
+            const profile = (st.userProfiles ?? []).find((p) => p.uuid === st.activeProfileId);
             if (profile?.name?.trim() || profile?.description?.trim()) return profile;
           }
-          return (st.user?.name?.trim() || st.user?.description?.trim()) ? st.user : DEFAULT_USER;
+          return st.user?.name?.trim() || st.user?.description?.trim() ? st.user : DEFAULT_USER;
         })();
         // v0.7.1: 单阶段架构 — buildContext 不再有 phase 参数
         // v0.7.3-fix: 传入 skipWorldInfoInjection，当 world-recall 预执行成功时跳过经典注入
@@ -441,24 +438,14 @@ export const createChatSlice: StateCreator<
           const scope = msg.role === "user" ? "user" : "character";
           return {
             ...msg,
-            content: processRegex(
-              msg.content,
-              regexGroups,
-              scope,
-              "send",
-              DEFAULT_USER,
-            ),
+            content: processRegex(msg.content, regexGroups, scope, "send", DEFAULT_USER),
           };
         });
 
         // v0.7.1: 单阶段架构 — 不再有 phase="tool" 角色名剥离
 
         // 多供应商路由：根据模型名前缀解析对应的供应商 URL/Key
-        const chatApiUrl = getApiUrlForModel(
-          get().modelName,
-          allProviders,
-          get().apiUrl,
-        );
+        const chatApiUrl = getApiUrlForModel(get().modelName, allProviders, get().apiUrl);
         const chatApiKey = getApiKeyForModel(
           get().modelName,
           get().apiProviderKeys,
@@ -552,7 +539,7 @@ export const createChatSlice: StateCreator<
         // Agent 步骤追踪（v0.3.0 新增）
         // v0.4.4: 修复 agentSteps 覆盖问题 - 读取已有消息的 agentSteps 作为初始值
         // 避免第二次请求(callApiAndUpdate)覆盖第一次请求已写入的 force 预执行/记忆召回步骤
-        const existingMsg = get().messages.find(m => m.id === msgId);
+        const existingMsg = get().messages.find((m) => m.id === msgId);
         const agentSteps: AgentStep[] = existingMsg?.agentSteps ? [...existingMsg.agentSteps] : [];
         // v0.4.4: 累积原生 tool_calls（流式增量合并）
         const accumulatedToolCalls: Array<{
@@ -588,9 +575,7 @@ export const createChatSlice: StateCreator<
                 set({ isThinking: true });
                 // v0.5.5-arch: reasoning_content 创建「头脑风暴」节点（type=brainstorm）
                 // v0.7.1: 单阶段架构 — 不再有 phase 区分
-                const existingBrainstorm = agentSteps.find(
-                  (s) => s.type === "brainstorm"
-                );
+                const existingBrainstorm = agentSteps.find((s) => s.type === "brainstorm");
                 if (!existingBrainstorm) {
                   agentSteps.push({
                     id: uuidv4(),
@@ -609,12 +594,10 @@ export const createChatSlice: StateCreator<
                 accumulatedContent += chunk.content;
                 set({ isThinking: false, isReceiving: true });
                 // v0.7.1: 单阶段架构 — content 是正文（或 <cot> 降级模式）
-                if (accumulatedContent.includes('<cot>')) {
+                if (accumulatedContent.includes("<cot>")) {
                   const fallbackCotResult = parseCot(accumulatedContent, false, true);
                   if (fallbackCotResult.cot) {
-                    const existingCotOutput = agentSteps.find(
-                      (s) => s.type === "cot_output"
-                    );
+                    const existingCotOutput = agentSteps.find((s) => s.type === "cot_output");
                     if (!existingCotOutput) {
                       agentSteps.push({
                         id: uuidv4(),
@@ -637,22 +620,25 @@ export const createChatSlice: StateCreator<
 
               // v0.4.6: 流式诊断日志
               if (chunk.content || chunk.reasoningContent) {
-                logger.debug("stream", `chunk: content+${chunk.content.length} reasoning+${chunk.reasoningContent.length} 累计${accumulatedContent.length}`);
+                logger.debug(
+                  "stream",
+                  `chunk: content+${chunk.content.length} reasoning+${chunk.reasoningContent.length} 累计${accumulatedContent.length}`,
+                );
               }
 
               // v0.4.4: 累积原生 tool_calls（流式增量合并）
               if (chunk.toolCalls && chunk.toolCalls.length > 0) {
                 for (const tc of chunk.toolCalls) {
-                  const existing = accumulatedToolCalls.find(t => t.id === tc.id && tc.id);
+                  const existing = accumulatedToolCalls.find((t) => t.id === tc.id && tc.id);
                   if (existing) {
-                    existing.function.name += tc.function?.name ?? '';
-                    existing.function.arguments += tc.function?.arguments ?? '';
+                    existing.function.name += tc.function?.name ?? "";
+                    existing.function.arguments += tc.function?.arguments ?? "";
                   } else {
                     accumulatedToolCalls.push({
-                      id: tc.id ?? '',
+                      id: tc.id ?? "",
                       function: {
-                        name: tc.function?.name ?? '',
-                        arguments: tc.function?.arguments ?? '',
+                        name: tc.function?.name ?? "",
+                        arguments: tc.function?.arguments ?? "",
                       },
                     });
                   }
@@ -666,14 +652,17 @@ export const createChatSlice: StateCreator<
               // v0.4.6: 阈值从 3 降至 1，实现真正逐字流式思考卡片
               const lengthDelta = accumulatedContent.length - lastParseLength;
               const closingTags = [
-                '</cot>', '</think>', '</thinking>', '</reasoning>',
-                '</thought>', '</thoughts>', '</reflection>', '</analysis>',
+                "</cot>",
+                "</think>",
+                "</thinking>",
+                "</reasoning>",
+                "</thought>",
+                "</thoughts>",
+                "</reflection>",
+                "</analysis>",
               ];
               const hasClosingTag = closingTags.some((tag) => accumulatedContent.includes(tag));
-              const shouldParse =
-                !lastCotResult ||
-                lengthDelta > 1 ||
-                hasClosingTag;
+              const shouldParse = !lastCotResult || lengthDelta > 1 || hasClosingTag;
 
               if (shouldParse) {
                 // v0.5.1: 流式过程中允许未闭合标签内容，cot 随 chunk 增量显示
@@ -688,13 +677,18 @@ export const createChatSlice: StateCreator<
               // reasoning_content → brainstorm 节点（上方已创建）
               // content → 正文气泡（parseCot 分离 <cot> 标签后的 main 内容）
               const now = Date.now();
-              const willUpdate = (now - lastUpdateTick >= 16 || hasClosingTag);
+              const willUpdate = now - lastUpdateTick >= 16 || hasClosingTag;
               if (willUpdate) {
-                logger.debug("stream", `update: reasoning=${accumulatedReasoning.length}chars content=${accumulatedContent.length}chars steps=${agentSteps.length}`);
+                logger.debug(
+                  "stream",
+                  `update: reasoning=${accumulatedReasoning.length}chars content=${accumulatedContent.length}chars steps=${agentSteps.length}`,
+                );
                 lastUpdateTick = now;
                 const elapsedMs = now - requestStartTime;
-                const estimatedTokens = Math.ceil((accumulatedContent.length + accumulatedReasoning.length) / 4);
-                const tokPerSec = elapsedMs > 0 ? (estimatedTokens / (elapsedMs / 1000)) : 0;
+                const estimatedTokens = Math.ceil(
+                  (accumulatedContent.length + accumulatedReasoning.length) / 4,
+                );
+                const tokPerSec = elapsedMs > 0 ? estimatedTokens / (elapsedMs / 1000) : 0;
 
                 get().updateMessage(msgId, {
                   content: cotResult.main || accumulatedContent,
@@ -730,10 +724,10 @@ export const createChatSlice: StateCreator<
           if (chunk.toolCalls && chunk.toolCalls.length > 0) {
             for (const tc of chunk.toolCalls) {
               accumulatedToolCalls.push({
-                id: tc.id ?? '',
+                id: tc.id ?? "",
                 function: {
-                  name: tc.function?.name ?? '',
-                  arguments: tc.function?.arguments ?? '',
+                  name: tc.function?.name ?? "",
+                  arguments: tc.function?.arguments ?? "",
                 },
               });
             }
@@ -753,7 +747,7 @@ export const createChatSlice: StateCreator<
             });
           }
           // v0.7.1: 单阶段架构 — 非流式 cot_output 仅在 <cot> 降级模式时创建
-          if (accumulatedContent.includes('<cot>')) {
+          if (accumulatedContent.includes("<cot>")) {
             const fallbackCot = parseCot(accumulatedContent);
             if (fallbackCot.cot) {
               agentSteps.push({
@@ -779,7 +773,10 @@ export const createChatSlice: StateCreator<
         // v0.5.5-arch: 将 brainstorm/cot_output 节点标记为已完成
         const finalElapsedMs = Date.now() - requestStartTime;
         for (const step of agentSteps) {
-          if ((step.type === "brainstorm" || step.type === "cot_output") && step.status === "running") {
+          if (
+            (step.type === "brainstorm" || step.type === "cot_output") &&
+            step.status === "running"
+          ) {
             step.status = "completed";
             step.endedAt = Date.now();
           }
@@ -807,32 +804,36 @@ export const createChatSlice: StateCreator<
           const currentPromptTokens = Number(lastUsage.prompt_tokens ?? 0);
           const currentCompletionTokens = Number(lastUsage.completion_tokens ?? 0);
           const currentCachedTokens = Number(
-            (lastUsage.prompt_tokens_details as Record<string, unknown>)?.cached_tokens ?? 0
+            (lastUsage.prompt_tokens_details as Record<string, unknown>)?.cached_tokens ?? 0,
           );
 
           // v0.7.2: 累加已有 tokenUsage（续写场景）
           const promptTokens = currentPromptTokens + (existingTokenUsage?.promptTokens ?? 0);
-          const completionTokens = currentCompletionTokens + (existingTokenUsage?.completionTokens ?? 0);
+          const completionTokens =
+            currentCompletionTokens + (existingTokenUsage?.completionTokens ?? 0);
           const cachedTokens = currentCachedTokens + (existingTokenUsage?.cachedTokens ?? 0);
 
           // v0.7.2: 思考 tokens 估算（reasoning 内容长度 / 4）
-          const reasoningTokens = Math.ceil(accumulatedReasoning.length / 4) + (existingTokenUsage?.reasoningTokens ?? 0);
+          const reasoningTokens =
+            Math.ceil(accumulatedReasoning.length / 4) + (existingTokenUsage?.reasoningTokens ?? 0);
 
           // v0.7.2: 工具续写累计 tokens（续写时本次请求的 prompt+completion 计入工具 token）
           const toolCallTokens = isContinuation
-            ? (existingTokenUsage?.toolCallTokens ?? 0) + currentPromptTokens + currentCompletionTokens
+            ? (existingTokenUsage?.toolCallTokens ?? 0) +
+              currentPromptTokens +
+              currentCompletionTokens
             : 0;
 
           // v0.7.2: 全局计时 — 首次请求到正文结束
           const globalElapsedMs = Date.now() - firstRequestStartTime;
 
-          const cacheHitRate = promptTokens > 0
-            ? Math.round((cachedTokens / promptTokens) * 1000) / 10
-            : undefined;
+          const cacheHitRate =
+            promptTokens > 0 ? Math.round((cachedTokens / promptTokens) * 1000) / 10 : undefined;
           const totalTokens = promptTokens + completionTokens + reasoningTokens + toolCallTokens;
-          const tokPerSec = globalElapsedMs > 0
-            ? Math.round((totalTokens / (globalElapsedMs / 1000)) * 10) / 10
-            : 0;
+          const tokPerSec =
+            globalElapsedMs > 0
+              ? Math.round((totalTokens / (globalElapsedMs / 1000)) * 10) / 10
+              : 0;
 
           get().updateMessage(msgId, {
             tokenUsage: {
@@ -853,14 +854,20 @@ export const createChatSlice: StateCreator<
           // 无 usage 数据时，至少更新最终响应时间
           const globalElapsedMs = Date.now() - firstRequestStartTime;
           const estimatedTokens = Math.ceil(accumulatedContent.length / 4);
-          const reasoningTokens = Math.ceil(accumulatedReasoning.length / 4) + (existingTokenUsage?.reasoningTokens ?? 0);
+          const reasoningTokens =
+            Math.ceil(accumulatedReasoning.length / 4) + (existingTokenUsage?.reasoningTokens ?? 0);
           const toolCallTokens = isContinuation
             ? (existingTokenUsage?.toolCallTokens ?? 0) + estimatedTokens
             : 0;
-          const totalTokens = estimatedTokens + reasoningTokens + toolCallTokens + (existingTokenUsage?.promptTokens ?? 0);
-          const tokPerSec = globalElapsedMs > 0
-            ? Math.round((totalTokens / (globalElapsedMs / 1000)) * 10) / 10
-            : 0;
+          const totalTokens =
+            estimatedTokens +
+            reasoningTokens +
+            toolCallTokens +
+            (existingTokenUsage?.promptTokens ?? 0);
+          const tokPerSec =
+            globalElapsedMs > 0
+              ? Math.round((totalTokens / (globalElapsedMs / 1000)) * 10) / 10
+              : 0;
           get().updateMessage(msgId, {
             tokenUsage: {
               promptTokens: existingTokenUsage?.promptTokens ?? 0,
@@ -880,27 +887,29 @@ export const createChatSlice: StateCreator<
         const cotParsed = parseCot(accumulatedContent, true);
         const cotOnly = cotParsed.cot || cotParsed.main || accumulatedContent;
         const finalCotForReturn = (
-          (accumulatedReasoning ? accumulatedReasoning + "\n" : "") +
-          cotOnly
+          (accumulatedReasoning ? accumulatedReasoning + "\n" : "") + cotOnly
         ).trim();
         // v0.4.6: 流式诊断日志（记录请求完成状态）
-        logger.info("stream", `请求完成: 总字符=${accumulatedContent.length} cot=${finalCotForReturn.length}chars steps=${agentSteps.length} toolCalls=${accumulatedToolCalls.length}`);
+        logger.info(
+          "stream",
+          `请求完成: 总字符=${accumulatedContent.length} cot=${finalCotForReturn.length}chars steps=${agentSteps.length} toolCalls=${accumulatedToolCalls.length}`,
+        );
         // v0.7.1: 单阶段架构 — content 即为正文
         const finalContent = accumulatedContent;
         // v0.4.4: 返回 toolCalls 字段,供外层工具调用循环使用
-        return { content: finalContent, reasoning: accumulatedReasoning, cot: finalCotForReturn, toolCalls: accumulatedToolCalls };
+        return {
+          content: finalContent,
+          reasoning: accumulatedReasoning,
+          cot: finalCotForReturn,
+          toolCalls: accumulatedToolCalls,
+        };
       };
 
       // 3. 初始 API 调用
-      const contextMessages = messages.filter(
-        (m) => m.id !== assistantMessageId,
-      );
+      const contextMessages = messages.filter((m) => m.id !== assistantMessageId);
 
       // v0.3.6: 提前加载 activeTools，供 force 模式预执行和工具调用循环共用
-      const activeToolsData = await getItem<ActiveTool[]>(
-        "activeTools",
-        "activeTools",
-      );
+      const activeToolsData = await getItem<ActiveTool[]>("activeTools", "activeTools");
       const activeTools = activeToolsData ?? [];
 
       // v0.5.1: force 模式已废弃——所有工具现在由 AI 在请求 1 中主动决定是否调用
@@ -908,9 +917,7 @@ export const createChatSlice: StateCreator<
       // v0.3.7: memory-recall 内置工具预执行
       // v0.4.6: 改为搜索会话级向量记忆分片（searchVectorMemory），不再搜索空库 longTermMemory
       // 被动触发：用最新 user 消息匹配向量分片，召回完整轮次内容
-      const memoryRecallConfig = builtinToolConfigs.find(
-        (c) => c.type === "memory-recall",
-      );
+      const memoryRecallConfig = builtinToolConfigs.find((c) => c.type === "memory-recall");
       if (
         memoryRecallConfig?.enabled &&
         currentCharacter?.uuid &&
@@ -943,14 +950,20 @@ export const createChatSlice: StateCreator<
               get().apiProviderKeys,
             );
             const recallResults = scoredResults.slice(0, recallTopK);
-            logger.info("memory", `记忆召回完成: 找到 ${recallResults.length} 条（topK=${recallTopK}）`);
+            logger.info(
+              "memory",
+              `记忆召回完成: 找到 ${recallResults.length} 条（topK=${recallTopK}）`,
+            );
 
             // v0.4.1-fix: 标记 tool_call 完成,添加 tool_result 步骤
             recallCallStep.status = "completed";
             recallCallStep.endedAt = Date.now();
-            const recallResultText = recallResults.length > 0
-              ? recallResults.map((r) => `[score=${r.score.toFixed(3)}] ${r.shard.content}`).join('\n\n')
-              : "(无匹配记忆)";
+            const recallResultText =
+              recallResults.length > 0
+                ? recallResults
+                    .map((r) => `[score=${r.score.toFixed(3)}] ${r.shard.content}`)
+                    .join("\n\n")
+                : "(无匹配记忆)";
             const recallResultStep: AgentStep = {
               id: uuidv4(),
               type: "tool_result",
@@ -959,12 +972,15 @@ export const createChatSlice: StateCreator<
               status: "completed",
               startedAt: recallCallStep.startedAt,
               endedAt: Date.now(),
-              recallResults: recallResults.length > 0 ? recallResults.map((r) => ({
-                id: uuidv4(),
-                content: r.shard.content,
-                score: r.score,
-                turn: r.shard.turn ?? -1,
-              })) : undefined,
+              recallResults:
+                recallResults.length > 0
+                  ? recallResults.map((r) => ({
+                      id: uuidv4(),
+                      content: r.shard.content,
+                      score: r.score,
+                      turn: r.shard.turn ?? -1,
+                    }))
+                  : undefined,
             };
 
             // v0.4.1-fix: 添加到 toolCalls 和 agentSteps,显示为二级思考卡片
@@ -1007,11 +1023,7 @@ export const createChatSlice: StateCreator<
             const existingMsg = get().messages.find((m) => m.id === assistantMessageId);
             get().updateMessage(assistantMessageId, {
               toolCalls: [...(existingMsg?.toolCalls ?? []), recallToolCall],
-              agentSteps: [
-                ...(existingMsg?.agentSteps ?? []),
-                recallCallStep,
-                recallResultStep,
-              ],
+              agentSteps: [...(existingMsg?.agentSteps ?? []), recallCallStep, recallResultStep],
             });
           } catch (e) {
             console.warn("[ChatSlice] memory-recall 预执行失败:", e);
@@ -1047,7 +1059,10 @@ export const createChatSlice: StateCreator<
           }
         }
       } else if (memoryRecallConfig?.enabled) {
-        logger.info("memory", `memory-recall 跳过: configEnabled=${memoryRecallConfig?.enabled} char=${!!currentCharacter?.uuid} embeddingModel=${!!memorySettings?.embeddingModel} shards=${vectorMemoryShards.length}`);
+        logger.info(
+          "memory",
+          `memory-recall 跳过: configEnabled=${memoryRecallConfig?.enabled} char=${!!currentCharacter?.uuid} embeddingModel=${!!memorySettings?.embeddingModel} shards=${vectorMemoryShards.length}`,
+        );
       }
 
       // v0.7.2: world-recall 被动预执行（三策略混合召回）
@@ -1058,17 +1073,14 @@ export const createChatSlice: StateCreator<
       // v0.7.3-fix: 语义召回添加相似度阈值（0.3），避免注入完全不相关的条目
       // v0.7.3-fix: 运行时生成的 embedding 异步持久化到 IndexedDB
       // v0.7.3-fix: 关键词扫描窗口与 buildContext 对齐（最近 2 条消息）
-      const worldRecallConfig = builtinToolConfigs.find(
-        (c) => c.type === "world-recall",
-      );
-      if (
-        worldRecallConfig?.enabled &&
-        currentCharacter?.uuid &&
-        worldInfoEntries.length > 0
-      ) {
+      const worldRecallConfig = builtinToolConfigs.find((c) => c.type === "world-recall");
+      if (worldRecallConfig?.enabled && currentCharacter?.uuid && worldInfoEntries.length > 0) {
         const worldLimit = worldRecallConfig.resultCount || 8;
         // v0.7.3-fix: 关键词扫描使用最近 2 条消息（与 buildContext DEFAULT_WORLD_INFO_SCAN_DEPTH 对齐）
-        const keywordScanText = messages.slice(-2).map((m) => m.content).join("\n");
+        const keywordScanText = messages
+          .slice(-2)
+          .map((m) => m.content)
+          .join("\n");
         // 语义检索仅使用最后一条 user 消息，保持语义精确性
         const semanticQuery = messages.filter((m) => m.role === "user").pop()?.content || "";
         logger.info("world", `世界书召回预执行启动（三策略混合，topK=${worldLimit}）`);
@@ -1077,12 +1089,16 @@ export const createChatSlice: StateCreator<
           const constantEntries = enabledEntries.filter((e) => e.constant);
           const nonConstantEntries = enabledEntries.filter((e) => !e.constant);
 
-          type RecallResult = { entry: WorldInfoEntry; score: number; strategy: 'constant' | 'keyword' | 'semantic' };
+          type RecallResult = {
+            entry: WorldInfoEntry;
+            score: number;
+            strategy: "constant" | "keyword" | "semantic";
+          };
           const results: RecallResult[] = [];
 
           // 策略1: constant 条目直接注入（score=1.0，不使用嵌入模型）
           for (const e of constantEntries) {
-            results.push({ entry: e, score: 1.0, strategy: 'constant' });
+            results.push({ entry: e, score: 1.0, strategy: "constant" });
           }
 
           // 策略2: 关键词匹配（非constant条目，概率检查 + keys匹配，不使用嵌入模型）
@@ -1095,49 +1111,89 @@ export const createChatSlice: StateCreator<
                 worldInfoKeyMatchesText(key, keywordScanText, e.useRegex),
               );
               if (matchedKeys.length > 0) {
-                results.push({ entry: e, score: matchedKeys.length, strategy: 'keyword' });
+                results.push({ entry: e, score: matchedKeys.length, strategy: "keyword" });
               }
             }
           }
 
           // 策略3: 语义相似度（所有非constant条目，使用嵌入模型）
-          // v0.7.3-fix: 添加相似度阈值 0.3，避免注入完全不相关的条目
-          // v0.7.3-fix: 运行时生成的 embedding 收集后异步持久化
+          // v0.8.3: 改为异步非阻塞（fire-and-forget）— 不等待语义检索结果，避免首字延迟
+          // 语义检索结果异步持久化到 IndexedDB，下次消息发送时策略2(keyword)会命中已持久化的 embedding
+          // 当前消息仅使用 constant + keyword 结果，首字延迟降低 60%+
           const WORLD_RECALL_SIMILARITY_THRESHOLD = 0.3;
-          const embeddingsGenerated: Array<{ id: string; embedding: number[] }> = [];
           if (memorySettings?.embeddingModel && semanticQuery.trim()) {
-            try {
-              const queryEmbedding = await getEmbedding(
-                semanticQuery,
-                memorySettings,
-                settings,
-                allProviders,
-                get().apiProviderKeys,
-              );
-              const semanticScored = await Promise.all(nonConstantEntries.map(async (e) => {
-                let entryEmbedding = e.embedding;
-                if (!entryEmbedding || entryEmbedding.length === 0) {
+            // v0.8.3: fire-and-forget — 启动语义检索但不阻塞主流程
+            void (async () => {
+              try {
+                const queryEmbedding = await getEmbedding(
+                  semanticQuery,
+                  memorySettings,
+                  settings,
+                  allProviders,
+                  get().apiProviderKeys,
+                );
+                const embeddingsGenerated: Array<{ id: string; embedding: number[] }> = [];
+                const semanticScored = await Promise.all(
+                  nonConstantEntries.map(async (e) => {
+                    let entryEmbedding = e.embedding;
+                    if (!entryEmbedding || entryEmbedding.length === 0) {
+                      try {
+                        entryEmbedding = await getEmbedding(
+                          e.content,
+                          memorySettings,
+                          settings,
+                          allProviders,
+                          get().apiProviderKeys,
+                        );
+                        e.embedding = entryEmbedding;
+                        embeddingsGenerated.push({ id: e.id, embedding: entryEmbedding });
+                      } catch {
+                        entryEmbedding = [];
+                      }
+                    }
+                    const score =
+                      entryEmbedding.length > 0
+                        ? cosineSimilarity(queryEmbedding, entryEmbedding)
+                        : 0;
+                    return { entry: e, score, strategy: "semantic" as const };
+                  }),
+                );
+
+                // v0.8.3: 异步持久化运行时生成的 embedding 到 IndexedDB
+                if (embeddingsGenerated.length > 0) {
                   try {
-                    entryEmbedding = await getEmbedding(e.content, memorySettings, settings, allProviders, get().apiProviderKeys);
-                    e.embedding = entryEmbedding;
-                    // v0.7.3-fix: 收集运行时生成的 embedding，稍后持久化
-                    embeddingsGenerated.push({ id: e.id, embedding: entryEmbedding });
-                  } catch {
-                    entryEmbedding = [];
+                    const allEntries = await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo");
+                    if (allEntries) {
+                      const merged = allEntries.map((wi) => {
+                        const gen = embeddingsGenerated.find((g) => g.id === wi.id);
+                        return gen ? { ...wi, embedding: gen.embedding } : wi;
+                      });
+                      await setItem("worldInfo", "worldInfo", merged);
+                      logger.info(
+                        "world",
+                        `世界书 embedding 异步持久化完成: ${embeddingsGenerated.length} 条`,
+                      );
+                    }
+                  } catch (persistErr) {
+                    logger.warn(
+                      "world",
+                      `世界书 embedding 异步持久化失败: ${(persistErr as Error).message}`,
+                    );
                   }
                 }
-                const score = entryEmbedding.length > 0 ? cosineSimilarity(queryEmbedding, entryEmbedding) : 0;
-                return { entry: e, score, strategy: 'semantic' as const };
-              }));
-              for (const s of semanticScored) {
-                // v0.7.3-fix: 使用阈值过滤，避免注入完全不相关的条目
-                if (Number.isFinite(s.score) && s.score > WORLD_RECALL_SIMILARITY_THRESHOLD) {
-                  results.push(s);
-                }
+
+                const semanticHits = semanticScored.filter(
+                  (s) => Number.isFinite(s.score) && s.score > WORLD_RECALL_SIMILARITY_THRESHOLD,
+                );
+                logger.info(
+                  "world",
+                  `世界书语义召回异步完成: ${semanticHits.length} 条命中（结果已持久化，下次消息生效）`,
+                );
+              } catch (e) {
+                logger.warn("world", `世界书语义召回异步失败（不影响本次消息）: ${e}`);
               }
-            } catch (e) {
-              logger.warn("world", `世界书语义召回失败（constant+keyword结果仍可用）: ${e}`);
-            }
+            })();
+            // v0.8.3: 不等待语义检索结果，继续执行
           }
 
           // v0.7.3-fix: 按 entry.id 去重（保留策略优先级更高的，同策略保留 score 更高的）
@@ -1150,7 +1206,10 @@ export const createChatSlice: StateCreator<
             } else {
               const existingPriority = strategyOrder[existing.strategy] ?? 99;
               const newPriority = strategyOrder[r.strategy] ?? 99;
-              if (newPriority < existingPriority || (newPriority === existingPriority && r.score > existing.score)) {
+              if (
+                newPriority < existingPriority ||
+                (newPriority === existingPriority && r.score > existing.score)
+              ) {
                 dedupedMap.set(r.entry.id, r);
               }
             }
@@ -1168,27 +1227,15 @@ export const createChatSlice: StateCreator<
             })
             .slice(0, worldLimit);
 
-          const cntConst = sorted.filter((s) => s.strategy === 'constant').length;
-          const cntKw = sorted.filter((s) => s.strategy === 'keyword').length;
-          const cntSem = sorted.filter((s) => s.strategy === 'semantic').length;
-          logger.info("world", `世界书召回完成: 找到 ${sorted.length} 条（constant=${cntConst} keyword=${cntKw} semantic=${cntSem}，去重移除 ${dedupRemoved} 条）`);
+          const cntConst = sorted.filter((s) => s.strategy === "constant").length;
+          const cntKw = sorted.filter((s) => s.strategy === "keyword").length;
+          const cntSem = sorted.filter((s) => s.strategy === "semantic").length;
+          logger.info(
+            "world",
+            `世界书召回完成: 找到 ${sorted.length} 条（constant=${cntConst} keyword=${cntKw} semantic=${cntSem}，去重移除 ${dedupRemoved} 条）`,
+          );
 
-          // v0.7.3-fix: 异步持久化运行时生成的 embedding 到 IndexedDB
-          if (embeddingsGenerated.length > 0) {
-            try {
-              const allEntries = await getItem<WorldInfoEntry[]>('worldInfo', 'worldInfo');
-              if (allEntries) {
-                const merged = allEntries.map((wi) => {
-                  const gen = embeddingsGenerated.find((g) => g.id === wi.id);
-                  return gen ? { ...wi, embedding: gen.embedding } : wi;
-                });
-                await setItem('worldInfo', 'worldInfo', merged);
-                logger.info("world", `世界书 embedding 持久化: ${embeddingsGenerated.length} 条`);
-              }
-            } catch (persistErr) {
-              logger.warn("world", `世界书 embedding 持久化失败（不影响本次召回）: ${(persistErr as Error).message}`);
-            }
-          }
+          // v0.8.3: embedding 持久化已移至策略3异步块内（fire-and-forget），此处不再同步等待
 
           if (sorted.length > 0) {
             const worldInfoRecalls: WorldInfoRecall[] = sorted.map((s) => ({
@@ -1201,7 +1248,10 @@ export const createChatSlice: StateCreator<
             get().updateMessage(assistantMessageId, { worldInfoRecalls });
 
             const recallText = sorted
-              .map((s, i) => `  <entry index="${i + 1}" name="${s.entry.name || s.entry.id || '未命名'}" strategy="${s.strategy}" score="${s.score.toFixed(3)}">\n    ${s.entry.content.slice(0, 4000)}\n  </entry>`)
+              .map(
+                (s, i) =>
+                  `  <entry index="${i + 1}" name="${s.entry.name || s.entry.id || "未命名"}" strategy="${s.strategy}" score="${s.score.toFixed(3)}">\n    ${s.entry.content.slice(0, 4000)}\n  </entry>`,
+              )
               .join("\n\n");
             contextMessages.push({
               id: uuidv4(),
@@ -1232,7 +1282,10 @@ export const createChatSlice: StateCreator<
           logger.warn("world", `世界书召回预执行失败: ${e}`);
         }
       } else if (worldRecallConfig?.enabled) {
-        logger.info("world", `world-recall 跳过: configEnabled=${worldRecallConfig?.enabled} char=${!!currentCharacter?.uuid} entries=${worldInfoEntries.length}`);
+        logger.info(
+          "world",
+          `world-recall 跳过: configEnabled=${worldRecallConfig?.enabled} char=${!!currentCharacter?.uuid} entries=${worldInfoEntries.length}`,
+        );
       }
 
       // v0.7.1: 单阶段架构 — 单次 API 请求完成 CoT 思考 + 正文输出
@@ -1241,17 +1294,33 @@ export const createChatSlice: StateCreator<
       logger.info("api", "=== 单阶段架构开始 ===");
       logger.info("api", "API 请求: CoT 思考 + 正文输出");
       {
-        const msg = get().messages.find(m => m.id === assistantMessageId);
+        const msg = get().messages.find((m) => m.id === assistantMessageId);
         logger.info("stream", `请求开始前: agentSteps数=${msg?.agentSteps?.length ?? 0}`);
       }
-      const { content: cotRawContent, reasoning: cotReasoning, cot: cotContent, toolCalls: nativeToolCallsFromMain } =
-        await callApiWithRetry(assistantMessageId, contextMessages, {
-          forceToolCall: true, // v0.8.1: 首次请求强制 tool_choice: 'required'
-        });
-      logger.info("api", `API 响应: CoT+正文完成（CoT=${cotContent.length}字符，正文=${cotRawContent.length}字符）`);
-      logger.info("chat", `消息接收完成（CoT=${cotContent.length}字符，正文=${cotRawContent.length}字符）`);
+      const {
+        content: cotRawContent,
+        reasoning: cotReasoning,
+        cot: cotContent,
+        toolCalls: nativeToolCallsFromMain,
+      } = await callApiWithRetry(assistantMessageId, contextMessages, {
+        forceToolCall: toolGlobalSettings.mode === "force", // v0.8.2: 仅 force 模式强制工具调用，否则让模型自主决定
+      });
+      logger.info(
+        "api",
+        `API 响应: CoT+正文完成（CoT=${cotContent.length}字符，正文=${cotRawContent.length}字符）`,
+      );
+      logger.info(
+        "chat",
+        `消息接收完成（CoT=${cotContent.length}字符，正文=${cotRawContent.length}字符）`,
+      );
 
-      if (!cotRawContent.trim() && !cotReasoning.trim() && !cotContent.trim()) {
+      // v0.8.2: 空响应检查需考虑 tool_calls — 模型可能只返回工具调用而无正文/思考
+      if (
+        !cotRawContent.trim() &&
+        !cotReasoning.trim() &&
+        !cotContent.trim() &&
+        (!nativeToolCallsFromMain || nativeToolCallsFromMain.length === 0)
+      ) {
         get().updateMessage(assistantMessageId, { loading: false, error: "API 返回空响应" });
         return;
       }
@@ -1264,9 +1333,10 @@ export const createChatSlice: StateCreator<
       if (abortController?.signal.aborted) return;
 
       // 7. 检查空响应(正文阶段)
+      // v0.8.2: 空响应检查需考虑 tool_calls — 模型可能只返回工具调用而无正文/思考
       if (!accumulatedContent.trim() && !accumulatedReasoning.trim()) {
-        // 正文为空但 CoT 有内容,保留 CoT 并提示
-        if (cotContent.trim()) {
+        // 正文为空但 CoT 有内容或模型返回了工具调用,保留并继续
+        if (cotContent.trim() || (nativeToolCallsFromMain && nativeToolCallsFromMain.length > 0)) {
           get().updateMessage(assistantMessageId, {
             loading: false,
           });
@@ -1280,9 +1350,7 @@ export const createChatSlice: StateCreator<
       }
 
       // 8. 记录生成耗时
-      const assistantMsg = get().messages.find(
-        (m) => m.id === assistantMessageId,
-      );
+      const assistantMsg = get().messages.find((m) => m.id === assistantMessageId);
       if (assistantMsg) {
         get().updateMessage(assistantMessageId, {
           generationTime: Date.now() - assistantMsg.createdAt,
@@ -1296,7 +1364,9 @@ export const createChatSlice: StateCreator<
       // v0.4.4: 优先检测原生 tool_calls（API 原生返回，非文本标签解析）
       // 仅在非 force 模式下检测（force 模式由预执行逻辑处理）
       const nativeToolCalls =
-        toolGlobalSettings.mode !== "force" && nativeToolCallsFromMain && nativeToolCallsFromMain.length > 0
+        toolGlobalSettings.mode !== "force" &&
+        nativeToolCallsFromMain &&
+        nativeToolCallsFromMain.length > 0
           ? nativeToolCallsFromMain
           : null;
 
@@ -1309,21 +1379,16 @@ export const createChatSlice: StateCreator<
         return Promise.race([
           fn(),
           new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error('工具执行超时')), timeoutMs),
+            setTimeout(() => reject(new Error("工具执行超时")), timeoutMs),
           ),
         ]);
       };
 
       // v0.4.4: 根据工具名（callName）查找对应的 ActiveTool 并执行
       // v0.4.6: 先查找内置工具（按 type 匹配），找到则执行内置工具逻辑
-      const executeToolByName = async (
-        toolName: string,
-        query: string,
-      ): Promise<string> => {
+      const executeToolByName = async (toolName: string, query: string): Promise<string> => {
         // v0.4.6: 先查找内置工具
-        const builtinConfig = builtinToolConfigs.find(
-          (c) => c.enabled && c.type === toolName,
-        );
+        const builtinConfig = builtinToolConfigs.find((c) => c.enabled && c.type === toolName);
         if (builtinConfig) {
           const limit = builtinConfig.resultCount || 8;
           // v0.4.6: memory-recall 改为搜索会话向量记忆
@@ -1338,62 +1403,111 @@ export const createChatSlice: StateCreator<
                 get().apiProviderKeys,
               ),
             );
-            if (results.length === 0) return "<builtin_tool_result status='empty'>未找到相关记忆。</builtin_tool_result>";
-            return results.map((r, i) => `  <memory index="${i + 1}" turn="${r.turn ?? -1}">\n    ${r.content}\n  </memory>`).join('\n\n');
+            if (results.length === 0)
+              return "<builtin_tool_result status='empty'>未找到相关记忆。</builtin_tool_result>";
+            return results
+              .map(
+                (r, i) =>
+                  `  <memory index="${i + 1}" turn="${r.turn ?? -1}">\n    ${r.content}\n  </memory>`,
+              )
+              .join("\n\n");
           }
           // vector-memory: 调用 searchVectorMemory
           if (toolName === "vector-memory" && vectorMemoryShards.length > 0) {
             const results = await executeWithTimeout(() =>
-              searchVectorMemory(query, vectorMemoryShards, memorySettings, settings, allProviders, get().apiProviderKeys),
+              searchVectorMemory(
+                query,
+                vectorMemoryShards,
+                memorySettings,
+                settings,
+                allProviders,
+                get().apiProviderKeys,
+              ),
             );
-            if (results.length === 0) return "<builtin_tool_result status='empty'>未找到相关向量记忆。</builtin_tool_result>";
-            return results.map((r, i) => `  <memory index="${i + 1}" turn="${r.turn}">\n    ${r.content}\n  </memory>`).join('\n\n');
+            if (results.length === 0)
+              return "<builtin_tool_result status='empty'>未找到相关向量记忆。</builtin_tool_result>";
+            return results
+              .map(
+                (r, i) =>
+                  `  <memory index="${i + 1}" turn="${r.turn}">\n    ${r.content}\n  </memory>`,
+              )
+              .join("\n\n");
           }
           // keyword-search: 优先搜索向量记忆分片，无分片时回退到原始消息
           // v0.5.8: 支持多关键词拆分 + 精准匹配评分
           if (toolName === "keyword-search") {
-            const terms = query.split(/[\s,，、;；|｜/\\]+/u).map((t) => t.trim().toLowerCase()).filter(Boolean);
-            const source = vectorMemoryShards.length > 0
-              ? vectorMemoryShards.map(s => ({ content: s.content, role: 'assistant' as const }))
-              : get().messages.map(m => ({ content: m.content, role: m.role }));
-            const scored = source.map((item) => {
-              const lowerContent = String(item.content || '').toLowerCase();
-              const matchCount = terms.filter((t) => lowerContent.includes(t)).length;
-              return { item, score: matchCount };
-            }).filter((s) => s.score > 0).sort((a, b) => b.score - a.score).slice(0, limit);
-            if (scored.length === 0) return "<builtin_tool_result status='empty'>未找到匹配的消息。</builtin_tool_result>";
-            return scored.map((s, i) => `  <message index="${i + 1}" role="${s.item.role}" score="${s.score}">\n    ${s.item.content.slice(0, 500)}\n  </message>`).join('\n\n');
+            const terms = query
+              .split(/[\s,，、;；|｜/\\]+/u)
+              .map((t) => t.trim().toLowerCase())
+              .filter(Boolean);
+            const source =
+              vectorMemoryShards.length > 0
+                ? vectorMemoryShards.map((s) => ({
+                    content: s.content,
+                    role: "assistant" as const,
+                  }))
+                : get().messages.map((m) => ({ content: m.content, role: m.role }));
+            const scored = source
+              .map((item) => {
+                const lowerContent = String(item.content || "").toLowerCase();
+                const matchCount = terms.filter((t) => lowerContent.includes(t)).length;
+                return { item, score: matchCount };
+              })
+              .filter((s) => s.score > 0)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, limit);
+            if (scored.length === 0)
+              return "<builtin_tool_result status='empty'>未找到匹配的消息。</builtin_tool_result>";
+            return scored
+              .map(
+                (s, i) =>
+                  `  <message index="${i + 1}" role="${s.item.role}" score="${s.score}">\n    ${s.item.content.slice(0, 500)}\n  </message>`,
+              )
+              .join("\n\n");
           }
           // v0.7.2: world-recall 主动 handler 已删除 — 预执行三策略（constant+keyword+semantic）已完整覆盖
           // v0.7.2: world-search handler 已删除 — 内置工具已从 BuiltinToolType 移除
           // anysearch: 联网搜索（复用 executeActiveToolCall 的 anysearch 逻辑）
           if (toolName === "anysearch") {
             const anysearchTool: ActiveTool = {
-              id: 'builtin-anysearch',
-              name: 'Anysearch',
-              type: 'web',
-              callName: 'tool_anysearch',
-              description: '联网搜索',
+              id: "builtin-anysearch",
+              name: "Anysearch",
+              type: "web",
+              callName: "tool_anysearch",
+              description: "联网搜索",
               enabled: true,
               resultCount: limit,
-              worldInfoAccessMode: 'all',
-              enableMode: 'all',
+              worldInfoAccessMode: "all",
+              enableMode: "all",
               mcpTools: [],
-              tavilyApiKey: '',
+              tavilyApiKey: "",
             };
             return executeWithTimeout(() =>
               executeActiveToolCall(
-                { tool: anysearchTool, mode: "add", callLabel: "tool_anysearch", query, raw: "", reason: "native tool_calls (builtin)" },
-                { messages: get().messages, character: currentCharacter, vectorMemoryShards, worldInfoEntries, tavilyApiKey: "", mcpSessionIds: new Map(), anysearchConfig: builtinConfig },
+                {
+                  tool: anysearchTool,
+                  mode: "add",
+                  callLabel: "tool_anysearch",
+                  query,
+                  raw: "",
+                  reason: "native tool_calls (builtin)",
+                },
+                {
+                  messages: get().messages,
+                  character: currentCharacter,
+                  vectorMemoryShards,
+                  worldInfoEntries,
+                  tavilyApiKey: "",
+                  mcpSessionIds: new Map(),
+                  anysearchConfig: builtinConfig,
+                },
               ),
             );
           }
         }
 
         // 查找用户工具（现有逻辑）
-        const tool = filteredTools.find(
-          (t) => t.callName === toolName || t.name === toolName,
-        );
+        const tool = filteredTools.find((t) => t.callName === toolName || t.name === toolName);
         if (!tool) {
           throw new Error(`未找到匹配的工具: ${toolName}`);
         }
@@ -1421,7 +1535,10 @@ export const createChatSlice: StateCreator<
       if (nativeToolCalls && nativeToolCalls.length > 0) {
         // === v0.8.1: Agentic 多步循环 ===
         // 替代旧的单次续写逻辑，支持最多 maxAgentSteps 轮工具调用
-        logger.info("api", `检测到原生 tool_calls（数量=${nativeToolCalls.length}），进入 Agentic 循环（最大 ${maxAgentSteps} 步）`);
+        logger.info(
+          "api",
+          `检测到原生 tool_calls（数量=${nativeToolCalls.length}），进入 Agentic 循环（最大 ${maxAgentSteps} 步）`,
+        );
 
         // 获取当前消息的 agentSteps 作为初始值
         const nativeAgentSteps: AgentStep[] = [
@@ -1434,10 +1551,10 @@ export const createChatSlice: StateCreator<
         // v0.4.6: 持久化 assistant 消息的 tool_calls（用于续写时 buildContext 识别）
         // 将原生 tool_calls 转换为 ToolCall 格式并持久化到 store
         const persistedToolCalls: ToolCall[] = nativeToolCalls.map((tc) => {
-          let queryStr = '';
+          let queryStr = "";
           try {
-            const args = JSON.parse(tc.function.arguments || '{}');
-            queryStr = args.query ?? '';
+            const args = JSON.parse(tc.function.arguments || "{}");
+            queryStr = args.query ?? "";
           } catch {
             queryStr = tc.function.arguments;
           }
@@ -1446,8 +1563,8 @@ export const createChatSlice: StateCreator<
             toolName: tc.function.name,
             callLabel: tc.function.name,
             query: queryStr,
-            reason: 'native tool_calls',
-            status: 'receiving' as const,
+            reason: "native tool_calls",
+            status: "receiving" as const,
           };
         });
         get().updateMessage(assistantMessageId, {
@@ -1470,23 +1587,29 @@ export const createChatSlice: StateCreator<
             // 解析工具参数
             let toolArgs: { query?: string; keys?: string };
             try {
-              toolArgs = JSON.parse(tc.function.arguments || '{}');
+              toolArgs = JSON.parse(tc.function.arguments || "{}");
             } catch {
               toolArgs = { query: tc.function.arguments };
             }
-            const queryStr = toolArgs.query ?? '';
+            const queryStr = toolArgs.query ?? "";
 
             // v0.8.1: 循环检测 — 同一 (tool, query) 已执行过 → 终止
             const callKey = `${tc.function.name}|${queryStr.trim().toLowerCase()}`;
             if (executedCalls.has(callKey)) {
-              logger.warn("api", `检测到重复工具调用（${tc.function.name}: ${queryStr}），终止 Agentic 循环`);
+              logger.warn(
+                "api",
+                `检测到重复工具调用（${tc.function.name}: ${queryStr}），终止 Agentic 循环`,
+              );
               stepCount = maxAgentSteps; // 强制退出外层 while
               break;
             }
             executedCalls.add(callKey);
 
             try {
-              logger.info("api", `[Agentic 步骤 ${stepCount + 1}/${maxAgentSteps}] 执行: ${tc.function.name}（query=${queryStr.slice(0, 50)}）`);
+              logger.info(
+                "api",
+                `[Agentic 步骤 ${stepCount + 1}/${maxAgentSteps}] 执行: ${tc.function.name}（query=${queryStr.slice(0, 50)}）`,
+              );
 
               // 添加 tool_call 步骤（运行中）
               const nativeCallStepId = uuidv4();
@@ -1507,9 +1630,10 @@ export const createChatSlice: StateCreator<
               const rawResult = await executeToolByName(tc.function.name, queryStr);
 
               // v0.4.4: 工具结果长度限制（2000 字符）
-              const truncatedResult = rawResult.length > 2000
-                ? rawResult.slice(0, 2000) + '\n...[结果已截断]'
-                : rawResult;
+              const truncatedResult =
+                rawResult.length > 2000
+                  ? rawResult.slice(0, 2000) + "\n...[结果已截断]"
+                  : rawResult;
 
               // 标记 tool_call 完成，添加 tool_result 步骤
               nativeCallStep.status = "completed";
@@ -1562,7 +1686,7 @@ export const createChatSlice: StateCreator<
               });
             } catch (e) {
               // v0.4.4: 错误容错 - 工具失败不中断主流程
-              console.warn('[Tool Calls] 工具执行失败:', tc.function.name, e);
+              console.warn("[Tool Calls] 工具执行失败:", tc.function.name, e);
               const errorMsg = e instanceof Error ? e.message : String(e);
 
               // 添加错误步骤
@@ -1584,7 +1708,7 @@ export const createChatSlice: StateCreator<
                 id: uuidv4(),
                 toolName: matchedTool?.name ?? tc.function.name,
                 callLabel: tc.function.name,
-                query: '',
+                query: "",
                 reason: "native tool_calls",
                 status: "error" as const,
                 error: errorMsg,
@@ -1626,7 +1750,10 @@ export const createChatSlice: StateCreator<
           if (abortController?.signal.aborted) break;
 
           // v0.8.1: 续写请求 — tool_choice: 'auto'，仍注入 tools 支持多步循环
-          logger.info("api", `Agentic 循环续写（步骤 ${stepCount}/${maxAgentSteps}），发起续写请求`);
+          logger.info(
+            "api",
+            `Agentic 循环续写（步骤 ${stepCount}/${maxAgentSteps}），发起续写请求`,
+          );
           const continuationMessage: ChatMessage = {
             id: uuidv4(),
             role: "assistant",
@@ -1637,9 +1764,7 @@ export const createChatSlice: StateCreator<
           get().addMessage(continuationMessage);
           currentAssistantId = continuationMessage.id;
 
-          const newContextMessages = get().messages.filter(
-            (m) => m.id !== continuationMessage.id,
-          );
+          const newContextMessages = get().messages.filter((m) => m.id !== continuationMessage.id);
           // v0.8.1: 续写请求注入 tools（skipToolsInjection=false），支持模型继续调用工具
           // forceToolCall=false → tool_choice: 'auto'，模型可选择继续调用或输出正文
           const { toolCalls: nextToolCalls } = await callApiWithRetry(
@@ -1647,7 +1772,7 @@ export const createChatSlice: StateCreator<
             newContextMessages,
             {
               skipToolsInjection: false, // 关键修复: 续写仍注入 tools
-              forceToolCall: false,      // 续写用 auto，模型可选择继续调用或输出正文
+              forceToolCall: false, // 续写用 auto，模型可选择继续调用或输出正文
             },
           );
 
@@ -1668,10 +1793,7 @@ export const createChatSlice: StateCreator<
         //         迭代上限从 MAX_CONTINUATIONS 改为动态 maxAgentSteps
         const v071MaxContinuations = maxAgentSteps;
         const characterUuid = currentCharacter?.uuid ?? null;
-        const filteredTools = filterToolsForCharacter(
-          activeTools,
-          characterUuid,
-        );
+        const filteredTools = filterToolsForCharacter(activeTools, characterUuid);
 
         // v0.8.1: 最多迭代 maxAgentSteps 次以防止无限循环
         for (let iteration = 0; iteration < v071MaxContinuations; iteration++) {
@@ -1681,9 +1803,7 @@ export const createChatSlice: StateCreator<
           // 检查是否已被用户取消，避免取消后继续发起工具调用与 API 请求
           if (abortController?.signal.aborted) break;
 
-          const currentAssistantMsg = get().messages.find(
-            (m) => m.id === currentAssistantId,
-          );
+          const currentAssistantMsg = get().messages.find((m) => m.id === currentAssistantId);
           if (!currentAssistantMsg) break;
 
           // v0.4.6: 同时扫描用户工具和内置工具的文本标签
@@ -1711,7 +1831,10 @@ export const createChatSlice: StateCreator<
               };
 
               // 复用 executeToolByName 执行内置工具
-              const result = await executeToolByName(builtinToolCall.callLabel, builtinToolCall.query);
+              const result = await executeToolByName(
+                builtinToolCall.callLabel,
+                builtinToolCall.query,
+              );
 
               toolCallStep.status = "completed";
               toolCallStep.endedAt = Date.now();
@@ -1725,9 +1848,7 @@ export const createChatSlice: StateCreator<
                 endedAt: Date.now(),
               };
 
-              const currentMsgForSteps = get().messages.find(
-                (m) => m.id === currentAssistantId,
-              );
+              const currentMsgForSteps = get().messages.find((m) => m.id === currentAssistantId);
               get().updateMessage(currentAssistantId, {
                 toolCalls: [
                   ...(currentAssistantMsg.toolCalls ?? []),
@@ -1771,11 +1892,9 @@ export const createChatSlice: StateCreator<
                 (m) => m.id !== continuationMessage.id,
               );
               // v0.8.1: 续写请求注入 tools（skipToolsInjection=false），支持 Agentic 多步循环
-              await callApiWithRetry(
-                continuationMessage.id,
-                newContextMessages,
-                { skipToolsInjection: false },
-              );
+              await callApiWithRetry(continuationMessage.id, newContextMessages, {
+                skipToolsInjection: false,
+              });
 
               currentAssistantId = continuationMessage.id;
               continue;
@@ -1819,9 +1938,7 @@ export const createChatSlice: StateCreator<
             };
 
             // 更新消息的工具调用信息与 agentSteps
-            const currentMsgForSteps = get().messages.find(
-              (m) => m.id === currentAssistantId,
-            );
+            const currentMsgForSteps = get().messages.find((m) => m.id === currentAssistantId);
             get().updateMessage(currentAssistantId, {
               toolCalls: [
                 ...(currentAssistantMsg.toolCalls ?? []),
@@ -1836,11 +1953,7 @@ export const createChatSlice: StateCreator<
                   mcpSubToolName: toolCall.mcpSubToolName,
                 },
               ],
-              agentSteps: [
-                ...(currentMsgForSteps?.agentSteps ?? []),
-                toolCallStep,
-                toolResultStep,
-              ],
+              agentSteps: [...(currentMsgForSteps?.agentSteps ?? []), toolCallStep, toolResultStep],
             });
 
             // 添加工具结果作为用户消息（供下一轮生成使用）
@@ -1867,12 +1980,11 @@ export const createChatSlice: StateCreator<
             const newContextMessages = get().messages.filter(
               (m) => m.id !== continuationMessage.id,
             );
-            const { content: newContent, reasoning: newReasoning } =
-              await callApiWithRetry(
-                continuationMessage.id,
-                newContextMessages,
-                { skipToolsInjection: false }, // v0.8.1: 续写注入 tools 支持 Agentic 循环
-              );
+            const { content: newContent, reasoning: newReasoning } = await callApiWithRetry(
+              continuationMessage.id,
+              newContextMessages,
+              { skipToolsInjection: false }, // v0.8.1: 续写注入 tools 支持 Agentic 循环
+            );
 
             // 检查空响应
             if (!newContent.trim() && !newReasoning.trim()) {
@@ -1889,9 +2001,7 @@ export const createChatSlice: StateCreator<
             console.error("[ChatSlice] 工具调用失败:", toolError);
             // 重新获取最新消息，避免使用迭代开始时捕获的旧 toolCalls
             // （本轮可能已追加 completed 记录，直接覆盖会丢失该记录）
-            const latestAssistantMsg = get().messages.find(
-              (m) => m.id === currentAssistantId,
-            );
+            const latestAssistantMsg = get().messages.find((m) => m.id === currentAssistantId);
             // 记录工具调用错误 + 错误步骤
             // v0.4.6: catch 块中 TypeScript 无法继承 try 块的类型收窄，使用非空断言
             const errorStep: AgentStep = {
@@ -1913,17 +2023,11 @@ export const createChatSlice: StateCreator<
                   query: toolCall!.query,
                   reason: toolCall!.reason,
                   status: "error" as const,
-                  error:
-                    toolError instanceof Error
-                      ? toolError.message
-                      : String(toolError),
+                  error: toolError instanceof Error ? toolError.message : String(toolError),
                   mcpSubToolName: toolCall!.mcpSubToolName,
                 },
               ],
-              agentSteps: [
-                ...(latestAssistantMsg?.agentSteps ?? []),
-                errorStep,
-              ],
+              agentSteps: [...(latestAssistantMsg?.agentSteps ?? []), errorStep],
             });
             break;
           }
@@ -1953,14 +2057,17 @@ export const createChatSlice: StateCreator<
       if (currentSessionId) {
         const currentSession = get().sessions.find((s) => s.id === currentSessionId);
         if (currentSession && currentSession.title === "新会话") {
-          const recentMessages = get().messages
-            .filter((m) => m.role === "user" || m.role === "assistant")
+          const recentMessages = get()
+            .messages.filter((m) => m.role === "user" || m.role === "assistant")
             .slice(-4);
           if (recentMessages.length >= 2) {
             generateSessionTitle(recentMessages, settings)
               .then((title) => {
                 // 容错：取前 10 字，防止超长标题
-                const cleanTitle = title.replace(/^["'""\n]+|["'""\n]+$/g, "").trim().slice(0, 10);
+                const cleanTitle = title
+                  .replace(/^["'""\n]+|["'""\n]+$/g, "")
+                  .trim()
+                  .slice(0, 10);
                 if (cleanTitle && cleanTitle.length > 0) {
                   // 再次检查标题是否仍为"新会话"（用户可能已手动改名）
                   const latestSession = get().sessions.find((s) => s.id === currentSessionId);
@@ -1980,9 +2087,7 @@ export const createChatSlice: StateCreator<
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         // 用户取消生成
-        const currentMsg = get().messages.find(
-          (m) => m.id === assistantMessageId,
-        );
+        const currentMsg = get().messages.find((m) => m.id === assistantMessageId);
         const existingContent = currentMsg?.content ?? "";
         const existingCot = currentMsg?.cot ?? "";
 
@@ -2021,8 +2126,7 @@ export const createChatSlice: StateCreator<
         isThinking: false,
         isReceiving: false,
         isMainPhase: false,
-        abortController:
-          currentController === abortController ? null : currentController,
+        abortController: currentController === abortController ? null : currentController,
       });
       // 无论成功或失败，都保存聊天记录
       await get().saveChatHistory();
@@ -2043,8 +2147,7 @@ export const createChatSlice: StateCreator<
     // ===== 基础 setters =====
     setMessages: (messages) => set({ messages }),
 
-    addMessage: (message) =>
-      set((state) => ({ messages: [...state.messages, message] })),
+    addMessage: (message) => set((state) => ({ messages: [...state.messages, message] })),
 
     updateMessage: (id, partial) =>
       // v0.4.0: 优化流式更新性能 — 使用 findIndex + slice 替代 map，减少不必要的对象创建
@@ -2068,7 +2171,10 @@ export const createChatSlice: StateCreator<
       if (!trimmed || get().isGenerating) return;
 
       // v0.4.3: 日志记录消息发送
-      logger.info("chat", `发送消息（字符数=${trimmed.length}，角色=${get().currentCharacter?.name ?? "未知"}）`);
+      logger.info(
+        "chat",
+        `发送消息（字符数=${trimmed.length}，角色=${get().currentCharacter?.name ?? "未知"}）`,
+      );
 
       // 1. 添加用户消息
       const userMessage: ChatMessage = {
@@ -2129,9 +2235,11 @@ export const createChatSlice: StateCreator<
 
       // v0.7.1-fix: 重试前清理旧向量记忆分片（与 retryMessage 行为一致）
       // 避免记忆召回预执行搜索到重试前的旧内容
-      const currentCharacter = get().characters?.find(c => c.uuid === get().currentCharacterUuid);
+      const currentCharacter = get().characters?.find((c) => c.uuid === get().currentCharacterUuid);
       if (currentCharacter?.uuid) {
-        const turnNumber = messages.slice(0, lastAssistantIndex).filter(m => m.role === "user").length;
+        const turnNumber = messages
+          .slice(0, lastAssistantIndex)
+          .filter((m) => m.role === "user").length;
         if (turnNumber > 0) {
           await removeVectorMemoryShardsByTurn(
             currentCharacter.uuid,
@@ -2215,10 +2323,7 @@ export const createChatSlice: StateCreator<
 
     loadChatHistory: async (characterUuid: string) => {
       try {
-        const history = await getItem<ChatMessage[]>(
-          "chatHistory",
-          characterUuid,
-        );
+        const history = await getItem<ChatMessage[]>("chatHistory", characterUuid);
         set({ messages: history ?? [] });
       } catch (e) {
         console.error("[ChatSlice] 加载聊天记录失败:", e);
@@ -2271,10 +2376,7 @@ export const createChatSlice: StateCreator<
         .replace("{language}", language);
 
       try {
-        const allProviders = [
-          ...BUILTIN_PROVIDERS,
-          ...get().customApiProviders,
-        ];
+        const allProviders = [...BUILTIN_PROVIDERS, ...get().customApiProviders];
         // v0.5.8: 翻译专用模型支持
         const translationModelId = translationSettings.translationModelId;
         let chatApiUrl: string;
@@ -2294,7 +2396,12 @@ export const createChatSlice: StateCreator<
           actualModel = getActualModelName(translationModelId);
         } else {
           chatApiUrl = getApiUrlForModel(get().modelName, allProviders, get().apiUrl);
-          chatApiKey = getApiKeyForModel(get().modelName, get().apiProviderKeys, get().apiKey, allProviders);
+          chatApiKey = getApiKeyForModel(
+            get().modelName,
+            get().apiProviderKeys,
+            get().apiKey,
+            allProviders,
+          );
           actualModel = getActualModelName(get().modelName);
         }
         const url = getChatCompletionsUrl(chatApiUrl);
@@ -2371,9 +2478,9 @@ export const createChatSlice: StateCreator<
 
       // v0.5.5-fix: 重试前清理 oldAssistant 对应 turn 的向量记忆分片
       // 避免记忆召回预执行搜索到重试前的旧内容（重大bug修复）
-      const currentCharacter = get().characters?.find(c => c.uuid === get().currentCharacterUuid);
+      const currentCharacter = get().characters?.find((c) => c.uuid === get().currentCharacterUuid);
       if (currentCharacter?.uuid) {
-        const turnNumber = contextMessages.filter(m => m.role === "user").length;
+        const turnNumber = contextMessages.filter((m) => m.role === "user").length;
         if (turnNumber > 0) {
           await removeVectorMemoryShardsByTurn(
             currentCharacter.uuid,
@@ -2404,15 +2511,9 @@ export const createChatSlice: StateCreator<
 
       // 生成完成后，将新版本存入 session.retryBranches
       if (currentSessionId) {
-        const finalMessage = get().messages.find(
-          (m) => m.id === newAssistantMessage.id,
-        );
+        const finalMessage = get().messages.find((m) => m.id === newAssistantMessage.id);
         if (finalMessage) {
-          get().addRetryBranch(
-            currentSessionId,
-            oldAssistant.id,
-            finalMessage,
-          );
+          get().addRetryBranch(currentSessionId, oldAssistant.id, finalMessage);
           // 恢复原始消息列表（保留旧版本显示），新版本通过 switchRetryVersion 切换查看
           set({ messages: [...contextMessages, oldAssistant] });
         }
@@ -2493,10 +2594,7 @@ export const createChatSlice: StateCreator<
         : `分支：${currentCharacter.name}`;
 
       // 创建新会话
-      const newSessionId = get().createSession(
-        currentCharacter.uuid,
-        currentCharacter.name,
-      );
+      const newSessionId = get().createSession(currentCharacter.uuid, currentCharacter.name);
 
       // 设置新会话标题和消息
       get().setSessionMessages(newSessionId, branchMessages);
@@ -2528,24 +2626,18 @@ export const createChatSlice: StateCreator<
       const text = message.content;
       try {
         // v0.4.5: 方案 D - 使用 NativeBridge 替代 Capacitor/Share
-        const { isNativePlatform, shareText } = await import('~/services/nativeBridge');
+        const { isNativePlatform, shareText } = await import("~/services/nativeBridge");
         if (isNativePlatform()) {
           // 原生平台使用 NativeBridge 唤起系统分享面板
-          await shareText(text, 'LUZZY 消息', '分享消息');
-        } else if (
-          typeof navigator !== "undefined" &&
-          typeof navigator.share === "function"
-        ) {
+          await shareText(text, "LUZZY 消息", "分享消息");
+        } else if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
           // Web 环境支持 Web Share API
-          await navigator.share({ title: 'LUZZY 消息', text });
-        } else if (
-          typeof navigator !== "undefined" &&
-          navigator.clipboard
-        ) {
+          await navigator.share({ title: "LUZZY 消息", text });
+        } else if (typeof navigator !== "undefined" && navigator.clipboard) {
           // 回退到剪贴板
           await navigator.clipboard.writeText(text);
-          const { toast } = await import('sonner');
-          toast.success('已复制到剪贴板');
+          const { toast } = await import("sonner");
+          toast.success("已复制到剪贴板");
         }
       } catch (e) {
         // 用户取消分享不视为错误

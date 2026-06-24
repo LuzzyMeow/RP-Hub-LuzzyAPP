@@ -28,15 +28,15 @@ import type {
   // v0.5.9-locked: 长期记忆类型锁定
   // MemoryEntry,
   // MemoryScope,
-} from '~/types/luzzy';
-import { v4 as uuidv4 } from 'uuid';
+} from "~/types/luzzy";
+import { v4 as uuidv4 } from "uuid";
 import {
   parseModelName,
   getActualModelName,
   normalizeApiProviderUrl,
-} from '~/services/providerService';
-import { extractApiErrorMessage } from '~/services/apiClient';
-import { getItem, setItem } from '~/services/storage';
+} from "~/services/providerService";
+import { extractApiErrorMessage } from "~/services/apiClient";
+import { getItem, setItem } from "~/services/storage";
 
 // ============================================================================
 // 常量
@@ -46,7 +46,7 @@ import { getItem, setItem } from '~/services/storage';
 const MEMORY_VECTOR_BATCH_SIZE = 16;
 
 /** 嵌入 API 默认版本路径(仅当 baseUrl 不含版本时回退使用) */
-const EMBEDDING_API_DEFAULT_VERSION = 'v1';
+const EMBEDDING_API_DEFAULT_VERSION = "v1";
 
 // ============================================================================
 // Embedding 缓存层
@@ -83,10 +83,7 @@ const embeddingCacheKey = (text: string, model: string): string => {
  * @param model - 模型名
  * @returns 缓存的向量（未命中或已过期返回 undefined）
  */
-export const getCachedEmbedding = (
-  text: string,
-  model: string,
-): number[] | undefined => {
+export const getCachedEmbedding = (text: string, model: string): number[] | undefined => {
   const key = embeddingCacheKey(text, model);
   const entry = embeddingCache.get(key);
   if (!entry) return undefined;
@@ -103,11 +100,7 @@ export const getCachedEmbedding = (
  * @param model - 模型名
  * @param vector - 向量
  */
-export const setCachedEmbedding = (
-  text: string,
-  model: string,
-  vector: number[],
-): void => {
+export const setCachedEmbedding = (text: string, model: string, vector: number[]): void => {
   if (embeddingCache.size >= MAX_EMBEDDING_CACHE_ENTRIES) {
     const firstKey = embeddingCache.keys().next().value;
     if (firstKey !== undefined) {
@@ -128,7 +121,7 @@ export const clearEmbeddingCache = (): void => {
 };
 
 /** 向量记忆分片在 IndexedDB 中的存储键前缀 */
-const VECTOR_MEMORY_STORAGE_KEY_PREFIX = 'vector_memory_';
+const VECTOR_MEMORY_STORAGE_KEY_PREFIX = "vector_memory_";
 
 // v0.5.9-locked: 长期记忆功能锁定
 // /** 长期记忆在 IndexedDB 中的存储键前缀（按角色 ID 分组） */
@@ -169,7 +162,7 @@ const normalizeEmbedding = (embedding: unknown): number[] => {
     arr = embedding;
   } else if (ArrayBuffer.isView(embedding)) {
     arr = Array.from(embedding as unknown as ArrayLike<unknown>);
-  } else if (embedding && typeof embedding === 'object') {
+  } else if (embedding && typeof embedding === "object") {
     const obj = embedding as { values?: unknown };
     if (Array.isArray(obj.values)) {
       arr = obj.values;
@@ -182,9 +175,7 @@ const normalizeEmbedding = (embedding: unknown): number[] => {
     return [];
   }
 
-  return arr
-    .map((v) => Number(v))
-    .filter((v) => Number.isFinite(v));
+  return arr.map((v) => Number(v)).filter((v) => Number.isFinite(v));
 };
 
 /**
@@ -271,40 +262,34 @@ const resolveEmbeddingProvider = (
   providerKeys: Record<string, string>,
 ): { apiUrl: string; apiKey: string; providerName: string } => {
   // 1. 优先使用显式指定的 embeddingApiProviderId
-  let embeddingProviderId = (settings.embeddingApiProviderId || '').trim();
+  let embeddingProviderId = (settings.embeddingApiProviderId || "").trim();
 
   // 2. v0.6.5-fix: 从嵌入模型名自身解析供应商前缀
   if (!embeddingProviderId) {
-    const embeddingParse = parseModelName(settings.embeddingModel || '', providers);
+    const embeddingParse = parseModelName(settings.embeddingModel || "", providers);
     embeddingProviderId = embeddingParse.providerId;
   }
 
-  // 3. 兜底：从聊天模型名解析供应商前缀
-  if (!embeddingProviderId) {
-    const chatParse = parseModelName(apiSettings.modelName, providers);
-    embeddingProviderId = chatParse.providerId;
-  }
+  // v0.8.2: [移除 Level 3] 不再回退到聊天模型供应商
+  // 嵌入与聊天是不同模型/不同供应商/不同 Key，回退到聊天供应商会导致用错误的 URL/Key 请求嵌入模型
 
   if (embeddingProviderId) {
     const provider = providers.find((p) => p.id === embeddingProviderId);
     if (!provider || !provider.apiUrl) {
-      throw new Error('请先配置嵌入供应商的 API 地址');
+      throw new Error("请先配置嵌入供应商的 API 地址");
     }
-    const apiKey = providerKeys[embeddingProviderId] || '';
+    const apiKey = providerKeys[embeddingProviderId] || "";
     if (!apiKey) {
-      throw new Error('请先配置嵌入供应商的 API Key');
+      throw new Error("请先配置嵌入供应商的 API Key");
     }
     return { apiUrl: provider.apiUrl, apiKey, providerName: provider.name || embeddingProviderId };
   }
 
-  // 4. 无供应商前缀，使用默认 API 设置
-  if (!apiSettings.apiUrl) {
-    throw new Error('请先配置嵌入供应商的 API 地址');
-  }
-  if (!apiSettings.apiKey) {
-    throw new Error('请先配置嵌入供应商的 API Key');
-  }
-  return { apiUrl: apiSettings.apiUrl, apiKey: apiSettings.apiKey, providerName: '默认供应商' };
+  // v0.8.2: [移除 Level 4] 不再使用聊天 API 设置作为默认
+  // 解析失败时抛出明确错误，引导用户重新配置嵌入模型
+  throw new Error(
+    `无法解析嵌入模型供应商。请在记忆设置中重新选择嵌入模型（格式：供应商ID_模型名）。当前嵌入模型：${settings.embeddingModel || "未设置"}`,
+  );
 };
 
 /**
@@ -330,8 +315,8 @@ const requestEmbeddings = async (
   providerKeys: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<number[][]> => {
-  const model = (settings.embeddingModel || '').trim();
-  if (!model) throw new Error('请先选择向量嵌入模型');
+  const model = (settings.embeddingModel || "").trim();
+  if (!model) throw new Error("请先选择向量嵌入模型");
 
   const { apiUrl, apiKey, providerName } = resolveEmbeddingProvider(
     settings,
@@ -343,16 +328,16 @@ const requestEmbeddings = async (
   // 解析嵌入模型名，获取实际模型名（去掉供应商前缀）
   const actualModel = getActualModelName(model, providers);
 
-  const normalizedInputs = inputs.map((input) => String(input || '').trim());
+  const normalizedInputs = inputs.map((input) => String(input || "").trim());
   if (normalizedInputs.some((input) => !input)) {
-    throw new Error('嵌入内容不能为空');
+    throw new Error("嵌入内容不能为空");
   }
 
   const url = buildEmbeddingUrl(apiUrl);
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
@@ -373,10 +358,10 @@ const requestEmbeddings = async (
     // v0.6.3-fix: 401 鉴权失败专用诊断消息，引导用户检查 API Key
     if (response.status === 401) {
       throw new Error(
-        `嵌入 API 鉴权失败（401）：${apiError || 'API Key 格式不正确'}\n` +
-        `供应商：${providerName}\n` +
-        `可能原因：API Key 格式错误、Key 已失效、或 Key 与所选供应商不匹配。\n` +
-        `请前往「设置 → API 连接与服务」检查对应供应商的 API Key。`,
+        `嵌入 API 鉴权失败（401）：${apiError || "API Key 格式不正确"}\n` +
+          `供应商：${providerName}\n` +
+          `可能原因：API Key 格式错误、Key 已失效、或 Key 与所选供应商不匹配。\n` +
+          `请前往「设置 → API 连接与服务」检查对应供应商的 API Key。`,
       );
     }
     throw new Error(apiError || `Embedding API Error: ${response.status}`);
@@ -387,11 +372,8 @@ const requestEmbeddings = async (
   rows.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
   const vectors = rows.map((row) => normalizeEmbedding(row.embedding));
 
-  if (
-    vectors.length !== normalizedInputs.length ||
-    vectors.some((v) => v.length === 0)
-  ) {
-    throw new Error('嵌入接口返回的数据不完整');
+  if (vectors.length !== normalizedInputs.length || vectors.some((v) => v.length === 0)) {
+    throw new Error("嵌入接口返回的数据不完整");
   }
 
   return vectors;
@@ -421,7 +403,7 @@ export const getEmbedding = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<number[]> => {
-  const model = (settings.embeddingModel || '').trim();
+  const model = (settings.embeddingModel || "").trim();
   logger.debug("memory", `getEmbedding: 模型=${settings.embeddingModel} 文本长度=${text.length}`);
 
   // 缓存命中短路：相同文本+模型直接返回缓存的向量
@@ -432,13 +414,7 @@ export const getEmbedding = async (
     }
   }
 
-  const [vector] = await requestEmbeddings(
-    [text],
-    settings,
-    apiSettings,
-    providers,
-    providerKeys,
-  );
+  const [vector] = await requestEmbeddings([text], settings, apiSettings, providers, providerKeys);
 
   // 写入缓存
   if (model) {
@@ -462,9 +438,7 @@ export const getEmbedding = async (
  * @param messages - 聊天消息列表
  * @returns 轮次数组，每项含轮次号和拼接后的内容
  */
-const groupMessagesByTurn = (
-  messages: ChatMessage[],
-): Array<{ turn: number; content: string }> => {
+const groupMessagesByTurn = (messages: ChatMessage[]): Array<{ turn: number; content: string }> => {
   const turns: Array<{ turn: number; content: string }> = [];
   let currentTurn = 0;
   let userContent: string | null = null;
@@ -475,7 +449,7 @@ const groupMessagesByTurn = (
     if (currentTurn > 0 && userContent !== null && assistantParts.length > 0) {
       turns.push({
         turn: currentTurn,
-        content: `[用户消息]\n${userContent}\n\n---\n\n[角色回复]\n${assistantParts.join('\n\n')}`,
+        content: `[用户消息]\n${userContent}\n\n---\n\n[角色回复]\n${assistantParts.join("\n\n")}`,
       });
     }
     userContent = null;
@@ -483,11 +457,11 @@ const groupMessagesByTurn = (
   };
 
   for (const msg of messages) {
-    if (msg.role === 'user') {
+    if (msg.role === "user") {
       flush();
       currentTurn++;
       userContent = msg.content;
-    } else if (msg.role === 'assistant') {
+    } else if (msg.role === "assistant") {
       if (currentTurn === 0) continue; // 开场白，跳过
       assistantParts.push(msg.content);
     }
@@ -527,13 +501,16 @@ export const buildVectorMemory = async (
     logger.warn("memory", "buildVectorMemory 跳过: 未配置嵌入模型");
     return [];
   }
-  logger.info("memory", `buildVectorMemory 启动: messages=${messages.length} 模型=${settings.embeddingModel}`);
+  logger.info(
+    "memory",
+    `buildVectorMemory 启动: messages=${messages.length} 模型=${settings.embeddingModel}`,
+  );
 
   // 过滤掉开场白（如果角色卡有开场白且首条消息匹配）
   let filteredMessages = messages;
   if (character?.firstMessage && messages.length > 0) {
     const first = messages[0];
-    if (first.role === 'assistant' && first.content === character.firstMessage) {
+    if (first.role === "assistant" && first.content === character.firstMessage) {
       filteredMessages = messages.slice(1);
     }
   }
@@ -543,7 +520,10 @@ export const buildVectorMemory = async (
     logger.debug("memory", "buildVectorMemory 跳过: 无完整对话轮次");
     return [];
   }
-  logger.info("memory", `buildVectorMemory: turns=${turns.length} 分${Math.ceil(turns.length / MEMORY_VECTOR_BATCH_SIZE)} 批请求嵌入`);
+  logger.info(
+    "memory",
+    `buildVectorMemory: turns=${turns.length} 分${Math.ceil(turns.length / MEMORY_VECTOR_BATCH_SIZE)} 批请求嵌入`,
+  );
 
   const shards: VectorMemoryShard[] = [];
 
@@ -594,7 +574,10 @@ export const searchVectorMemory = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<VectorMemoryShard[]> => {
-  logger.info("memory", `searchVectorMemory: 查询="${query.slice(0,50)}" 分片数=${shards.length} topK=${settings.vectorTopK}`);
+  logger.info(
+    "memory",
+    `searchVectorMemory: 查询="${query.slice(0, 50)}" 分片数=${shards.length} topK=${settings.vectorTopK}`,
+  );
   const scored = await searchVectorMemoryWithScore(
     query,
     shards,
@@ -635,13 +618,7 @@ export const searchVectorMemoryWithScore = async (
   if (!query.trim() || shards.length === 0) return [];
 
   // 获取查询文本的嵌入向量
-  const queryVector = await getEmbedding(
-    query,
-    settings,
-    apiSettings,
-    providers,
-    providerKeys,
-  );
+  const queryVector = await getEmbedding(query, settings, apiSettings, providers, providerKeys);
 
   // 维度不匹配检测（用户切换嵌入模型会导致旧分片维度与新查询维度不一致）
   if (shards.length > 0 && queryVector.length !== shards[0].embedding.length) {
@@ -702,7 +679,7 @@ export const loadVectorMemoryShards = async (
   const key = sessionId
     ? `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}_${sessionId}`
     : `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}`;
-  const data = await getItem<VectorMemoryShard[]>('memory', key);
+  const data = await getItem<VectorMemoryShard[]>("memory", key);
   const count = data?.length ?? 0;
   logger.debug("memory", `loadVectorMemoryShards: key=${key} 分片数=${count}`);
 
@@ -710,10 +687,13 @@ export const loadVectorMemoryShards = async (
   // （旧版保存时 currentSessionId 可能为 null，分片存到了角色级键）
   if (sessionId && count === 0) {
     const fallbackKey = `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}`;
-    const fallbackData = await getItem<VectorMemoryShard[]>('memory', fallbackKey);
+    const fallbackData = await getItem<VectorMemoryShard[]>("memory", fallbackKey);
     const fallbackCount = fallbackData?.length ?? 0;
     if (fallbackCount > 0) {
-      logger.info("memory", `loadVectorMemoryShards: 回退到角色级键 key=${fallbackKey} 分片数=${fallbackCount}`);
+      logger.info(
+        "memory",
+        `loadVectorMemoryShards: 回退到角色级键 key=${fallbackKey} 分片数=${fallbackCount}`,
+      );
       return fallbackData!;
     }
   }
@@ -742,17 +722,20 @@ export const saveVectorMemoryShards = async (
     ? `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}_${sessionId}`
     : `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}`;
   logger.info("memory", `saveVectorMemoryShards: key=${key} 分片数=${shards.length}`);
-  await setItem('memory', key, shards);
+  await setItem("memory", key, shards);
 
   // v0.6.2-fix: 保存到会话级键后，清理可能存在的旧角色级键孤儿数据
   // （旧版保存时 currentSessionId 可能为 null，分片存到了角色级键；
   //  现在保存到会话级键后，旧角色级键的数据已成为孤儿，应清理）
   if (sessionId) {
     const characterLevelKey = `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}`;
-    const oldData = await getItem<VectorMemoryShard[]>('memory', characterLevelKey);
+    const oldData = await getItem<VectorMemoryShard[]>("memory", characterLevelKey);
     if (oldData && oldData.length > 0) {
-      logger.info("memory", `saveVectorMemoryShards: 清理旧角色级键孤儿数据 key=${characterLevelKey} 旧分片数=${oldData.length}`);
-      await setItem('memory', characterLevelKey, []);
+      logger.info(
+        "memory",
+        `saveVectorMemoryShards: 清理旧角色级键孤儿数据 key=${characterLevelKey} 旧分片数=${oldData.length}`,
+      );
+      await setItem("memory", characterLevelKey, []);
     }
   }
 };
@@ -773,7 +756,10 @@ export const removeVectorMemoryShardsByTurn = async (
   const filtered = existing.filter((s) => s.turn !== turnNumber);
   if (filtered.length !== existing.length) {
     await saveVectorMemoryShards(characterUuid, filtered, sessionId);
-    logger.info("memory", `removeVectorMemoryShardsByTurn: turn=${turnNumber} 删除=${existing.length - filtered.length}个 剩余=${filtered.length}个`);
+    logger.info(
+      "memory",
+      `removeVectorMemoryShardsByTurn: turn=${turnNumber} 删除=${existing.length - filtered.length}个 剩余=${filtered.length}个`,
+    );
   }
 };
 
@@ -792,7 +778,10 @@ export const removeVectorMemoryShardById = async (
   const filtered = existing.filter((s) => s.id !== shardId);
   if (filtered.length !== existing.length) {
     await saveVectorMemoryShards(characterUuid, filtered, sessionId);
-    logger.info("memory", `removeVectorMemoryShardById: 删除分片 ${shardId}，剩余 ${filtered.length} 个`);
+    logger.info(
+      "memory",
+      `removeVectorMemoryShardById: 删除分片 ${shardId}，剩余 ${filtered.length} 个`,
+    );
   }
 };
 
@@ -801,7 +790,7 @@ export const removeVectorMemoryShardById = async (
 // ============================================================================
 
 /** 世界书向量记忆存储键前缀 */
-const WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX = 'vector_memory_world_';
+const WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX = "vector_memory_world_";
 
 /**
  * 加载世界书向量记忆分片
@@ -812,12 +801,10 @@ const WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX = 'vector_memory_world_';
  * @param bookId - 世界书 ID
  * @returns 向量记忆分片数组，不存在则返回空数组
  */
-export const loadWorldVectorMemoryShards = async (
-  bookId: string,
-): Promise<VectorMemoryShard[]> => {
+export const loadWorldVectorMemoryShards = async (bookId: string): Promise<VectorMemoryShard[]> => {
   if (!bookId) return [];
   const key = `${WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX}${bookId}`;
-  const data = await getItem<VectorMemoryShard[]>('memory', key);
+  const data = await getItem<VectorMemoryShard[]>("memory", key);
   const count = data?.length ?? 0;
   logger.debug("memory", `loadWorldVectorMemoryShards: key=${key} 分片数=${count}`);
   return data ?? [];
@@ -836,7 +823,7 @@ export const saveWorldVectorMemoryShards = async (
   if (!bookId) return;
   const key = `${WORLD_VECTOR_MEMORY_STORAGE_KEY_PREFIX}${bookId}`;
   logger.info("memory", `saveWorldVectorMemoryShards: key=${key} 分片数=${shards.length}`);
-  await setItem('memory', key, shards);
+  await setItem("memory", key, shards);
 };
 
 /**
@@ -853,7 +840,10 @@ export const removeWorldVectorMemoryShardById = async (
   const filtered = existing.filter((s) => s.id !== shardId);
   if (filtered.length !== existing.length) {
     await saveWorldVectorMemoryShards(bookId, filtered);
-    logger.info("memory", `removeWorldVectorMemoryShardById: 删除世界书 ${bookId} 分片 ${shardId}，剩余 ${filtered.length} 个`);
+    logger.info(
+      "memory",
+      `removeWorldVectorMemoryShardById: 删除世界书 ${bookId} 分片 ${shardId}，剩余 ${filtered.length} 个`,
+    );
   }
 };
 
@@ -881,7 +871,7 @@ export const generateWorldInfoEmbeddings = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<{ success: number; failed: number }> => {
-  const model = (settings.embeddingModel || '').trim();
+  const model = (settings.embeddingModel || "").trim();
   if (!model) {
     logger.warn("memory", "generateWorldInfoEmbeddings 跳过: 未配置嵌入模型");
     return { success: 0, failed: 0 };
@@ -924,7 +914,10 @@ export const generateWorldInfoEmbeddings = async (
       }
     } catch (e) {
       failCount++;
-      logger.warn("memory", `generateWorldInfoEmbeddings: 条目 ${entry.id} 生成失败: ${(e as Error).message}`);
+      logger.warn(
+        "memory",
+        `generateWorldInfoEmbeddings: 条目 ${entry.id} 生成失败: ${(e as Error).message}`,
+      );
     }
   }
 
@@ -932,16 +925,19 @@ export const generateWorldInfoEmbeddings = async (
 
   // 持久化 embedding 到 IndexedDB worldInfo store
   try {
-    const allEntries = await getItem<WorldInfoEntry[]>('worldInfo', 'worldInfo');
+    const allEntries = await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo");
     if (allEntries) {
       const merged = allEntries.map((wi) => {
         const match = updated.find((e) => e.id === wi.id);
         return match && match.embedding ? { ...wi, embedding: match.embedding } : wi;
       });
-      await setItem('worldInfo', 'worldInfo', merged);
+      await setItem("worldInfo", "worldInfo", merged);
     }
   } catch (e) {
-    logger.warn("memory", `generateWorldInfoEmbeddings: 持久化 worldInfo 失败: ${(e as Error).message}`);
+    logger.warn(
+      "memory",
+      `generateWorldInfoEmbeddings: 持久化 worldInfo 失败: ${(e as Error).message}`,
+    );
   }
 
   // 按 bookId 分组保存为向量分片
@@ -975,9 +971,15 @@ export const generateWorldInfoEmbeddings = async (
         else merged.push(shard);
       }
       await saveWorldVectorMemoryShards(bookId, merged);
-      logger.info("memory", `generateWorldInfoEmbeddings: 合并保存世界书 ${bookId} 分片数=${merged.length}（新增/更新 ${groupEntries.length} 条）`);
+      logger.info(
+        "memory",
+        `generateWorldInfoEmbeddings: 合并保存世界书 ${bookId} 分片数=${merged.length}（新增/更新 ${groupEntries.length} 条）`,
+      );
     } catch (e) {
-      logger.warn("memory", `generateWorldInfoEmbeddings: 保存世界书 ${bookId} 分片失败: ${(e as Error).message}`);
+      logger.warn(
+        "memory",
+        `generateWorldInfoEmbeddings: 保存世界书 ${bookId} 分片失败: ${(e as Error).message}`,
+      );
     }
   }
 
@@ -1004,13 +1006,16 @@ export const regenerateAllWorldEmbeddings = async (
   providers: ApiProvider[],
   providerKeys: Record<string, string>,
 ): Promise<{ success: number; failed: number; total: number }> => {
-  const allEntries = await getItem<WorldInfoEntry[]>('worldInfo', 'worldInfo');
+  const allEntries = await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo");
   if (!allEntries || allEntries.length === 0) {
     logger.info("memory", "regenerateAllWorldEmbeddings: 无世界书条目，跳过");
     return { success: 0, failed: 0, total: 0 };
   }
 
-  logger.info("memory", `regenerateAllWorldEmbeddings: 开始全量重新生成，共 ${allEntries.length} 条`);
+  logger.info(
+    "memory",
+    `regenerateAllWorldEmbeddings: 开始全量重新生成，共 ${allEntries.length} 条`,
+  );
 
   // 收集所有 bookId 用于后续清理旧分片
   const bookIds = new Set<string>();
@@ -1021,14 +1026,17 @@ export const regenerateAllWorldEmbeddings = async (
 
   // 清空所有条目的 embedding 字段（持久化）
   const clearedEntries = allEntries.map((e) => ({ ...e, embedding: undefined }));
-  await setItem('worldInfo', 'worldInfo', clearedEntries);
+  await setItem("worldInfo", "worldInfo", clearedEntries);
 
   // 清空所有已存在的世界书向量分片
   for (const bookId of bookIds) {
     try {
       await saveWorldVectorMemoryShards(bookId, []);
     } catch (e) {
-      logger.warn("memory", `regenerateAllWorldEmbeddings: 清理 ${bookId} 旧分片失败: ${(e as Error).message}`);
+      logger.warn(
+        "memory",
+        `regenerateAllWorldEmbeddings: 清理 ${bookId} 旧分片失败: ${(e as Error).message}`,
+      );
     }
   }
 
@@ -1084,7 +1092,10 @@ export const regenerateSessionMemory = async (
 
   // 保存新分片
   await saveVectorMemoryShards(characterUuid, newShards, sessionId);
-  logger.info("memory", `regenerateSessionMemory: 会话 ${sessionId ?? "(角色级)"} 重新生成 ${newShards.length} 个分片`);
+  logger.info(
+    "memory",
+    `regenerateSessionMemory: 会话 ${sessionId ?? "(角色级)"} 重新生成 ${newShards.length} 个分片`,
+  );
   return newShards.length;
 };
 
@@ -1117,9 +1128,7 @@ export const compressContext = (
   if (messages.length <= keepRecent) return messages;
 
   // 构建有向量记忆覆盖的轮次集合
-  const memoryTurnSet = new Set<number>(
-    shards.map((s) => s.turn).filter((turn) => turn > 0),
-  );
+  const memoryTurnSet = new Set<number>(shards.map((s) => s.turn).filter((turn) => turn > 0));
   if (memoryTurnSet.size === 0) return messages;
 
   // 候选可移除的消息数量（保留最近 keepRecent 条）
@@ -1131,7 +1140,7 @@ export const compressContext = (
   const messageTurns: number[] = [];
   let turn = 0;
   for (const msg of messages) {
-    if (msg.role === 'user') {
+    if (msg.role === "user") {
       turn++;
     }
     messageTurns.push(turn);

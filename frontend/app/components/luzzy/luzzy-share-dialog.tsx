@@ -80,16 +80,9 @@ const FORMAT_OPTIONS: Array<{
   },
 ];
 
-export function LuzzyShareDialog({
-  open,
-  onOpenChange,
-  session,
-  messages,
-}: ShareDialogProps) {
+export function LuzzyShareDialog({ open, onOpenChange, session, messages }: ShareDialogProps) {
   const [shareFormat, setShareFormat] = React.useState<ShareFormat>("md");
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [step, setStep] = React.useState<ShareStep>("format");
   const [exporting, setExporting] = React.useState(false);
 
@@ -100,9 +93,7 @@ export function LuzzyShareDialog({
   // v0.3.5: 解析占位符 {user} 和 {character}
   const resolvePlaceholders = React.useCallback(
     (text: string): string => {
-      return text
-        .replace(/\{user\}/g, userName)
-        .replace(/\{character\}/g, characterName);
+      return text.replace(/\{user\}/g, userName).replace(/\{character\}/g, characterName);
     },
     [userName, characterName],
   );
@@ -118,9 +109,7 @@ export function LuzzyShareDialog({
 
   const toggleAll = React.useCallback(
     (select: boolean) => {
-      setSelectedIds(
-        select ? new Set(messages.map((m) => m.id)) : new Set(),
-      );
+      setSelectedIds(select ? new Set(messages.map((m) => m.id)) : new Set());
     },
     [messages],
   );
@@ -145,10 +134,7 @@ export function LuzzyShareDialog({
   /** 下载 Blob 文件 */
   const downloadBlob = React.useCallback(
     async (content: string | Blob, fileName: string, mime: string) => {
-      const blob =
-        typeof content === "string"
-          ? new Blob([content], { type: mime })
-          : content;
+      const blob = typeof content === "string" ? new Blob([content], { type: mime }) : content;
 
       // v0.4.5: 方案 D - 原生平台使用 NativeBridge 保存文件
       // v0.4.6: 保存后唤起系统分享,让用户直接将文件发出去
@@ -157,7 +143,7 @@ export function LuzzyShareDialog({
           // 将 Blob 转 base64
           const arrayBuffer = await blob.arrayBuffer();
           const uint8Array = new Uint8Array(arrayBuffer);
-          let binary = '';
+          let binary = "";
           for (let i = 0; i < uint8Array.length; i++) {
             binary += String.fromCharCode(uint8Array[i]);
           }
@@ -353,9 +339,7 @@ export function LuzzyShareDialog({
                   <IconShare className="size-4" />
                   分享会话 - 选择格式
                 </DialogTitle>
-                <DialogDescription>
-                  选择导出格式，下一步可选择要分享的消息
-                </DialogDescription>
+                <DialogDescription>选择导出格式，下一步可选择要分享的消息</DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-1 gap-3 py-4 sm:grid-cols-3">
                 {FORMAT_OPTIONS.map((opt) => {
@@ -381,28 +365,19 @@ export function LuzzyShareDialog({
                             selected ? "text-primary" : "text-muted-foreground",
                           )}
                         />
-                        {selected && (
-                          <IconCheck className="size-4 text-primary" />
-                        )}
+                        {selected && <IconCheck className="size-4 text-primary" />}
                       </div>
                       <div className="font-medium">{opt.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {opt.description}
-                      </div>
+                      <div className="text-xs text-muted-foreground">{opt.description}</div>
                     </motion.button>
                   );
                 })}
               </div>
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
                   取消
                 </Button>
-                <Button onClick={() => setStep("select")}>
-                  下一步：选择消息
-                </Button>
+                <Button onClick={() => setStep("select")}>下一步：选择消息</Button>
               </DialogFooter>
             </motion.div>
           ) : (
@@ -413,25 +388,13 @@ export function LuzzyShareDialog({
                   已选 {selectedIds.size} / {messages.length} 条消息
                 </DialogDescription>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toggleAll(true)}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => toggleAll(true)}>
                     全选
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => toggleAll(false)}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => toggleAll(false)}>
                     全不选
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setStep("format")}
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => setStep("format")}>
                     返回
                   </Button>
                 </div>
@@ -466,13 +429,9 @@ export function LuzzyShareDialog({
                             ) : (
                               <IconCat className="size-3" />
                             )}
-                            <span className="truncate">
-                              {isUser ? userName : characterName}
-                            </span>
+                            <span className="truncate">{isUser ? userName : characterName}</span>
                           </div>
-                          <div className="line-clamp-2 text-sm">
-                            {m.content || "（空消息）"}
-                          </div>
+                          <div className="line-clamp-2 text-sm">{m.content || "（空消息）"}</div>
                         </div>
                       </motion.label>
                     );
@@ -480,16 +439,10 @@ export function LuzzyShareDialog({
                 </div>
               </ScrollArea>
               <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setStep("format")}
-                >
+                <Button variant="outline" onClick={() => setStep("format")}>
                   返回
                 </Button>
-                <Button
-                  onClick={handleExport}
-                  disabled={exporting || selectedIds.size === 0}
-                >
+                <Button onClick={handleExport} disabled={exporting || selectedIds.size === 0}>
                   {exporting ? (
                     "导出中..."
                   ) : (

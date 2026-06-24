@@ -172,13 +172,10 @@ export interface SettingsSlice {
   // ===== Actions：v0.2.0 新增 =====
   setTranslationSettings: (settings: Partial<TranslationSettings>) => void;
   setHighlightSettings: (settings: Partial<HighlightSettings>) => void;
-  setToolGlobalMode: (mode: ToolGlobalSettings['mode']) => void;
+  setToolGlobalMode: (mode: ToolGlobalSettings["mode"]) => void;
   /** v0.8.1: 设置 Agentic 循环最大步数（1-20） */
   setMaxAgentSteps: (steps: number) => void;
-  updateBuiltinToolConfig: (
-    type: BuiltinToolType,
-    partial: Partial<BuiltinToolConfig>,
-  ) => void;
+  updateBuiltinToolConfig: (type: BuiltinToolType, partial: Partial<BuiltinToolConfig>) => void;
   setSplashShown: (shown: boolean) => void;
   setTrpgNoticeDismissed: (dismissed: boolean) => void;
 
@@ -245,7 +242,7 @@ export interface ChatSlice {
   /** 重试消息（生成新版本存入 retryBranches） */
   retryMessage: (messageId: string) => Promise<void>;
   /** 切换重试版本 */
-  switchRetryVersion: (messageId: string, direction: 'prev' | 'next') => void;
+  switchRetryVersion: (messageId: string, direction: "prev" | "next") => void;
   /** 创建对话分支 */
   createBranch: (messageId: string) => void;
   /** 分享消息 */
@@ -306,16 +303,11 @@ export interface SkillSlice {
 // TRPG Slice（v0.8.0 新增）
 // ============================================================================
 
-import type {
-  TrpgMode,
-  TrpgMessage,
-  SaveSlot,
-  WorldCard,
-} from '~/types/trpg';
-import type { SemiStableCache } from '~/services/trpg/trpgContextService';
+import type { TrpgMode, TrpgMessage, SaveSlot, WorldCard, DesignSession } from "~/types/trpg";
+import type { SemiStableCache } from "~/services/trpg/trpgContextService";
 
 /** TRPG Sheet 面板类型 */
-export type TrpgSheetType = 'save' | 'inventory' | 'character' | 'map' | 'settings' | null;
+export type TrpgSheetType = "save" | "inventory" | "character" | "map" | "settings" | null;
 
 /** TRPG Slice */
 export interface TrpgSlice {
@@ -332,6 +324,8 @@ export interface TrpgSlice {
   trpgAllWorldCards: WorldCard[];
   /** v0.8.0: 半稳定层缓存（跨轮次复用 layer2，最大化 KV 缓存命中） */
   trpgPrevSemiStable: SemiStableCache | null;
+  /** v0.8.2: 设计模式当前会话（独立于心智模型，不依赖游戏存档） */
+  trpgDesignSession: DesignSession | null;
 
   // ===== Actions：模式与设置 =====
   setTrpgMode: (mode: TrpgMode) => void;
@@ -344,7 +338,10 @@ export interface TrpgSlice {
 
   // ===== Actions：存档管理 =====
   loadTrpgSave: (saveId: string) => Promise<void>;
-  createTrpgSave: (worldCardId: string | null, character?: import('~/types/trpg').TrpgCharacter) => Promise<string>;
+  createTrpgSave: (
+    worldCardId: string | null,
+    character?: import("~/types/trpg").TrpgCharacter,
+  ) => Promise<string>;
   saveTrpgSave: () => Promise<void>;
   deleteTrpgSave: (saveId: string) => Promise<void>;
   loadAllSaves: () => Promise<void>;
@@ -355,6 +352,14 @@ export interface TrpgSlice {
   // ===== Actions：消息发送 =====
   sendTrpgMessage: (input: string) => Promise<void>;
   stopTrpgGenerating: () => void;
+
+  // ===== Actions：设计模式 =====
+  createTrpgDesignSession: () => void;
+  resetTrpgDesignSession: () => void;
+  sendDesignModeMessage: (input: string) => Promise<void>;
+  saveDesignWorldCard: () => Promise<void>;
+  exportDesignWorldCard: () => string;
+  importDesignWorldCard: (json: string) => void;
 }
 
 // ============================================================================

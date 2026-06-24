@@ -7,8 +7,8 @@
  * 从旧 Vue 3 app.js 迁移，改为纯函数风格。
  */
 
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 
 // ============================================================================
 // DOMPurify 配置
@@ -22,16 +22,53 @@ import DOMPurify from 'dompurify';
  */
 const CLEAN_CONFIG = {
   ADD_TAGS: [
-    'details', 'summary', 'iframe', 'svg', 'path', 'g', 'circle',
-    'rect', 'defs', 'linearGradient', 'stop', 'style', 'div',
-    'span', 'button', 'input',
+    "details",
+    "summary",
+    "iframe",
+    "svg",
+    "path",
+    "g",
+    "circle",
+    "rect",
+    "defs",
+    "linearGradient",
+    "stop",
+    "style",
+    "div",
+    "span",
+    "button",
+    "input",
   ],
   ADD_ATTR: [
-    'style', 'open', 'srcdoc', 'sandbox', 'frameborder', 'allow',
-    'allowfullscreen', 'class', 'id', 'viewBox', 'fill', 'stroke',
-    'stroke-width', 'd', 'stroke-linecap', 'stroke-linejoin',
-    'x1', 'y1', 'x2', 'y2', 'offset', 'stop-color', 'stop-opacity',
-    'width', 'height', 'type', 'value', 'checked', 'data-slash',
+    "style",
+    "open",
+    "srcdoc",
+    "sandbox",
+    "frameborder",
+    "allow",
+    "allowfullscreen",
+    "class",
+    "id",
+    "viewBox",
+    "fill",
+    "stroke",
+    "stroke-width",
+    "d",
+    "stroke-linecap",
+    "stroke-linejoin",
+    "x1",
+    "y1",
+    "x2",
+    "y2",
+    "offset",
+    "stop-color",
+    "stop-opacity",
+    "width",
+    "height",
+    "type",
+    "value",
+    "checked",
+    "data-slash",
   ],
   // DOMPurify 运行时支持 RegExp 属性名匹配，但其 3.4.11 的类型定义
   // 仅声明 FORBID_ATTR?: string[]，故使用类型断言绕过类型限制。
@@ -67,7 +104,7 @@ export const sanitizeHtml = (html: string): string => {
  * @returns 清理后的 HTML 字符串
  */
 export const renderMarkdown = (text: string): string => {
-  if (!text) return '';
+  if (!text) return "";
   const html = marked.parse(text) as string;
   return sanitizeHtml(html);
 };
@@ -108,8 +145,12 @@ const parseCotCache = new Map<string, CotParseResult>();
  * @param useCache - 是否使用缓存（流式场景设为 false），默认 true
  * @returns 解析结果 { cot, main, sys, isFinished }
  */
-export const parseCot = (content: string, useCache = true, includeUnclosed = true): CotParseResult => {
-  if (!content) return { cot: '', main: '', sys: '', isFinished: false };
+export const parseCot = (
+  content: string,
+  useCache = true,
+  includeUnclosed = true,
+): CotParseResult => {
+  if (!content) return { cot: "", main: "", sys: "", isFinished: false };
   if (useCache && parseCotCache.has(content)) {
     return parseCotCache.get(content)!;
   }
@@ -120,67 +161,76 @@ export const parseCot = (content: string, useCache = true, includeUnclosed = tru
   //   Pass 1: 提取所有已闭合的 `<tag>...</tag>` 标签（贪婪安全）
   //   Pass 2: 找 mainContent 最后一个 `<tag>` 出现位置，仅当其后无对应 `</tag>` 时视为未闭合 CoT
   //   注意：不再用全局贪婪正则匹配任何位置的 `<tag>`，避免正文中"<think>"字符被误识别
-  const tagNames = ['think', 'thinking', 'cot', 'reasoning', 'thought', 'thoughts', 'reflection', 'analysis'];
-  const tagAlternation = tagNames.join('|');
+  const tagNames = [
+    "think",
+    "thinking",
+    "cot",
+    "reasoning",
+    "thought",
+    "thoughts",
+    "reflection",
+    "analysis",
+  ];
+  const tagAlternation = tagNames.join("|");
 
-  let cotContent = '';
+  let cotContent = "";
   let mainContent = content;
   let isFinished = false;
 
   // Pass 1: 提取所有已闭合的标签 `<tag>...</tag>`
-  const closedPattern = new RegExp(`<(${tagAlternation})>([\\s\\S]*?)<\\/\\s*\\1\\s*>`, 'gi');
+  const closedPattern = new RegExp(`<(${tagAlternation})>([\\s\\S]*?)<\\/\\s*\\1\\s*>`, "gi");
   mainContent = mainContent.replace(closedPattern, (_match, _tag, inner: string): string => {
     const parts = inner.split(/(```[\s\S]*?```|`[^`]+`)/);
     const escapedContent = parts
       .map((part, i) => {
         if (i % 2 === 1) return part;
-        return part.replace(/</g, '&lt;');
+        return part.replace(/</g, "&lt;");
       })
-      .join('');
-    cotContent += (cotContent ? '\n' : '') + escapedContent;
+      .join("");
+    cotContent += (cotContent ? "\n" : "") + escapedContent;
     isFinished = true;
-    return '';
+    return "";
   });
 
   // Pass 2: 处理"未闭合的最后一个开标签"（流式过程中的常态）
   // v0.4.6: includeUnclosed=false 时跳过，仅依赖 Pass 1 的已闭合标签提取
   if (includeUnclosed) {
-  // 寻找 mainContent 中最后一个 `<tag>` 出现位置，且其后没有对应的 `</tag>`
-  // 例：`正文前缀<think>思考中...` → cot=`思考中...`，main=`正文前缀`
-  // 反例：`正文中提到<think>字样后还有大量正文` 在闭合 `</think>` 缺失下不应吞掉正文
-  //       —— 通过限制 Pass 2 仅在"开标签后无任何同名闭合"时触发，避免误吞
-  const openTagPattern = new RegExp(`<(${tagAlternation})>`, 'gi');
-  let lastOpenMatch: RegExpExecArray | null = null;
-  let openMatchIter: RegExpExecArray | null;
-  while ((openMatchIter = openTagPattern.exec(mainContent)) !== null) {
-    lastOpenMatch = openMatchIter;
-  }
-  if (lastOpenMatch) {
-    const matchTag = lastOpenMatch[1].toLowerCase();
-    const afterOpen = mainContent.slice(lastOpenMatch.index + lastOpenMatch[0].length);
-    // 检查开标签之后是否有对应的闭合标签
-    const closingCheck = new RegExp(`<\\/\\s*${matchTag}\\s*>`, 'i');
-    const hasCorrespondingClose = closingCheck.test(afterOpen);
-    if (!hasCorrespondingClose) {
-      // 未闭合：把开标签后所有内容当 cot，main 保留开标签前的内容
-      const parts = afterOpen.split(/(```[\s\S]*?```|`[^`]+`)/);
-      const escapedContent = parts
-        .map((part, i) => {
-          if (i % 2 === 1) return part;
-          return part.replace(/</g, '&lt;');
-        })
-        .join('');
-      cotContent += (cotContent ? '\n' : '') + escapedContent;
-      mainContent = mainContent.slice(0, lastOpenMatch.index);
+    // 寻找 mainContent 中最后一个 `<tag>` 出现位置，且其后没有对应的 `</tag>`
+    // 例：`正文前缀<think>思考中...` → cot=`思考中...`，main=`正文前缀`
+    // 反例：`正文中提到<think>字样后还有大量正文` 在闭合 `</think>` 缺失下不应吞掉正文
+    //       —— 通过限制 Pass 2 仅在"开标签后无任何同名闭合"时触发，避免误吞
+    const openTagPattern = new RegExp(`<(${tagAlternation})>`, "gi");
+    let lastOpenMatch: RegExpExecArray | null = null;
+    let openMatchIter: RegExpExecArray | null;
+    while ((openMatchIter = openTagPattern.exec(mainContent)) !== null) {
+      lastOpenMatch = openMatchIter;
     }
-  }
+    if (lastOpenMatch) {
+      const matchTag = lastOpenMatch[1].toLowerCase();
+      const afterOpen = mainContent.slice(lastOpenMatch.index + lastOpenMatch[0].length);
+      // 检查开标签之后是否有对应的闭合标签
+      const closingCheck = new RegExp(`<\\/\\s*${matchTag}\\s*>`, "i");
+      const hasCorrespondingClose = closingCheck.test(afterOpen);
+      if (!hasCorrespondingClose) {
+        // 未闭合：把开标签后所有内容当 cot，main 保留开标签前的内容
+        const parts = afterOpen.split(/(```[\s\S]*?```|`[^`]+`)/);
+        const escapedContent = parts
+          .map((part, i) => {
+            if (i % 2 === 1) return part;
+            return part.replace(/</g, "&lt;");
+          })
+          .join("");
+        cotContent += (cotContent ? "\n" : "") + escapedContent;
+        mainContent = mainContent.slice(0, lastOpenMatch.index);
+      }
+    }
   } // v0.4.6: includeUnclosed guard
 
   // 提取末尾的系统指令
-  let sys = '';
+  let sys = "";
   const sysMatch = mainContent.match(/\n\n\[系统指令:\s*([\s\S]*?)\]\s*$/);
   if (sysMatch && sysMatch.index !== undefined) {
-    sys = sysMatch[1] ?? '';
+    sys = sysMatch[1] ?? "";
     mainContent = mainContent.slice(0, sysMatch.index).trim();
   }
 
@@ -219,16 +269,12 @@ export const parseCot = (content: string, useCache = true, includeUnclosed = tru
  * @param quality - JPEG 质量（0-1），默认 0.7
  * @returns 压缩后的 JPEG 数据 URL
  */
-export const compressImage = (
-  source: string,
-  maxWidth = 300,
-  quality = 0.7,
-): Promise<string> => {
+export const compressImage = (source: string, maxWidth = 300, quality = 0.7): Promise<string> => {
   return new Promise<string>((resolve) => {
     const img = new Image();
     img.src = source;
     img.onload = (): void => {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       let width = img.width;
       let height = img.height;
 
@@ -239,14 +285,14 @@ export const compressImage = (
 
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (ctx) {
         // 填充白色背景，防止透明 PNG 转 JPEG 后变黑
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = "#FFFFFF";
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
       }
-      resolve(canvas.toDataURL('image/jpeg', quality));
+      resolve(canvas.toDataURL("image/jpeg", quality));
     };
     img.onerror = (): void => resolve(source);
   });

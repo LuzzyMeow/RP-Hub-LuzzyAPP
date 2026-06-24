@@ -44,7 +44,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.8.2";
+const APP_VERSION = "v0.8.4";
 
 /** v0.5.8: 关于页动态文案轮播 */
 const ABOUT_PHRASES = [
@@ -109,7 +109,9 @@ export default function AboutPage() {
     phraseTimerRef.current = setInterval(() => {
       setPhraseIndex((i) => (i + 1) % ABOUT_PHRASES.length);
     }, PHRASE_INTERVAL);
-    return () => { if (phraseTimerRef.current) clearInterval(phraseTimerRef.current); };
+    return () => {
+      if (phraseTimerRef.current) clearInterval(phraseTimerRef.current);
+    };
   }, []);
 
   /** 刷新日志列表 */
@@ -294,308 +296,302 @@ export default function AboutPage() {
         {/* 内容层：relative z-10 可滚动，置于背景之上 */}
         <div className="relative z-10 h-full w-full overflow-y-auto overflow-x-hidden">
           <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden p-4">
-          {/* LOGO 和版本信息 */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex min-w-0 flex-col items-center gap-3 py-8"
-          >
-            <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl shadow-lg">
-              <img src="/icons/icon-192.png" alt="LUZZY" className="size-full object-cover" />
-            </div>
-            <div className="text-center">
-              <motion.h1
-                className="text-2xl font-bold tracking-tight"
-                animate={{ scale: [1, 1.02, 1] }}
-                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <span className="bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                  LUZZY
-                </span>
-              </motion.h1>
-              <p className="mt-1 h-5 text-sm text-muted-foreground">
-                <AnimatePresence mode="wait">
-                  <motion.span
-                    key={phraseIndex}
-                    initial={{
-                      opacity: 0,
-                      y: 8,
-                      filter: "blur(0px)",
-                      letterSpacing: "0.3em",
-                    }}
-                    animate={{
-                      opacity: 1,
-                      y: 0,
-                      filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
-                      letterSpacing: "0.05em",
-                    }}
-                    exit={{
-                      opacity: 0,
-                      y: -8,
-                      filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
-                      letterSpacing: "0.3em",
-                    }}
-                    transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
-                  >
-                    {ABOUT_PHRASES[phraseIndex]}
-                  </motion.span>
-                </AnimatePresence>
-              </p>
-              <p className="mt-2 text-xs font-mono text-muted-foreground">
-                {APP_VERSION}
-              </p>
-            </div>
-          </motion.div>
-
-          {/* 系统信息 */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="min-w-0"
-          >
-            <Card className="min-w-0 overflow-hidden p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <IconInfo className="size-4 text-primary" />
-                <h2 className="text-sm font-semibold">系统信息</h2>
+            {/* LOGO 和版本信息 */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex min-w-0 flex-col items-center gap-3 py-8"
+            >
+              <div className="flex size-20 items-center justify-center overflow-hidden rounded-2xl shadow-lg">
+                <img src="/icons/icon-192.png" alt="LUZZY" className="size-full object-cover" />
               </div>
-              <div className="grid gap-2">
-                {Object.entries(systemInfo).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex min-w-0 items-start gap-3 border-b border-border/30 py-1.5 last:border-0"
-                  >
-                    <span className="w-20 shrink-0 text-xs text-muted-foreground">
-                      {key}
-                    </span>
-                    <span
-                      className="min-w-0 flex-1 break-all text-xs font-medium"
-                      style={{ overflowWrap: "anywhere" }}
-                    >
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* 日志路径 */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-            className="min-w-0"
-          >
-            <Card className="min-w-0 overflow-hidden p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <IconLink className="size-4 text-primary" />
-                <h2 className="text-sm font-semibold">日志路径</h2>
-              </div>
-              <div className="flex min-w-0 items-center gap-2">
-                <code className="block min-w-0 flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
-                  {logPath || "/Documents/LUZZY/logs/YYYYMMDD.log (Web 环境不可用)"}
-                </code>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={handleCopyLogPath}
-                  title="复制路径"
+              <div className="text-center">
+                <motion.h1
+                  className="text-2xl font-bold tracking-tight"
+                  animate={{ scale: [1, 1.02, 1] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 >
-                  <IconCopyEdit className="size-4" />
-                </Button>
+                  <span className="bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                    LUZZY
+                  </span>
+                </motion.h1>
+                <p className="mt-1 h-5 text-sm text-muted-foreground">
+                  <AnimatePresence mode="wait">
+                    <motion.span
+                      key={phraseIndex}
+                      initial={{
+                        opacity: 0,
+                        y: 8,
+                        filter: "blur(0px)",
+                        letterSpacing: "0.3em",
+                      }}
+                      animate={{
+                        opacity: 1,
+                        y: 0,
+                        filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
+                        letterSpacing: "0.05em",
+                      }}
+                      exit={{
+                        opacity: 0,
+                        y: -8,
+                        filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
+                        letterSpacing: "0.3em",
+                      }}
+                      transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+                    >
+                      {ABOUT_PHRASES[phraseIndex]}
+                    </motion.span>
+                  </AnimatePresence>
+                </p>
+                <p className="mt-2 text-xs font-mono text-muted-foreground">{APP_VERSION}</p>
               </div>
-            </Card>
-          </motion.div>
+            </motion.div>
 
-          {/* 日志查看器 */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="min-w-0"
-          >
-            <Card className="min-w-0 overflow-hidden p-4">
-              {/* 标题栏 */}
-              <div className="mb-3 flex items-center justify-between gap-2">
-                <div className="flex min-w-0 items-center gap-2">
-                  <IconSearch className="size-4 shrink-0 text-primary" />
-                  <h2 className="text-sm font-semibold">
-                    日志查看器（{filteredLogs.length}/{allLogs.length} 条）
-                  </h2>
+            {/* 系统信息 */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="min-w-0"
+            >
+              <Card className="min-w-0 overflow-hidden p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <IconInfo className="size-4 text-primary" />
+                  <h2 className="text-sm font-semibold">系统信息</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* 自动刷新开关 */}
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-muted-foreground">实时</span>
-                    <Switch
-                      checked={autoRefresh}
-                      onCheckedChange={setAutoRefresh}
-                      className="scale-75"
-                    />
-                  </div>
+                <div className="grid gap-2">
+                  {Object.entries(systemInfo).map(([key, value]) => (
+                    <div
+                      key={key}
+                      className="flex min-w-0 items-start gap-3 border-b border-border/30 py-1.5 last:border-0"
+                    >
+                      <span className="w-20 shrink-0 text-xs text-muted-foreground">{key}</span>
+                      <span
+                        className="min-w-0 flex-1 break-all text-xs font-medium"
+                        style={{ overflowWrap: "anywhere" }}
+                      >
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </motion.div>
+
+            {/* 日志路径 */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="min-w-0"
+            >
+              <Card className="min-w-0 overflow-hidden p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <IconLink className="size-4 text-primary" />
+                  <h2 className="text-sm font-semibold">日志路径</h2>
+                </div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <code className="block min-w-0 flex-1 truncate rounded-md border bg-muted/50 px-3 py-2 text-xs">
+                    {logPath || "/Documents/LUZZY/logs/YYYYMMDD.log (Web 环境不可用)"}
+                  </code>
                   <Button
                     variant="outline"
                     size="icon"
                     className="shrink-0"
-                    onClick={handleCopyLogs}
-                    title="一键复制筛选后日志"
+                    onClick={handleCopyLogPath}
+                    title="复制路径"
                   >
                     <IconCopyEdit className="size-4" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0"
-                    onClick={handleExportLogs}
-                    title="导出全部日志 JSON 并分享"
-                  >
-                    <IconShare className="size-4" />
-                  </Button>
                 </div>
-              </div>
+              </Card>
+            </motion.div>
 
-              {/* 分类 Tab */}
-              <div className="mb-2 flex flex-wrap gap-1">
-                {CATEGORY_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setCategoryFilter(tab.key)}
-                    className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                      categoryFilter === tab.key
-                        ? "bg-primary/15 text-primary"
-                        : "text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 级别过滤 */}
-              <div className="mb-3 flex flex-wrap gap-1">
-                {LEVEL_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setLevelFilter(opt.key)}
-                    className={`rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                      levelFilter === opt.key
-                        ? "bg-primary/15 text-primary"
-                        : "text-muted-foreground hover:bg-muted"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-              {/* 日志列表 */}
-              <div className="relative">
-              <div
-                ref={logContainerRef}
-                onScroll={handleLogScroll}
-                className="max-h-[600px] overflow-auto rounded-md border bg-muted/30"
-              >
-                {filteredLogs.length === 0 ? (
-                  <div className="p-4 text-center text-xs text-muted-foreground">
-                    暂无匹配日志。去聊一句触发流式诊断吧。
+            {/* 日志查看器 */}
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="min-w-0"
+            >
+              <Card className="min-w-0 overflow-hidden p-4">
+                {/* 标题栏 */}
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <IconSearch className="size-4 shrink-0 text-primary" />
+                    <h2 className="text-sm font-semibold">
+                      日志查看器（{filteredLogs.length}/{allLogs.length} 条）
+                    </h2>
                   </div>
-                ) : (
-                  <div className="space-y-0">
-                    {filteredLogs.map((entry, idx) => {
-                      const isExpanded = expandedId === idx;
-                      const colorClass = LEVEL_COLORS[entry.level];
-                      return (
-                        <div
-                          key={`${entry.timestamp}-${idx}`}
-                          className="border-b border-border/20 last:border-0"
-                        >
-                          <button
-                            type="button"
-                            onClick={() => toggleExpand(idx)}
-                            className="flex w-full min-w-0 items-center gap-1.5 px-2 py-1 text-left hover:bg-muted/50 transition-colors"
-                          >
-                            <motion.div
-                              animate={{ rotate: isExpanded ? 0 : -90 }}
-                              transition={{ duration: 0.15 }}
-                            >
-                              <IconArrowDown className="size-2.5 shrink-0 text-muted-foreground" />
-                            </motion.div>
-                            <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
-                              {entry.timestamp.slice(-12)}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              className="shrink-0 px-1 py-0 text-[9px] leading-none"
-                            >
-                              {entry.category}
-                            </Badge>
-                            <span
-                              className={`min-w-0 flex-1 truncate text-[11px] font-mono leading-relaxed ${colorClass}`}
-                            >
-                              {entry.message}
-                            </span>
-                          </button>
-                          <AnimatePresence initial={false}>
-                            {isExpanded && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{ duration: 0.15 }}
-                                className="overflow-hidden"
-                              >
-                                <div className="border-t border-border/20 bg-muted/20 px-6 py-2">
-                                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted-foreground">
-                                    <span>时间: {entry.timestamp}</span>
-                                    <span>级别: {entry.level.toUpperCase()}</span>
-                                    <span>分类: {entry.category}</span>
-                                  </div>
-                                  <pre className="mt-1.5 whitespace-pre-wrap break-all text-[11px] font-mono leading-relaxed">
-                                    {entry.message}
-                                  </pre>
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-                {/* v0.5.8: 回到底部浮动按钮（在滚动容器外，relative 容器内） */}
-                {userScrolledUp && filteredLogs.length > 0 && (
-                  <div className="absolute bottom-3 right-3 z-10">
+                  <div className="flex items-center gap-2">
+                    {/* 自动刷新开关 */}
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-muted-foreground">实时</span>
+                      <Switch
+                        checked={autoRefresh}
+                        onCheckedChange={setAutoRefresh}
+                        className="scale-75"
+                      />
+                    </div>
                     <Button
-                      variant="secondary"
+                      variant="outline"
                       size="icon"
-                      className="size-8 rounded-full shadow-md opacity-80 hover:opacity-100"
-                      onClick={scrollLogToBottom}
-                      title="回到底部"
+                      className="shrink-0"
+                      onClick={handleCopyLogs}
+                      title="一键复制筛选后日志"
                     >
-                      <IconArrowDown className="size-4" />
+                      <IconCopyEdit className="size-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0"
+                      onClick={handleExportLogs}
+                      title="导出全部日志 JSON 并分享"
+                    >
+                      <IconShare className="size-4" />
                     </Button>
                   </div>
-                )}
-              </div>
-            </Card>
-          </motion.div>
+                </div>
 
-          {/* 版权信息 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.25 }}
-            className="min-w-0 pb-[calc(2rem+env(safe-area-inset-bottom))] text-center"
-          >
-            <p className="text-xs text-muted-foreground">
-              © 2026 LUZZY. All rights reserved.
-            </p>
-          </motion.div>
+                {/* 分类 Tab */}
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {CATEGORY_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setCategoryFilter(tab.key)}
+                      className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                        categoryFilter === tab.key
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 级别过滤 */}
+                <div className="mb-3 flex flex-wrap gap-1">
+                  {LEVEL_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => setLevelFilter(opt.key)}
+                      className={`rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                        levelFilter === opt.key
+                          ? "bg-primary/15 text-primary"
+                          : "text-muted-foreground hover:bg-muted"
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 日志列表 */}
+                <div className="relative">
+                  <div
+                    ref={logContainerRef}
+                    onScroll={handleLogScroll}
+                    className="max-h-[600px] overflow-auto rounded-md border bg-muted/30"
+                  >
+                    {filteredLogs.length === 0 ? (
+                      <div className="p-4 text-center text-xs text-muted-foreground">
+                        暂无匹配日志。去聊一句触发流式诊断吧。
+                      </div>
+                    ) : (
+                      <div className="space-y-0">
+                        {filteredLogs.map((entry, idx) => {
+                          const isExpanded = expandedId === idx;
+                          const colorClass = LEVEL_COLORS[entry.level];
+                          return (
+                            <div
+                              key={`${entry.timestamp}-${idx}`}
+                              className="border-b border-border/20 last:border-0"
+                            >
+                              <button
+                                type="button"
+                                onClick={() => toggleExpand(idx)}
+                                className="flex w-full min-w-0 items-center gap-1.5 px-2 py-1 text-left hover:bg-muted/50 transition-colors"
+                              >
+                                <motion.div
+                                  animate={{ rotate: isExpanded ? 0 : -90 }}
+                                  transition={{ duration: 0.15 }}
+                                >
+                                  <IconArrowDown className="size-2.5 shrink-0 text-muted-foreground" />
+                                </motion.div>
+                                <span className="shrink-0 text-[10px] text-muted-foreground font-mono">
+                                  {entry.timestamp.slice(-12)}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 px-1 py-0 text-[9px] leading-none"
+                                >
+                                  {entry.category}
+                                </Badge>
+                                <span
+                                  className={`min-w-0 flex-1 truncate text-[11px] font-mono leading-relaxed ${colorClass}`}
+                                >
+                                  {entry.message}
+                                </span>
+                              </button>
+                              <AnimatePresence initial={false}>
+                                {isExpanded && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="border-t border-border/20 bg-muted/20 px-6 py-2">
+                                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted-foreground">
+                                        <span>时间: {entry.timestamp}</span>
+                                        <span>级别: {entry.level.toUpperCase()}</span>
+                                        <span>分类: {entry.category}</span>
+                                      </div>
+                                      <pre className="mt-1.5 whitespace-pre-wrap break-all text-[11px] font-mono leading-relaxed">
+                                        {entry.message}
+                                      </pre>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* v0.5.8: 回到底部浮动按钮（在滚动容器外，relative 容器内） */}
+                  {userScrolledUp && filteredLogs.length > 0 && (
+                    <div className="absolute bottom-3 right-3 z-10">
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        className="size-8 rounded-full shadow-md opacity-80 hover:opacity-100"
+                        onClick={scrollLogToBottom}
+                        title="回到底部"
+                      >
+                        <IconArrowDown className="size-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </motion.div>
+
+            {/* 版权信息 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.25 }}
+              className="min-w-0 pb-[calc(2rem+env(safe-area-inset-bottom))] text-center"
+            >
+              <p className="text-xs text-muted-foreground">© 2026 LUZZY. All rights reserved.</p>
+            </motion.div>
           </div>
         </div>
       </div>

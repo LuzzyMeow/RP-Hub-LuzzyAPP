@@ -14,12 +14,10 @@ import type { AppStoreState, KnowledgeBaseSlice } from "~/stores/slices/types";
 /** 知识库在 IndexedDB 中的存储键 */
 const KNOWLEDGE_BASES_STORAGE_KEY = "knowledgeBases";
 
-export const createKnowledgeBaseSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  KnowledgeBaseSlice
-> = (set, get) => ({
+export const createKnowledgeBaseSlice: StateCreator<AppStoreState, [], [], KnowledgeBaseSlice> = (
+  set,
+  get,
+) => ({
   // ===== 状态初始值 =====
   knowledgeBases: [],
 
@@ -32,9 +30,7 @@ export const createKnowledgeBaseSlice: StateCreator<
   updateKnowledgeBase: (id, partial) =>
     set((state) => ({
       knowledgeBases: state.knowledgeBases.map((kb) =>
-        kb.id === id
-          ? { ...kb, ...partial, updatedAt: Date.now() }
-          : kb,
+        kb.id === id ? { ...kb, ...partial, updatedAt: Date.now() } : kb,
       ),
     })),
 
@@ -61,10 +57,7 @@ export const createKnowledgeBaseSlice: StateCreator<
 
   loadKnowledgeBases: async () => {
     try {
-      const data = await getItem<KnowledgeBase[]>(
-        "knowledgeBases",
-        KNOWLEDGE_BASES_STORAGE_KEY,
-      );
+      const data = await getItem<KnowledgeBase[]>("knowledgeBases", KNOWLEDGE_BASES_STORAGE_KEY);
       set({ knowledgeBases: data ?? [] });
     } catch (e) {
       console.error("[KnowledgeBaseSlice] 加载知识库失败:", e);
@@ -74,11 +67,7 @@ export const createKnowledgeBaseSlice: StateCreator<
 
   saveKnowledgeBases: async () => {
     try {
-      await setItem(
-        "knowledgeBases",
-        KNOWLEDGE_BASES_STORAGE_KEY,
-        get().knowledgeBases,
-      );
+      await setItem("knowledgeBases", KNOWLEDGE_BASES_STORAGE_KEY, get().knowledgeBases);
     } catch (e) {
       console.error("[KnowledgeBaseSlice] 保存知识库失败:", e);
     }

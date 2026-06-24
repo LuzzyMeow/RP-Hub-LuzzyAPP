@@ -13,11 +13,7 @@
  * 从旧 Vue 3 app.js 迁移，改为纯函数风格，状态由 zustand store 管理。
  */
 
-import type {
-  WorldInfoEntry,
-  WorldInfoProcessResult,
-  WorldInfoInjection,
-} from '~/types/luzzy';
+import type { WorldInfoEntry, WorldInfoProcessResult, WorldInfoInjection } from "~/types/luzzy";
 
 // ============================================================================
 // 辅助函数
@@ -45,10 +41,10 @@ const toNonNegativeNumber = (value: unknown, fallback = 0): number => {
  * @returns 编译后的正则表达式，无效时抛出错误
  */
 const createWorldInfoRegex = (pattern: string): RegExp => {
-  let source = String(pattern || '');
-  let flags = 'i';
-  if (source.startsWith('/') && source.lastIndexOf('/') > 0) {
-    const lastSlash = source.lastIndexOf('/');
+  let source = String(pattern || "");
+  let flags = "i";
+  if (source.startsWith("/") && source.lastIndexOf("/") > 0) {
+    const lastSlash = source.lastIndexOf("/");
     const potentialFlags = source.slice(lastSlash + 1);
     if (/^[dgimsuvy]*$/.test(potentialFlags)) {
       source = source.slice(1, lastSlash);
@@ -56,10 +52,10 @@ const createWorldInfoRegex = (pattern: string): RegExp => {
     }
   }
   // 移除 g 标志（避免 lastIndex 问题），强制包含 i 标志
-  flags = flags.replaceAll('g', '');
-  if (!flags.includes('i')) flags += 'i';
+  flags = flags.replaceAll("g", "");
+  if (!flags.includes("i")) flags += "i";
   // Unicode 属性转义需要 u 标志
-  if (/\\[pP]\{/.test(source) && !flags.includes('u')) flags += 'u';
+  if (/\\[pP]\{/.test(source) && !flags.includes("u")) flags += "u";
   return new RegExp(source, flags);
 };
 
@@ -71,13 +67,9 @@ const createWorldInfoRegex = (pattern: string): RegExp => {
  * @param text - 待匹配的文本
  * @returns 是否匹配
  */
-const worldInfoKeyMatchesText = (
-  entry: WorldInfoEntry,
-  key: string,
-  text: string,
-): boolean => {
-  const rawKey = String(key || '').trim();
-  const rawText = String(text || '');
+const worldInfoKeyMatchesText = (entry: WorldInfoEntry, key: string, text: string): boolean => {
+  const rawKey = String(key || "").trim();
+  const rawText = String(text || "");
   if (!rawKey || !rawText) return false;
 
   if (entry.useRegex) {
@@ -117,7 +109,7 @@ export const processWorldInfo = (
   entries: WorldInfoEntry[],
   scanDepth: number,
 ): WorldInfoProcessResult => {
-  const scanText = String(text || '');
+  const scanText = String(text || "");
   const allEntries = Array.isArray(entries) ? entries : [];
   // 概率缓存：每个条目每次生成只掷一次概率
   const evaluatedProbability = new Map<WorldInfoEntry, boolean>();
@@ -128,9 +120,10 @@ export const processWorldInfo = (
   const passesProbability = (entry: WorldInfoEntry): boolean => {
     const probability = Math.min(100, toNonNegativeNumber(entry.probability, 100));
     // useProbability 为可选扩展字段（不在 WorldInfoEntry 类型定义中），需先检查字段是否存在
-    const useProbability = 'useProbability' in entry
-      ? (entry as WorldInfoEntry & { useProbability?: boolean }).useProbability
-      : undefined;
+    const useProbability =
+      "useProbability" in entry
+        ? (entry as WorldInfoEntry & { useProbability?: boolean }).useProbability
+        : undefined;
     if (useProbability !== false && probability < 100) {
       if (!evaluatedProbability.has(entry)) {
         evaluatedProbability.set(entry, probability > 0 && Math.random() * 100 < probability);
@@ -147,20 +140,18 @@ export const processWorldInfo = (
    * - 非选择性模式：任一关键词匹配即触发
    * - 选择性模式：需同时满足（任一主关键词匹配）且（任一次要关键词匹配）
    */
-  const checkEntryTrigger = (
-    entry: WorldInfoEntry,
-  ): { triggered: boolean; score: number } => {
+  const checkEntryTrigger = (entry: WorldInfoEntry): { triggered: boolean; score: number } => {
     // 概率检查（提前执行，每个条目只掷一次）
     if (!passesProbability(entry)) return { triggered: false, score: 0 };
 
     const keys = Array.isArray(entry.keys) ? entry.keys : [];
-    if (keys.every((k) => !String(k || '').trim())) {
+    if (keys.every((k) => !String(k || "").trim())) {
       return { triggered: false, score: 0 };
     }
 
     let matchCount = 0;
     for (const key of keys) {
-      const rawKey = String(key || '').trim();
+      const rawKey = String(key || "").trim();
       if (!rawKey) continue;
       if (worldInfoKeyMatchesText(entry, rawKey, scanText)) {
         matchCount++;
@@ -171,13 +162,11 @@ export const processWorldInfo = (
 
     // 选择性模式：还需至少一个次要关键词匹配
     if (entry.selective) {
-      const secondaryKeys = Array.isArray(entry.secondaryKeys)
-        ? entry.secondaryKeys
-        : [];
+      const secondaryKeys = Array.isArray(entry.secondaryKeys) ? entry.secondaryKeys : [];
       if (secondaryKeys.length > 0) {
         let secondaryMatchCount = 0;
         for (const sKey of secondaryKeys) {
-          const rawSKey = String(sKey || '').trim();
+          const rawSKey = String(sKey || "").trim();
           if (!rawSKey) continue;
           if (worldInfoKeyMatchesText(entry, rawSKey, scanText)) {
             secondaryMatchCount++;
@@ -249,11 +238,9 @@ export const processWorldInfo = (
  * @param injections - 世界书注入列表
  * @returns 拼接后的世界书提示词文本
  */
-export const buildWorldInfoPrompt = (
-  injections: WorldInfoInjection[],
-): string => {
+export const buildWorldInfoPrompt = (injections: WorldInfoInjection[]): string => {
   const list = Array.isArray(injections) ? injections : [];
-  if (list.length === 0) return '';
+  if (list.length === 0) return "";
 
   // 按 position 分组
   const groups = new Map<number, WorldInfoInjection[]>();
@@ -278,14 +265,14 @@ export const buildWorldInfoPrompt = (
     const group = groups.get(pos)!;
     const contents = group.map((injection) => {
       const entry = injection.entry;
-      const name = String(entry.id || 'Entry');
-      const content = String(entry.content || '').trim();
+      const name = String(entry.id || "Entry");
+      const content = String(entry.content || "").trim();
       return `[${name}]\n${content}`;
     });
     if (contents.length > 0) {
-      parts.push(contents.join('\n\n'));
+      parts.push(contents.join("\n\n"));
     }
   }
 
-  return parts.join('\n\n');
+  return parts.join("\n\n");
 };

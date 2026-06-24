@@ -15,12 +15,10 @@ import type { AppStoreState, SessionSlice } from "~/stores/slices/types";
 /** 会话在 IndexedDB 中的存储键 */
 const SESSIONS_STORAGE_KEY = "sessions";
 
-export const createSessionSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  SessionSlice
-> = (set, get) => ({
+export const createSessionSlice: StateCreator<AppStoreState, [], [], SessionSlice> = (
+  set,
+  get,
+) => ({
   // ===== 状态初始值 =====
   sessions: [],
   currentSessionId: null,
@@ -30,14 +28,17 @@ export const createSessionSlice: StateCreator<
     const now = Date.now();
     const id = uuidv4();
     // v0.3.5: 若角色卡有开场白，预置一条 assistant 消息作为消息列表第一条
-    const messages = firstMessage && firstMessage.trim()
-      ? [{
-          id: uuidv4(),
-          role: 'assistant' as const,
-          content: firstMessage.trim(),
-          createdAt: now,
-        }]
-      : [];
+    const messages =
+      firstMessage && firstMessage.trim()
+        ? [
+            {
+              id: uuidv4(),
+              role: "assistant" as const,
+              content: firstMessage.trim(),
+              createdAt: now,
+            },
+          ]
+        : [];
     const newSession: Session = {
       id,
       title: "新会话",
@@ -63,9 +64,7 @@ export const createSessionSlice: StateCreator<
       const sessions = state.sessions.filter((s) => s.id !== id);
       // 若删除的是当前会话，回退到 null 或第一个剩余会话
       const currentSessionId =
-        state.currentSessionId === id
-          ? (sessions[0]?.id ?? null)
-          : state.currentSessionId;
+        state.currentSessionId === id ? (sessions[0]?.id ?? null) : state.currentSessionId;
       return { sessions, currentSessionId };
     }),
 
@@ -123,16 +122,11 @@ export const createSessionSlice: StateCreator<
 
   loadSessions: async () => {
     try {
-      const data = await getItem<Session[]>(
-        "sessions",
-        SESSIONS_STORAGE_KEY,
-      );
+      const data = await getItem<Session[]>("sessions", SESSIONS_STORAGE_KEY);
       const sessions = data ?? [];
       // 校验 currentSessionId 是否仍存在
       const { currentSessionId } = get();
-      const valid =
-        currentSessionId !== null &&
-        sessions.some((s) => s.id === currentSessionId);
+      const valid = currentSessionId !== null && sessions.some((s) => s.id === currentSessionId);
       set({
         sessions,
         currentSessionId: valid ? currentSessionId : null,

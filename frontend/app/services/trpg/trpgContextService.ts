@@ -17,9 +17,9 @@ import type {
   BSummaryEntry,
   CSummaryEntry,
   TrpgMessage,
-} from '~/types/trpg';
-import { TRPG_GM_PRESET_CONTENT } from './trpgPresetContent';
-import { buildTrpgToolDescriptions } from './trpgTools';
+} from "~/types/trpg";
+import { TRPG_GM_PRESET_CONTENT } from "./trpgPresetContent";
+import { buildTrpgToolDescriptions } from "./trpgTools";
 
 // ============================================================================
 // 稳定 JSON 序列化
@@ -35,7 +35,7 @@ export function stableJson(obj: unknown): string {
 
 /** 递归排序对象 key */
 function sortKeys(obj: unknown): unknown {
-  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj === null || typeof obj !== "object") return obj;
   if (Array.isArray(obj)) return obj.map(sortKeys);
   const sorted: Record<string, unknown> = {};
   for (const key of Object.keys(obj as Record<string, unknown>).sort()) {
@@ -65,7 +65,7 @@ export function shouldUpdateSemiStable(
   if (
     prevChar.hp.current !== currChar.hp.current ||
     prevChar.hp.max !== currChar.hp.max ||
-    prevChar.conditions.join(',') !== currChar.conditions.join(',') ||
+    prevChar.conditions.join(",") !== currChar.conditions.join(",") ||
     prevChar.equipment !== currChar.equipment ||
     prevChar.spellSlots !== currChar.spellSlots ||
     prevChar.level !== currChar.level ||
@@ -77,8 +77,8 @@ export function shouldUpdateSemiStable(
     prevChar.abilities.int !== currChar.abilities.int ||
     prevChar.abilities.wis !== currChar.abilities.wis ||
     prevChar.abilities.cha !== currChar.abilities.cha ||
-    prevChar.proficientSkills.join(',') !== currChar.proficientSkills.join(',') ||
-    prevChar.expertiseSkills.join(',') !== currChar.expertiseSkills.join(',')
+    prevChar.proficientSkills.join(",") !== currChar.proficientSkills.join(",") ||
+    prevChar.expertiseSkills.join(",") !== currChar.expertiseSkills.join(",")
   ) {
     return true;
   }
@@ -126,7 +126,7 @@ export function shouldUpdateSemiStable(
  * 50 条从约 7500 tokens 压缩至约 2000 tokens
  */
 export function compressASummaryRef(summary: ASummaryEntry): string {
-  return `[A${String(summary.round).padStart(5, '0')}] ${summary.sceneAnchor} → ${summary.hook}`;
+  return `[A${String(summary.round).padStart(5, "0")}] ${summary.sceneAnchor} → ${summary.hook}`;
 }
 
 // ============================================================================
@@ -139,97 +139,121 @@ export function compressASummaryRef(summary: ASummaryEntry): string {
  */
 export function buildWorldCardText(worldCard: WorldCard | null): string {
   if (!worldCard) {
-    return '[世界卡] 无世界卡，仅使用 D&D 5e 基础规则。';
+    return "[世界卡] 无世界卡，仅使用 D&D 5e 基础规则。";
   }
 
+  const snap = worldCard.snapshot;
   const parts: string[] = [];
 
   // 元数据
-  parts.push(`# 世界卡：${worldCard.metadata.title}`);
-  if (worldCard.metadata.description) {
-    parts.push(`概述：${worldCard.metadata.description}`);
+  parts.push(`# 世界卡：${worldCard.name}`);
+  if (worldCard.description) {
+    parts.push(`概述：${worldCard.description}`);
   }
-  parts.push(`内容分级：${worldCard.metadata.contentRating}`);
+  parts.push(`来源：${worldCard.manifest.source}`);
 
   // 地理实体
-  if (worldCard.worldSetting.length > 0) {
-    parts.push('\n## 地理设定');
-    for (const entity of worldCard.worldSetting) {
-      parts.push(`### ${entity.name}`);
+  const settings = Object.values(snap.world_setting.settings);
+  if (settings.length > 0) {
+    parts.push("\n## 地理设定");
+    for (const entity of settings) {
+      parts.push(`### ${entity.display_name}`);
+      if (entity.atmosphere) parts.push(`氛围：${entity.atmosphere}`);
       const ch = entity.chapters;
-      if (ch.here_now) parts.push(`当前状态：${ch.here_now}`);
-      if (ch.social_fabric) parts.push(`社会结构：${ch.social_fabric}`);
-      if (ch.order) parts.push(`秩序与法律：${ch.order}`);
-      if (ch.world_law) parts.push(`自然法则：${ch.world_law}`);
-      if (ch.rhythm) parts.push(`生活节奏：${ch.rhythm}`);
-      if (ch.narrative_core) parts.push(`叙事核心：${ch.narrative_core}`);
+      if (ch.here_now.length > 0) parts.push(`当前状态：${ch.here_now.join("；")}`);
+      if (ch.social_fabric.length > 0) parts.push(`社会结构：${ch.social_fabric.join("；")}`);
+      if (ch.order.length > 0) parts.push(`秩序与法律：${ch.order.join("；")}`);
+      if (ch.world_law.length > 0) parts.push(`自然法则：${ch.world_law.join("；")}`);
+      if (ch.rhythm.length > 0) parts.push(`生活节奏：${ch.rhythm.join("；")}`);
+      if (ch.narrative_core.length > 0) parts.push(`叙事核心：${ch.narrative_core.join("；")}`);
       if (entity.sites.length > 0) {
-        parts.push(`子地点：${entity.sites.map((s) => s.name).join('、')}`);
+        const siteTexts = entity.sites.map((s) => {
+          const spots = s.spots.map((sp) => sp.spot).join("、");
+          return `${s.site}（${spots}）`;
+        });
+        parts.push(`子地点：${siteTexts.join("；")}`);
       }
+    }
+    if (snap.world_setting._summary) {
+      parts.push(`地理总结：${snap.world_setting._summary}`);
     }
   }
 
   // 角色数据库
-  if (worldCard.characterDatabase.length > 0) {
-    parts.push('\n## 角色数据库');
-    for (const npc of worldCard.characterDatabase) {
-      parts.push(`- ${npc.name}（${npc.race}，${npc.identity}）`);
-      if (npc.tone) parts.push(`  对话风格：${npc.tone}`);
-      if (npc.location) parts.push(`  常出没地点：${npc.location}`);
-      if (npc.routine) parts.push(`  作息：${npc.routine}`);
+  const charEntries = Object.entries(snap.character_database).filter(([k]) => k !== "_summary");
+  if (charEntries.length > 0) {
+    parts.push("\n## 角色数据库");
+    for (const [, npc] of charEntries) {
+      parts.push(`- ${npc.name}（${npc.species}，${npc.role}）`);
+      if (npc.dialogue_tone) parts.push(`  对话风格：${npc.dialogue_tone}`);
+      if (npc.affiliation) parts.push(`  阵营：${npc.affiliation}`);
+      if (npc.combat_style) parts.push(`  战斗风格：${npc.combat_style}`);
+      if (npc.hidden_motive) parts.push(`  隐藏动机：${npc.hidden_motive}`);
+      if (npc.current_goal) parts.push(`  当前目标：${npc.current_goal}`);
     }
   }
 
   // 世界时间线
-  if (worldCard.worldTimeline.length > 0) {
-    parts.push('\n## 世界时间线');
-    for (const event of worldCard.worldTimeline) {
-      parts.push(`- [${event.timeLabel}] ${event.title}：${event.description}`);
+  if (snap.world_timeline.events.length > 0) {
+    parts.push("\n## 世界时间线");
+    for (const event of snap.world_timeline.events) {
+      const locStr = event.location ? `${event.location.country}/${event.location.site}` : "";
+      parts.push(`- [${event.time}] ${event.content}${locStr ? ` @${locStr}` : ""}`);
+    }
+    if (snap.world_timeline._summary) {
+      parts.push(`时间线总结：${snap.world_timeline._summary}`);
     }
   }
 
   // Prompt 模块
-  if (worldCard.promptModules.length > 0) {
-    parts.push('\n## Prompt 模块');
-    for (const mod of worldCard.promptModules) {
-      parts.push(`### ${mod.type}`);
+  const modules = Object.entries(snap.prompt_modules.modules);
+  if (modules.length > 0) {
+    parts.push("\n## Prompt 模块");
+    for (const [name, mod] of modules) {
+      parts.push(`### ${name}`);
       parts.push(mod.content);
+    }
+    if (snap.prompt_modules._summary) {
+      parts.push(`模块总结：${snap.prompt_modules._summary}`);
     }
   }
 
   // 世界法则
-  if (worldCard.laws.length > 0) {
-    parts.push('\n## 世界法则');
-    for (const law of worldCard.laws) {
-      parts.push(`- ${law.name}：${law.effect}`);
-      if (law.triggerCondition) parts.push(`  触发条件：${law.triggerCondition}`);
+  const laws = Object.values(snap.laws);
+  if (laws.length > 0) {
+    parts.push("\n## 世界法则");
+    for (const law of laws) {
+      parts.push(`- ${law.name}（${law.scope}）：${law.body}`);
     }
   }
 
   // 自定义机制
-  if (worldCard.mods.length > 0) {
-    parts.push('\n## 自定义机制');
-    for (const mod of worldCard.mods) {
-      parts.push(`- ${mod.name}：${mod.effect}`);
+  const mods = Object.values(snap.mods);
+  if (mods.length > 0) {
+    parts.push("\n## 自定义机制");
+    for (const mod of mods) {
+      parts.push(`- ${mod.name}（${mod.ref}）：${mod.prose}`);
     }
   }
 
   // 关键道具
-  if (worldCard.artifacts.length > 0) {
-    parts.push('\n## 关键道具');
-    for (const art of worldCard.artifacts) {
-      parts.push(`- ${art.name}：${art.description}`);
-      if (art.effect) parts.push(`  效果：${art.effect}`);
+  const artifacts = Object.values(snap.artifacts);
+  if (artifacts.length > 0) {
+    parts.push("\n## 关键道具");
+    for (const art of artifacts) {
+      parts.push(`- ${art.name}：${art.desc}`);
+      if (art.owner) parts.push(`  持有者：${art.owner}`);
+      if (art.location) parts.push(`  位置：${art.location}`);
     }
   }
 
   // 开场白
-  if (worldCard.openingGreeting) {
-    parts.push('\n## 开场白');
-    parts.push(worldCard.openingGreeting);
+  if (snap.opening_greeting) {
+    parts.push("\n## 开场白");
+    parts.push(snap.opening_greeting);
   }
 
-  return parts.join('\n');
+  return parts.join("\n");
 }
 
 // ============================================================================
@@ -304,34 +328,34 @@ export function buildMemorySummariesText(
 
   // C 级摘要（全量注入，约 200 tokens）
   if (cSummaries.length > 0) {
-    parts.push('## C 级摘要（史诗）');
+    parts.push("## C 级摘要（史诗）");
     for (const c of cSummaries) {
       parts.push(`[${c.startRound}-${c.endRound}轮] ${c.epicArc}`);
-      parts.push(`主线：${c.mainPlot.join('；')}`);
+      parts.push(`主线：${c.mainPlot.join("；")}`);
       parts.push(`衔接：${c.continuityHook}`);
     }
   }
 
   // B 级摘要（全量注入，约 400 tokens）
   if (bSummaries.length > 0) {
-    parts.push('\n## B 级摘要（语义）');
+    parts.push("\n## B 级摘要（语义）");
     for (const b of bSummaries) {
       parts.push(`[${b.startRound}-${b.endRound}轮] ${b.summaryText}`);
       if (b.openThreads.length > 0) {
-        parts.push(`未决线索：${b.openThreads.join('；')}`);
+        parts.push(`未决线索：${b.openThreads.join("；")}`);
       }
     }
   }
 
   // A 级摘要（引用化压缩，约 2000 tokens）
   if (aSummaries.length > 0) {
-    parts.push('\n## A 级摘要（情节）');
+    parts.push("\n## A 级摘要（情节）");
     for (const a of aSummaries) {
       parts.push(compressASummaryRef(a));
     }
   }
 
-  return parts.join('\n');
+  return parts.join("\n");
 }
 
 // ============================================================================
@@ -339,13 +363,10 @@ export function buildMemorySummariesText(
 // ============================================================================
 
 /** 构建近 N 轮对话上下文（仅剧情正文 + 判定汇总） */
-export function buildRecentContextText(
-  messages: TrpgMessage[],
-  windowSize = 8,
-): string {
+export function buildRecentContextText(messages: TrpgMessage[], windowSize = 8): string {
   // 按 role 过滤，避免 tool 消息干扰和严格交替假设
-  const userMsgs = messages.filter((m) => m.role === 'user');
-  const assistantMsgs = messages.filter((m) => m.role === 'assistant');
+  const userMsgs = messages.filter((m) => m.role === "user");
+  const assistantMsgs = messages.filter((m) => m.role === "assistant");
   // 取最近 windowSize 轮（user + assistant 各 windowSize 条）
   const recentUser = userMsgs.slice(-windowSize);
   const recentAssistant = assistantMsgs.slice(-windowSize);
@@ -366,7 +387,7 @@ export function buildRecentContextText(
     }
   }
 
-  return parts.join('\n');
+  return parts.join("\n");
 }
 
 // ============================================================================
@@ -374,15 +395,13 @@ export function buildRecentContextText(
 // ============================================================================
 
 /** 构建向量记忆召回文本（Top-8） */
-export function buildVectorMemoryText(
-  memories: Array<{ content: string; score: number }>,
-): string {
-  if (memories.length === 0) return '';
-  const parts: string[] = ['## 向量记忆召回（Top-8）'];
+export function buildVectorMemoryText(memories: Array<{ content: string; score: number }>): string {
+  if (memories.length === 0) return "";
+  const parts: string[] = ["## 向量记忆召回（Top-8）"];
   for (const m of memories) {
     parts.push(`- [相似度 ${m.score.toFixed(2)}] ${m.content}`);
   }
-  return parts.join('\n');
+  return parts.join("\n");
 }
 
 // ============================================================================
@@ -413,9 +432,12 @@ export interface BuildTrpgContextResult {
   /** 系统提示词（第一层 + 第二层） */
   systemPrompt: string;
   /** 消息列表（第三层动态内容 + 玩家输入） */
-  messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>;
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
   /** 工具描述列表 */
-  tools: Array<{ type: 'function'; function: { name: string; description: string; parameters: Record<string, unknown> } }>;
+  tools: Array<{
+    type: "function";
+    function: { name: string; description: string; parameters: Record<string, unknown> };
+  }>;
   /** 当前轮的半稳定层缓存（传给下一轮） */
   semiStable: SemiStableCache;
 }
@@ -429,46 +451,45 @@ export interface BuildTrpgContextResult {
  * 3. 动态层（消息列表）：A/B/C 摘要 + 向量记忆 + 近 8 轮 + 玩家输入
  */
 export function buildTrpgContext(params: BuildTrpgContextParams): BuildTrpgContextResult {
-  const { character, gameState, worldCard, save, vectorMemories, playerInput, prevSemiStable } = params;
+  const { character, gameState, worldCard, save, vectorMemories, playerInput, prevSemiStable } =
+    params;
 
   // === 第一层：共享前缀层（始终稳定） ===
-  const layer1 = [
-    TRPG_GM_PRESET_CONTENT,
-    '\n---\n',
-    buildWorldCardText(worldCard),
-  ].join('\n');
+  const layer1 = [TRPG_GM_PRESET_CONTENT, "\n---\n", buildWorldCardText(worldCard)].join("\n");
 
   // === 第二层：半稳定层（仅在 HP/条件/位置变化时重算，否则复用缓存） ===
-  const shouldUpdate = !prevSemiStable || shouldUpdateSemiStable(
-    prevSemiStable.character,
-    character,
-    prevSemiStable.gameState,
-    gameState,
-  );
+  const shouldUpdate =
+    !prevSemiStable ||
+    shouldUpdateSemiStable(
+      prevSemiStable.character,
+      character,
+      prevSemiStable.gameState,
+      gameState,
+    );
 
   // v0.8.0: KV 缓存命中率监控
   if (prevSemiStable) {
     if (shouldUpdate) {
-      console.log('[TRPG Cache] 半稳定层未命中（HP/条件/位置变化），重新计算 layer2');
+      console.log("[TRPG Cache] 半稳定层未命中（HP/条件/位置变化），重新计算 layer2");
     } else {
-      console.log('[TRPG Cache] 半稳定层命中，复用上一轮 layer2（字节级一致）');
+      console.log("[TRPG Cache] 半稳定层命中，复用上一轮 layer2（字节级一致）");
     }
   } else {
-    console.log('[TRPG Cache] 首轮请求，无缓存可用');
+    console.log("[TRPG Cache] 首轮请求，无缓存可用");
   }
 
   let layer2: string;
   if (shouldUpdate) {
     layer2 = [
-      '\n---\n## 当前角色卡',
-      '```json',
+      "\n---\n## 当前角色卡",
+      "```json",
       buildCharacterJson(character),
-      '```',
-      '\n## 当前游戏状态',
-      '```json',
+      "```",
+      "\n## 当前游戏状态",
+      "```json",
       buildGameStateJson(gameState),
-      '```',
-    ].join('\n');
+      "```",
+    ].join("\n");
   } else {
     // 复用上一轮的 layer2（字节级一致，命中 KV 缓存）
     layer2 = prevSemiStable!.layer2;
@@ -481,11 +502,7 @@ export function buildTrpgContext(params: BuildTrpgContextParams): BuildTrpgConte
   const dynamicParts: string[] = [];
 
   // A/B/C 摘要
-  const summariesText = buildMemorySummariesText(
-    save.aSummaries,
-    save.bSummaries,
-    save.cSummaries,
-  );
+  const summariesText = buildMemorySummariesText(save.aSummaries, save.bSummaries, save.cSummaries);
   if (summariesText) dynamicParts.push(summariesText);
 
   // 向量记忆 Top-8
@@ -497,19 +514,19 @@ export function buildTrpgContext(params: BuildTrpgContextParams): BuildTrpgConte
   if (recentText) dynamicParts.push(recentText);
 
   // 构建消息列表
-  const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [];
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [];
 
   // 动态层作为系统消息注入（追加在 prompt 末尾的动态层区域）
   if (dynamicParts.length > 0) {
     messages.push({
-      role: 'system',
-      content: dynamicParts.join('\n\n---\n\n'),
+      role: "system",
+      content: dynamicParts.join("\n\n---\n\n"),
     });
   }
 
   // 玩家输入
   messages.push({
-    role: 'user',
+    role: "user",
     content: playerInput,
   });
 

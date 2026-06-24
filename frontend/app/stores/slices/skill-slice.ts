@@ -14,12 +14,7 @@ import type { AppStoreState, SkillSlice } from "~/stores/slices/types";
 /** 技能在 IndexedDB 中的存储键 */
 const SKILLS_STORAGE_KEY = "skills";
 
-export const createSkillSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  SkillSlice
-> = (set, get) => ({
+export const createSkillSlice: StateCreator<AppStoreState, [], [], SkillSlice> = (set, get) => ({
   // ===== 状态初始值 =====
   skills: [],
 
@@ -44,9 +39,7 @@ export const createSkillSlice: StateCreator<
   toggleSkillEnabled: (id) =>
     set((state) => ({
       skills: state.skills.map((s) =>
-        s.id === id
-          ? { ...s, enabled: !s.enabled, updatedAt: Date.now() }
-          : s,
+        s.id === id ? { ...s, enabled: !s.enabled, updatedAt: Date.now() } : s,
       ),
     })),
 
@@ -69,9 +62,7 @@ export const createSkillSlice: StateCreator<
   toggleSkillGlobalEnabled: (id) =>
     set((state) => ({
       skills: state.skills.map((s) =>
-        s.id === id
-          ? { ...s, enabled: !s.enabled, updatedAt: Date.now() }
-          : s,
+        s.id === id ? { ...s, enabled: !s.enabled, updatedAt: Date.now() } : s,
       ),
     })),
 

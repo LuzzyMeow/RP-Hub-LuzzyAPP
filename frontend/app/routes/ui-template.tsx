@@ -66,12 +66,7 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  springEnter,
-  pressable,
-  pressableSubtle,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressable, pressableSubtle, fadeSlide } from "~/lib/motion-presets";
 import { toast } from "sonner";
 
 export function meta(_: Route.MetaArgs) {
@@ -109,9 +104,7 @@ export default function UiTemplatePage() {
   const [loaded, setLoaded] = React.useState(false);
   const [editing, setEditing] = React.useState<UiTemplate | null>(null);
   const [isNew, setIsNew] = React.useState(false);
-  const [showCharDialog, setShowCharDialog] = React.useState<UiTemplate | null>(
-    null,
-  );
+  const [showCharDialog, setShowCharDialog] = React.useState<UiTemplate | null>(null);
   const [viewing, setViewing] = React.useState<UiTemplate | null>(null);
   const [fullscreenOpen, setFullscreenOpen] = React.useState(false);
   // v0.4.1: 从角色卡导入 UI 模板
@@ -182,9 +175,7 @@ export default function UiTemplatePage() {
       updateTemplates((prev) => [...prev, saved]);
       toast.success("模板已创建");
     } else {
-      updateTemplates((prev) =>
-        prev.map((t) => (t.id === saved.id ? saved : t)),
-      );
+      updateTemplates((prev) => prev.map((t) => (t.id === saved.id ? saved : t)));
       toast.success("模板已更新");
     }
     setEditing(null);
@@ -208,9 +199,7 @@ export default function UiTemplatePage() {
   /** 切换启用状态 */
   const handleToggle = React.useCallback(
     (id: string, enabled: boolean) => {
-      updateTemplates((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, enabled } : t)),
-      );
+      updateTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, enabled } : t)));
     },
     [updateTemplates],
   );
@@ -227,11 +216,7 @@ export default function UiTemplatePage() {
   const handleSaveCharacters = React.useCallback(
     (template: UiTemplate, charUuids: string[]) => {
       updateTemplates((prev) =>
-        prev.map((t) =>
-          t.id === template.id
-            ? { ...t, enabledForCharacters: charUuids }
-            : t,
-        ),
+        prev.map((t) => (t.id === template.id ? { ...t, enabledForCharacters: charUuids } : t)),
       );
       setShowCharDialog(null);
       toast.success("角色卡绑定已更新");
@@ -337,23 +322,14 @@ export default function UiTemplatePage() {
             <div className="mx-auto max-w-3xl space-y-3 pb-4">
               <AnimatePresence mode="popLayout">
                 {templates.map((t, i) => {
-                  const isGlobal =
-                    !t.enabledForCharacters ||
-                    t.enabledForCharacters.length === 0;
+                  const isGlobal = !t.enabledForCharacters || t.enabledForCharacters.length === 0;
                   return (
-                    <motion.div
-                      key={t.id}
-                      layout
-                      {...springEnter}
-                      custom={i}
-                    >
+                    <motion.div key={t.id} layout {...springEnter} custom={i}>
                       <Card className="gap-2 p-4 transition-all hover:shadow-md">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <h3 className="truncate font-medium">
-                                {t.name || "未命名"}
-                              </h3>
+                              <h3 className="truncate font-medium">{t.name || "未命名"}</h3>
                               {t.enabled && (
                                 <Badge variant="secondary" className="text-xs">
                                   已启用
@@ -380,9 +356,7 @@ export default function UiTemplatePage() {
                           </div>
                           <Switch
                             checked={t.enabled}
-                            onCheckedChange={(checked) =>
-                              handleToggle(t.id, checked)
-                            }
+                            onCheckedChange={(checked) => handleToggle(t.id, checked)}
                           />
                         </div>
                         <div className="flex items-center justify-end gap-1">
@@ -442,9 +416,7 @@ export default function UiTemplatePage() {
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-3xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建模板" : "编辑模板"}</DialogTitle>
-            <DialogDescription>
-              编辑 UI 模板的名称、注入类型与内容
-            </DialogDescription>
+            <DialogDescription>编辑 UI 模板的名称、注入类型与内容</DialogDescription>
           </DialogHeader>
           {editing && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
@@ -464,10 +436,7 @@ export default function UiTemplatePage() {
                     <Select
                       value={editing.injectionType ?? "markdown"}
                       onValueChange={(v) =>
-                        updateField(
-                          "injectionType",
-                          v as UiTemplate["injectionType"],
-                        )
+                        updateField("injectionType", v as UiTemplate["injectionType"])
                       }
                     >
                       <SelectTrigger>
@@ -484,9 +453,7 @@ export default function UiTemplatePage() {
                     <div className="flex items-center gap-2 rounded-md border p-3">
                       <Switch
                         checked={editing.enabled}
-                        onCheckedChange={(checked) =>
-                          updateField("enabled", checked)
-                        }
+                        onCheckedChange={(checked) => updateField("enabled", checked)}
                       />
                       <label className="text-sm">启用此模板</label>
                     </div>
@@ -495,9 +462,7 @@ export default function UiTemplatePage() {
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">
-                      内容（支持{" "}
-                      {INJECTION_TYPE_LABELS[editing.injectionType ?? "markdown"]}{" "}
-                      语法）
+                      内容（支持 {INJECTION_TYPE_LABELS[editing.injectionType ?? "markdown"]} 语法）
                     </label>
                     <Button
                       variant="ghost"
@@ -571,16 +536,11 @@ export default function UiTemplatePage() {
       </Dialog>
 
       {/* 角色卡绑定弹窗 */}
-      <Dialog
-        open={!!showCharDialog}
-        onOpenChange={(o) => !o && setShowCharDialog(null)}
-      >
+      <Dialog open={!!showCharDialog} onOpenChange={(o) => !o && setShowCharDialog(null)}>
         <DialogContent className="max-h-[80vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>角色卡绑定</DialogTitle>
-            <DialogDescription>
-              选择启用此 UI 模板的角色卡（不选则全局启用）
-            </DialogDescription>
+            <DialogDescription>选择启用此 UI 模板的角色卡（不选则全局启用）</DialogDescription>
           </DialogHeader>
           {showCharDialog && (
             <CharBindingContent
@@ -618,12 +578,7 @@ interface CharBindingContentProps {
   onCancel: () => void;
 }
 
-function CharBindingContent({
-  template,
-  characters,
-  onSave,
-  onCancel,
-}: CharBindingContentProps) {
+function CharBindingContent({ template, characters, onSave, onCancel }: CharBindingContentProps) {
   const [selected, setSelected] = React.useState<Set<string>>(
     new Set(template.enabledForCharacters ?? []),
   );
@@ -645,9 +600,7 @@ function CharBindingContent({
       <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="grid gap-2 py-2">
           {characters.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">
-              暂无角色卡
-            </div>
+            <div className="py-4 text-center text-xs text-muted-foreground">暂无角色卡</div>
           ) : (
             characters.map((c) => (
               <label
@@ -667,18 +620,13 @@ function CharBindingContent({
       <DialogFooter>
         <div className="flex w-full items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            {selected.size === 0
-              ? "全局启用（所有角色）"
-              : `已选 ${selected.size} 个角色`}
+            {selected.size === 0 ? "全局启用（所有角色）" : `已选 ${selected.size} 个角色`}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onCancel}>
               取消
             </Button>
-            <Button
-              onClick={() => onSave(template, Array.from(selected))}
-              {...pressable}
-            >
+            <Button onClick={() => onSave(template, Array.from(selected))} {...pressable}>
               <IconCheck className="mr-2 size-4" />
               确定
             </Button>

@@ -233,12 +233,10 @@ const extractPersistableData = (state: SettingsSlice): Record<string, unknown> =
 // Slice 实现
 // ============================================================================
 
-export const createSettingsSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  SettingsSlice
-> = (set, get) => ({
+export const createSettingsSlice: StateCreator<AppStoreState, [], [], SettingsSlice> = (
+  set,
+  get,
+) => ({
   // ===== 状态初始值 =====
   theme: "light",
   apiUrl: BUILTIN_PROVIDERS[0].apiUrl,
@@ -275,16 +273,13 @@ export const createSettingsSlice: StateCreator<
 
   // ===== Actions：主题 =====
   setTheme: (theme) => set({ theme }),
-  toggleTheme: () =>
-    set((state) => ({ theme: state.theme === "light" ? "dark" : "light" })),
+  toggleTheme: () => set((state) => ({ theme: state.theme === "light" ? "dark" : "light" })),
 
   // ===== Actions：API 基础 =====
   setApiUrl: (apiUrl) =>
     set((state) => {
       // v0.3.2: 内置供应商 URL 覆盖持久化到 builtinUrlOverrides
-      const isBuiltin = BUILTIN_PROVIDERS.some(
-        (p) => p.id === state.apiProviderId,
-      );
+      const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === state.apiProviderId);
       if (isBuiltin) {
         return {
           apiUrl,
@@ -316,16 +311,12 @@ export const createSettingsSlice: StateCreator<
   setCustomRequestBody: (customRequestBody) =>
     set((state) => {
       // 若当前激活的是自定义供应商，同步更新到供应商配置
-      const isCustom = state.customApiProviders.some(
-        (p) => p.id === state.apiProviderId,
-      );
+      const isCustom = state.customApiProviders.some((p) => p.id === state.apiProviderId);
       if (isCustom) {
         return {
           customRequestBody,
           customApiProviders: state.customApiProviders.map((p) =>
-            p.id === state.apiProviderId
-              ? { ...p, customRequestBody }
-              : p,
+            p.id === state.apiProviderId ? { ...p, customRequestBody } : p,
           ),
         };
       }
@@ -361,14 +352,10 @@ export const createSettingsSlice: StateCreator<
       };
       // 保存当前 customRequestBody 到当前自定义供应商
       let customApiProviders = state.customApiProviders;
-      const currentProvider = customApiProviders.find(
-        (p) => p.id === state.apiProviderId,
-      );
+      const currentProvider = customApiProviders.find((p) => p.id === state.apiProviderId);
       if (currentProvider) {
         customApiProviders = customApiProviders.map((p) =>
-          p.id === state.apiProviderId
-            ? { ...p, customRequestBody: state.customRequestBody }
-            : p,
+          p.id === state.apiProviderId ? { ...p, customRequestBody: state.customRequestBody } : p,
         );
       }
       // 加载新供应商的 customRequestBody
@@ -378,13 +365,12 @@ export const createSettingsSlice: StateCreator<
           : customApiProviders.find((p) => p.id === provider.id);
       const newCustomRequestBody =
         newProvider?.customRequestBody ??
-        (BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.customRequestBody ??
-          "");
+        BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.customRequestBody ??
+        "";
       // v0.3.5: 加载新供应商的选中模型
       // 优先使用该供应商上次选中的模型；若无则使用第一个模型（添加前缀）
       const newProviderModels =
-        newProvider?.models ??
-        (BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.models ?? []);
+        newProvider?.models ?? BUILTIN_PROVIDERS.find((p) => p.id === provider.id)?.models ?? [];
       const savedModel = apiProviderSelectedModel[provider.id];
       let newModelName = "";
       if (savedModel) {
@@ -417,10 +403,7 @@ export const createSettingsSlice: StateCreator<
       .some((p) => p.id === id);
     if (exists) throw new Error("供应商 ID 已存在");
     set((state) => ({
-      customApiProviders: [
-        ...state.customApiProviders,
-        { ...provider, id, isBuiltin: false },
-      ],
+      customApiProviders: [...state.customApiProviders, { ...provider, id, isBuiltin: false }],
       apiProviderKeys: {
         ...state.apiProviderKeys,
         [id]: state.apiProviderKeys[id] ?? "",
@@ -430,14 +413,10 @@ export const createSettingsSlice: StateCreator<
 
   removeCustomProvider: (id) =>
     set((state) => {
-      const exists = state.customApiProviders.some(
-        (p) => p.id === id && !p.isBuiltin,
-      );
+      const exists = state.customApiProviders.some((p) => p.id === id && !p.isBuiltin);
       if (!exists) return {}; // 未找到或为内置供应商，不做改动
 
-      const customApiProviders = state.customApiProviders.filter(
-        (p) => p.id !== id,
-      );
+      const customApiProviders = state.customApiProviders.filter((p) => p.id !== id);
       // 删除对应的 key
       const apiProviderKeys: Record<string, string> = {
         ...state.apiProviderKeys,
@@ -500,7 +479,10 @@ export const createSettingsSlice: StateCreator<
     ];
   },
 
-  getProviderById: (id) => get().getAllProviders().find((p) => p.id === id),
+  getProviderById: (id) =>
+    get()
+      .getAllProviders()
+      .find((p) => p.id === id),
 
   // ===== Actions：供应商（v0.2.0 新增） =====
   setProviderApiUrl: (id, url) =>
@@ -529,9 +511,7 @@ export const createSettingsSlice: StateCreator<
   setProviderDisplayName: (id, displayName) =>
     set((state) => ({
       customApiProviders: state.customApiProviders.map((p) =>
-        p.id === id
-          ? { ...p, displayName: displayName.slice(0, 20) }
-          : p,
+        p.id === id ? { ...p, displayName: displayName.slice(0, 20) } : p,
       ),
     })),
 
@@ -559,7 +539,8 @@ export const createSettingsSlice: StateCreator<
       const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === providerId);
       if (isBuiltin) {
         const builtinProvider = BUILTIN_PROVIDERS.find((p) => p.id === providerId)!;
-        const currentModels = state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
+        const currentModels =
+          state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
         return {
           builtinModelOverrides: {
             ...state.builtinModelOverrides,
@@ -569,9 +550,7 @@ export const createSettingsSlice: StateCreator<
       }
       return {
         customApiProviders: state.customApiProviders.map((p) =>
-          p.id === providerId
-            ? { ...p, models: [...(p.models || []), model] }
-            : p,
+          p.id === providerId ? { ...p, models: [...(p.models || []), model] } : p,
         ),
       };
     }),
@@ -581,7 +560,8 @@ export const createSettingsSlice: StateCreator<
       const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === providerId);
       if (isBuiltin) {
         const builtinProvider = BUILTIN_PROVIDERS.find((p) => p.id === providerId)!;
-        const currentModels = state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
+        const currentModels =
+          state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
         return {
           builtinModelOverrides: {
             ...state.builtinModelOverrides,
@@ -606,13 +586,12 @@ export const createSettingsSlice: StateCreator<
       const isBuiltin = BUILTIN_PROVIDERS.some((p) => p.id === providerId);
       if (isBuiltin) {
         const builtinProvider = BUILTIN_PROVIDERS.find((p) => p.id === providerId)!;
-        const currentModels = state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
+        const currentModels =
+          state.builtinModelOverrides[providerId] ?? builtinProvider.models ?? [];
         return {
           builtinModelOverrides: {
             ...state.builtinModelOverrides,
-            [providerId]: currentModels.map((m) =>
-              m.id === modelId ? { ...m, ...partial } : m,
-            ),
+            [providerId]: currentModels.map((m) => (m.id === modelId ? { ...m, ...partial } : m)),
           },
         };
       }
@@ -621,9 +600,7 @@ export const createSettingsSlice: StateCreator<
           p.id === providerId
             ? {
                 ...p,
-                models: (p.models || []).map((m) =>
-                  m.id === modelId ? { ...m, ...partial } : m,
-                ),
+                models: (p.models || []).map((m) => (m.id === modelId ? { ...m, ...partial } : m)),
               }
             : p,
         ),
@@ -644,9 +621,7 @@ export const createSettingsSlice: StateCreator<
       let defaultProfileData = state.defaultProfileData;
       if (state.activeProfileId) {
         // 自定义档案激活：同步到 userProfiles
-        const idx = userProfiles.findIndex(
-          (p) => p.uuid === state.activeProfileId,
-        );
+        const idx = userProfiles.findIndex((p) => p.uuid === state.activeProfileId);
         if (idx !== -1) {
           userProfiles = [...userProfiles];
           userProfiles[idx] = { ...newUser, uuid: state.activeProfileId };
@@ -690,9 +665,10 @@ export const createSettingsSlice: StateCreator<
       const profile = state.userProfiles.find((p) => p.uuid === uuid);
       if (!profile) return {};
       // v0.5.8: 离开默认档案时快照当前 user 到 defaultProfileData
-      const defaultProfileData = (!state.activeProfileId && state.defaultProfileActive)
-        ? { ...state.user, uuid: "user" }
-        : state.defaultProfileData;
+      const defaultProfileData =
+        !state.activeProfileId && state.defaultProfileActive
+          ? { ...state.user, uuid: "user" }
+          : state.defaultProfileData;
       return {
         activeProfileId: uuid,
         defaultProfileActive: false,
@@ -703,9 +679,7 @@ export const createSettingsSlice: StateCreator<
 
   removeProfile: (uuid) =>
     set((state) => {
-      const userProfiles = state.userProfiles.filter(
-        (p) => p.uuid !== uuid,
-      );
+      const userProfiles = state.userProfiles.filter((p) => p.uuid !== uuid);
       // 若删除的是当前激活的档案，回退到第一个档案或默认档案
       if (state.activeProfileId === uuid) {
         if (userProfiles.length === 0) {
@@ -785,16 +759,12 @@ export const createSettingsSlice: StateCreator<
 
   setSplashShown: (shown) => set({ splashShown: shown }),
 
-  setTrpgNoticeDismissed: (dismissed) =>
-    set({ trpgNoticeDismissed: dismissed }),
+  setTrpgNoticeDismissed: (dismissed) => set({ trpgNoticeDismissed: dismissed }),
 
   // ===== Actions：持久化（IndexedDB 备份） =====
   loadFromStorage: async () => {
     try {
-      const data = await getItem<Record<string, unknown>>(
-        "settings",
-        "settings",
-      );
+      const data = await getItem<Record<string, unknown>>("settings", "settings");
       if (!data) return;
       // v0.3.0 迁移：Sta1N 供应商已移除，迁移到 DeepSeek
       const rawProviderId = (data.apiProviderId as string) ?? "";
@@ -802,7 +772,7 @@ export const createSettingsSlice: StateCreator<
       const migratedProviderId = needsMigration ? "deepseek" : rawProviderId;
       const migratedApiUrl = needsMigration
         ? BUILTIN_PROVIDERS.find((p) => p.id === "deepseek")!.apiUrl
-        : (data.apiUrl as string) ?? "";
+        : ((data.apiUrl as string) ?? "");
       const migratedApiKey = needsMigration
         ? ((data.apiProviderKeys as Record<string, string>)?.["deepseek"] ?? "")
         : ((data.apiKey as string) ?? "");
@@ -861,47 +831,48 @@ export const createSettingsSlice: StateCreator<
         defaultProfileData: (data.defaultProfileData as UserProfile) ?? state.defaultProfileData,
         // v0.2.0 新增字段；v0.6.5-hotfix: 与 DEFAULT 合并，确保新字段（customRequestBody）自动补默认值
         translationSettings:
-          data.translationSettings &&
-          typeof data.translationSettings === "object"
-            ? { ...DEFAULT_TRANSLATION_SETTINGS, ...(data.translationSettings as TranslationSettings) }
+          data.translationSettings && typeof data.translationSettings === "object"
+            ? {
+                ...DEFAULT_TRANSLATION_SETTINGS,
+                ...(data.translationSettings as TranslationSettings),
+              }
             : state.translationSettings,
         highlightSettings:
-          data.highlightSettings &&
-          typeof data.highlightSettings === "object"
+          data.highlightSettings && typeof data.highlightSettings === "object"
             ? (data.highlightSettings as HighlightSettings)
             : state.highlightSettings,
         toolGlobalSettings: (() => {
           const saved = data.toolGlobalSettings;
-          if (!saved || typeof saved !== 'object') {
+          if (!saved || typeof saved !== "object") {
             return { ...DEFAULT_TOOL_GLOBAL_SETTINGS };
           }
           // v0.8.1: 强制迁移 force → active，补全 maxAgentSteps 默认值
           const savedMode = (saved as ToolGlobalSettings).mode;
           return {
-            mode: savedMode === 'force' ? 'active' : (savedMode ?? 'active'),
-            maxAgentSteps: typeof (saved as ToolGlobalSettings).maxAgentSteps === 'number'
-              ? Math.max(1, Math.min(20, (saved as ToolGlobalSettings).maxAgentSteps!))
-              : 10,
+            mode: savedMode === "force" ? "active" : (savedMode ?? "active"),
+            maxAgentSteps:
+              typeof (saved as ToolGlobalSettings).maxAgentSteps === "number"
+                ? Math.max(1, Math.min(20, (saved as ToolGlobalSettings).maxAgentSteps!))
+                : 10,
           };
         })(),
         builtinToolConfigs:
-          Array.isArray(data.builtinToolConfigs) &&
-          data.builtinToolConfigs.length > 0
+          Array.isArray(data.builtinToolConfigs) && data.builtinToolConfigs.length > 0
             ? (() => {
                 // v0.7.2-fix: 过滤掉已删除的旧类型（如 world-search），防止 tools.tsx 渲染崩溃
-                const persisted = (data.builtinToolConfigs as BuiltinToolConfig[])
-                  .filter((c) => VALID_BUILTIN_TOOL_TYPES.has(c.type));
+                const persisted = (data.builtinToolConfigs as BuiltinToolConfig[]).filter((c) =>
+                  VALID_BUILTIN_TOOL_TYPES.has(c.type),
+                );
                 // v0.7.3-fix: 以默认配置为基础，合并持久化数据，确保新字段自动补全
                 return DEFAULT_BUILTIN_TOOL_CONFIGS.map((defaultConfig) => {
                   const persistedConfig = persisted.find((c) => c.type === defaultConfig.type);
-                  return persistedConfig ? { ...defaultConfig, ...persistedConfig } : { ...defaultConfig };
+                  return persistedConfig
+                    ? { ...defaultConfig, ...persistedConfig }
+                    : { ...defaultConfig };
                 });
               })()
             : state.builtinToolConfigs,
-        splashShown:
-          typeof data.splashShown === "boolean"
-            ? data.splashShown
-            : state.splashShown,
+        splashShown: typeof data.splashShown === "boolean" ? data.splashShown : state.splashShown,
         trpgNoticeDismissed:
           typeof data.trpgNoticeDismissed === "boolean"
             ? data.trpgNoticeDismissed

@@ -19,7 +19,7 @@ import type {
   ContentRating,
   OocResult,
   OocCheckItem,
-} from '~/types/trpg';
+} from "~/types/trpg";
 
 /** OOC 审查参数 */
 export interface OocCheckParams {
@@ -30,23 +30,55 @@ export interface OocCheckParams {
 
 /** 元游戏敏感词列表 */
 const META_GAME_KEYWORDS = [
-  '系统', 'GM', 'DM', '规则', '检定', 'd20', 'DC', 'HP', 'AC',
-  '经验值', 'XP', '等级', '属性值', '技能点', '升级',
-  '存档', '读档', 'NPC', '脚本', '剧情线',
-  'roll', 'check', 'save', 'modifier', 'bonus',
+  "系统",
+  "GM",
+  "DM",
+  "规则",
+  "检定",
+  "d20",
+  "DC",
+  "HP",
+  "AC",
+  "经验值",
+  "XP",
+  "等级",
+  "属性值",
+  "技能点",
+  "升级",
+  "存档",
+  "读档",
+  "NPC",
+  "脚本",
+  "剧情线",
+  "roll",
+  "check",
+  "save",
+  "modifier",
+  "bonus",
 ];
 
 /** 绕过机制敏感词列表 */
 const BYPASS_KEYWORDS = [
-  '跳过检定', '直接成功', '自动成功', '必定命中', '无视规则',
-  '作弊', '开挂', '无敌', '秒杀', '一击必杀',
-  '跳过', '忽略', '无视限制', '打破规则',
+  "跳过检定",
+  "直接成功",
+  "自动成功",
+  "必定命中",
+  "无视规则",
+  "作弊",
+  "开挂",
+  "无敌",
+  "秒杀",
+  "一击必杀",
+  "跳过",
+  "忽略",
+  "无视限制",
+  "打破规则",
 ];
 
 /** 内容分级敏感词映射 */
 const CONTENT_RATING_SENSITIVE: Record<ContentRating, string[]> = {
-  teen: ['血腥', '暴力', '杀戮', '色情', '毒品', '赌博'],
-  mature: ['极端血腥', '色情', '毒品', '赌博'],
+  teen: ["血腥", "暴力", "杀戮", "色情", "毒品", "赌博"],
+  mature: ["极端血腥", "色情", "毒品", "赌博"],
   unrestricted: [],
 };
 
@@ -65,8 +97,8 @@ function simpleSimilarity(a: string, b: string): number {
   if (longer.includes(shorter)) return shorter.length / longer.length;
 
   // 计算共同字符数
-  const setA = new Set(a.split(''));
-  const setB = new Set(b.split(''));
+  const setA = new Set(a.split(""));
+  const setB = new Set(b.split(""));
   let common = 0;
   for (const ch of setA) {
     if (setB.has(ch)) common++;
@@ -78,49 +110,54 @@ function simpleSimilarity(a: string, b: string): number {
  * 检查元游戏（玩家是否使用角色不应知道的信息）
  */
 function checkMetaGame(input: string): OocCheckItem {
-  return { id: 1, name: '元游戏', result: 'pass', reason: '由 LLM 审查（reasoning_content OOC JSON）' };
+  return {
+    id: 1,
+    name: "元游戏",
+    result: "pass",
+    reason: "由 LLM 审查（reasoning_content OOC JSON）",
+  };
 }
 
-function checkKnowledgeBoundary(
-  input: string,
-  character: TrpgCharacter,
-): OocCheckItem {
-  return { id: 2, name: '知识越界', result: 'pass', reason: '由 LLM 审查（reasoning_content OOC JSON）' };
+function checkKnowledgeBoundary(input: string, character: TrpgCharacter): OocCheckItem {
+  return {
+    id: 2,
+    name: "知识越界",
+    result: "pass",
+    reason: "由 LLM 审查（reasoning_content OOC JSON）",
+  };
 }
 
 /**
  * 检查世界一致性（行动是否与世界卡 laws/mods 冲突）
  */
-function checkWorldConsistency(
-  input: string,
-  worldCard: WorldCard | null,
-): OocCheckItem {
-  if (!worldCard || worldCard.laws.length === 0) {
-    return { id: 3, name: '世界一致性', result: 'pass' };
+function checkWorldConsistency(input: string, worldCard: WorldCard | null): OocCheckItem {
+  if (!worldCard) {
+    return { id: 3, name: "世界一致性", result: "pass" };
+  }
+  const laws = Object.values(worldCard.snapshot.laws);
+  if (laws.length === 0) {
+    return { id: 3, name: "世界一致性", result: "pass" };
   }
 
-  for (const law of worldCard.laws) {
-    if (law.triggerCondition && input.includes(law.triggerCondition)) {
+  for (const law of laws) {
+    if (law.scope && input.includes(law.scope)) {
       return {
         id: 3,
-        name: '世界一致性',
-        result: 'soft_warn',
-        reason: `触发世界法则 "${law.name}"：${law.effect}`,
+        name: "世界一致性",
+        result: "soft_warn",
+        reason: `触发世界法则 "${law.name}"：${law.body}`,
       };
     }
   }
-  return { id: 3, name: '世界一致性', result: 'pass' };
+  return { id: 3, name: "世界一致性", result: "pass" };
 }
 
 /**
  * 检查重复行动（是否与最近输入高度重复）
  */
-function checkRepeatAction(
-  input: string,
-  recentInputs: string[],
-): OocCheckItem {
+function checkRepeatAction(input: string, recentInputs: string[]): OocCheckItem {
   if (!recentInputs || recentInputs.length === 0) {
-    return { id: 4, name: '重复行动', result: 'pass' };
+    return { id: 4, name: "重复行动", result: "pass" };
   }
 
   // 检查最近 5 轮输入
@@ -130,39 +167,36 @@ function checkRepeatAction(
     if (similarity > 0.8) {
       return {
         id: 4,
-        name: '重复行动',
-        result: 'soft_warn',
+        name: "重复行动",
+        result: "soft_warn",
         reason: `与最近输入高度重复（相似度 ${(similarity * 100).toFixed(0)}%）`,
       };
     }
   }
-  return { id: 4, name: '重复行动', result: 'pass' };
+  return { id: 4, name: "重复行动", result: "pass" };
 }
 
 /**
  * 检查内容分级（是否符合世界卡 contentRating）
  */
-function checkContentRating(
-  input: string,
-  worldCard: WorldCard | null,
-): OocCheckItem {
-  const rating: ContentRating = worldCard?.metadata.contentRating ?? 'unrestricted';
+function checkContentRating(input: string, worldCard: WorldCard | null): OocCheckItem {
+  const rating: ContentRating = "unrestricted";
   const sensitiveWords = CONTENT_RATING_SENSITIVE[rating];
 
   if (sensitiveWords.length === 0) {
-    return { id: 5, name: '内容分级', result: 'pass' };
+    return { id: 5, name: "内容分级", result: "pass" };
   }
 
   const found = sensitiveWords.find((kw) => input.includes(kw));
   if (found) {
     return {
       id: 5,
-      name: '内容分级',
-      result: 'hard_block',
+      name: "内容分级",
+      result: "hard_block",
       reason: `输入包含 "${found}"，超出当前世界卡内容分级 "${rating}" 的允许范围`,
     };
   }
-  return { id: 5, name: '内容分级', result: 'pass' };
+  return { id: 5, name: "内容分级", result: "pass" };
 }
 
 /**
@@ -170,29 +204,29 @@ function checkContentRating(
  */
 function checkBypassMechanism(input: string): OocCheckItem {
   const lowerInput = input.toLowerCase();
-  const found = BYPASS_KEYWORDS.find((kw) =>
-    lowerInput.includes(kw.toLowerCase()),
-  );
+  const found = BYPASS_KEYWORDS.find((kw) => lowerInput.includes(kw.toLowerCase()));
 
   if (found) {
     return {
       id: 6,
-      name: '绕过机制',
-      result: 'hard_block',
+      name: "绕过机制",
+      result: "hard_block",
       reason: `检测到绕过规则引擎的尝试: "${found}"`,
     };
   }
-  return { id: 6, name: '绕过机制', result: 'pass' };
+  return { id: 6, name: "绕过机制", result: "pass" };
 }
 
 /**
  * 检查角色扮演（是否破坏角色人设）
  */
-function checkRolePlay(
-  input: string,
-  character: TrpgCharacter,
-): OocCheckItem {
-  return { id: 7, name: '角色扮演', result: 'pass', reason: '由 LLM 审查（reasoning_content OOC JSON）' };
+function checkRolePlay(input: string, character: TrpgCharacter): OocCheckItem {
+  return {
+    id: 7,
+    name: "角色扮演",
+    result: "pass",
+    reason: "由 LLM 审查（reasoning_content OOC JSON）",
+  };
 }
 
 /**
@@ -222,16 +256,16 @@ export function runOocCheck(
     checkRolePlay(input, character),
   ];
 
-  const hasHardBlock = checks.some((c) => c.result === 'hard_block');
-  const hasSoftWarn = checks.some((c) => c.result === 'soft_warn');
+  const hasHardBlock = checks.some((c) => c.result === "hard_block");
+  const hasSoftWarn = checks.some((c) => c.result === "soft_warn");
 
-  let action: OocResult['action'];
+  let action: OocResult["action"];
   if (hasHardBlock) {
-    action = 'blocked';
+    action = "blocked";
   } else if (hasSoftWarn) {
-    action = 'partial';
+    action = "partial";
   } else {
-    action = 'resolved';
+    action = "resolved";
   }
 
   return { checks, hasHardBlock, hasSoftWarn, action };

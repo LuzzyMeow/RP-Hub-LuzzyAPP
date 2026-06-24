@@ -7,11 +7,16 @@
  * 从旧 Vue 3 app.js 迁移，改为纯函数风格，状态由 zustand store 管理。
  */
 
-import type { ThinkingDepth } from '~/types/luzzy';
-import { isNativePlatform } from '~/services/nativeBridge';
+import type { ThinkingDepth } from "~/types/luzzy";
+import { isNativePlatform } from "~/services/nativeBridge";
 
 /** 本地代理基础地址（仅原生平台使用） */
-const NATIVE_PROXY_BASE = 'http://localhost:18527';
+const NATIVE_PROXY_BASE = "http://localhost:18527";
+
+// v0.8.3: requestAnimationFrame 对齐浏览器刷新帧，消除 setTimeout 最小 4ms 延迟导致的流式掉帧
+// 相比 setTimeout(0) 最小 4ms 延迟，requestAnimationFrame 精确对齐 16.67ms 刷新帧，视觉更流畅
+const nextFrame = (): Promise<void> =>
+  new Promise((resolve) => requestAnimationFrame(() => resolve()));
 
 // v0.4.5: 重新导出 isNativePlatform,保持现有 import 路径兼容
 // (world-info.tsx 和 luzzy-share-dialog.tsx 仍从 apiClient 导入 isNativePlatform)
@@ -35,7 +40,7 @@ export interface SSEChunkData {
   toolCalls?: Array<{
     index: number;
     id?: string;
-    type?: 'function';
+    type?: "function";
     function?: { name?: string; arguments?: string };
   }>;
 }
@@ -45,20 +50,26 @@ export interface SSEChunkData {
  * 支持字符串、数组、对象等多种输入
  */
 const normalizeReasoningPart = (value: unknown): string => {
-  if (value === null || value === undefined) return '';
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) return value.map(normalizeReasoningPart).join('');
-  if (typeof value === 'object') {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(normalizeReasoningPart).join("");
+  if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
     const keys = [
-      'text', 'content', 'summary', 'reasoning',
-      'reasoning_content', 'thinking', 'thought', 'value',
+      "text",
+      "content",
+      "summary",
+      "reasoning",
+      "reasoning_content",
+      "thinking",
+      "thought",
+      "value",
     ];
     for (const key of keys) {
       const text = normalizeReasoningPart(obj[key]);
       if (text) return text;
     }
-    return '';
+    return "";
   }
   return String(value);
 };
@@ -68,10 +79,15 @@ const normalizeReasoningPart = (value: unknown): string => {
  * 兼容各供应商的字段命名差异（reasoning_content、thinking、thought 等）
  */
 const extractReasoning = (source: Record<string, unknown> | null | undefined): string => {
-  if (!source || typeof source !== 'object') return '';
+  if (!source || typeof source !== "object") return "";
   const directKeys = [
-    'reasoning_content', 'reasoning', 'thinking',
-    'thinking_content', 'thought', 'thoughts', 'reasoning_text',
+    "reasoning_content",
+    "reasoning",
+    "thinking",
+    "thinking_content",
+    "thought",
+    "thoughts",
+    "reasoning_text",
   ];
   for (const key of directKeys) {
     const text = normalizeReasoningPart(source[key]);
@@ -85,19 +101,15 @@ const extractReasoning = (source: Record<string, unknown> | null | undefined): s
     return source.content
       .map((part: unknown) => {
         const item = part as Record<string, unknown> | null;
-        const type = String(item?.type ?? '').toLowerCase();
-        if (
-          type.includes('reason') ||
-          type.includes('thinking') ||
-          type.includes('thought')
-        ) {
+        const type = String(item?.type ?? "").toLowerCase();
+        if (type.includes("reason") || type.includes("thinking") || type.includes("thought")) {
           return normalizeReasoningPart(item);
         }
-        return '';
+        return "";
       })
-      .join('');
+      .join("");
   }
-  return '';
+  return "";
 };
 
 /**
@@ -111,15 +123,15 @@ const extractReasoning = (source: Record<string, unknown> | null | undefined): s
  */
 export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
   const result: SSEChunkData = {
-    content: '',
-    reasoningContent: '',
-    finishReason: '',
+    content: "",
+    reasoningContent: "",
+    finishReason: "",
   };
 
   // === Anthropic 事件处理 ===
   // Anthropic SSE 事件通过 type 字段区分：message_start / content_block_delta / message_delta
-  const eventType = String(data.type ?? '');
-  if (eventType === 'message_start') {
+  const eventType = String(data.type ?? "");
+  if (eventType === "message_start") {
     const message = data.message as Record<string, unknown> | undefined;
     const usage = message?.usage as Record<string, unknown> | undefined;
     if (usage) {
@@ -133,19 +145,19 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
     }
     return result;
   }
-  if (eventType === 'content_block_delta') {
+  if (eventType === "content_block_delta") {
     const delta = data.delta as Record<string, unknown> | undefined;
     if (delta) {
-      const deltaType = String(delta.type ?? '');
-      if (deltaType === 'text_delta') {
-        result.content = String(delta.text ?? '');
-      } else if (deltaType === 'thinking_delta') {
-        result.reasoningContent = String(delta.thinking ?? '');
+      const deltaType = String(delta.type ?? "");
+      if (deltaType === "text_delta") {
+        result.content = String(delta.text ?? "");
+      } else if (deltaType === "thinking_delta") {
+        result.reasoningContent = String(delta.thinking ?? "");
       }
     }
     return result;
   }
-  if (eventType === 'message_delta') {
+  if (eventType === "message_delta") {
     const usage = data.usage as Record<string, unknown> | undefined;
     if (usage) {
       result.usage = {
@@ -160,14 +172,14 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
   }
 
   // Anthropic 非流式响应（type: "message"）
-  if (eventType === 'message') {
+  if (eventType === "message") {
     const contentBlocks = data.content as Array<Record<string, unknown>> | undefined;
     if (contentBlocks) {
       for (const block of contentBlocks) {
-        if (block.type === 'text') {
-          result.content += String(block.text ?? '');
-        } else if (block.type === 'thinking') {
-          result.reasoningContent += String(block.thinking ?? '');
+        if (block.type === "text") {
+          result.content += String(block.text ?? "");
+        } else if (block.type === "thinking") {
+          result.reasoningContent += String(block.thinking ?? "");
         }
       }
     }
@@ -182,7 +194,7 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
         prompt_tokens_details: { cached_tokens: cacheRead },
       };
     }
-    result.finishReason = String(data.stop_reason ?? '');
+    result.finishReason = String(data.stop_reason ?? "");
     return result;
   }
 
@@ -191,12 +203,12 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
   const choice = choices?.[0];
 
   // 提取 usage（OpenAI 在最后一个 chunk 携带，与 choices 同级）
-  if (data.usage && typeof data.usage === 'object') {
+  if (data.usage && typeof data.usage === "object") {
     result.usage = data.usage as Record<string, unknown>;
   }
 
   // === Gemini 格式处理（OpenAI 兼容模式下 usageMetadata 字段）===
-  if (data.usageMetadata && typeof data.usageMetadata === 'object') {
+  if (data.usageMetadata && typeof data.usageMetadata === "object") {
     const um = data.usageMetadata as Record<string, unknown>;
     result.usage = {
       prompt_tokens: Number(um.promptTokenCount ?? 0),
@@ -209,10 +221,10 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
 
   if (!choice) return result;
 
-  result.finishReason = String(choice.finish_reason ?? '');
+  result.finishReason = String(choice.finish_reason ?? "");
 
   const delta = (choice.delta ?? choice.message ?? {}) as Record<string, unknown>;
-  result.content = String(delta.content ?? '');
+  result.content = String(delta.content ?? "");
   result.reasoningContent = extractReasoning(delta);
 
   // v0.4.4: 解析原生 tool_calls（OpenAI 兼容格式）
@@ -222,11 +234,11 @@ export const parseSSEChunk = (data: Record<string, unknown>): SSEChunkData => {
       const fn = (tc.function ?? {}) as Record<string, unknown>;
       return {
         index: Number(tc.index ?? 0),
-        id: String(tc.id ?? ''),
-        type: 'function' as const,
+        id: String(tc.id ?? ""),
+        type: "function" as const,
         function: {
-          name: String(fn.name ?? ''),
-          arguments: String(fn.arguments ?? ''),
+          name: String(fn.name ?? ""),
+          arguments: String(fn.arguments ?? ""),
         },
       };
     });
@@ -266,10 +278,7 @@ const MAX_CACHE_ENTRIES = 500;
  * @param body - 请求体对象
  * @returns 缓存键字符串
  */
-export const generateCacheKey = (
-  url: string,
-  body: Record<string, unknown>,
-): string => {
+export const generateCacheKey = (url: string, body: Record<string, unknown>): string => {
   // 移除 stream 字段，仅基于实质内容生成键
   const { stream: _stream, ...bodyWithoutStream } = body;
   const bodyStr = JSON.stringify(bodyWithoutStream, Object.keys(bodyWithoutStream).sort());
@@ -348,7 +357,7 @@ export const sendRequestWithCache = async <T = unknown>(
   // 缓存命中短路
   const cached = getCachedResponse<T>(cacheKey);
   if (cached !== undefined) {
-    console.log('[API] 缓存命中:', params.url);
+    console.log("[API] 缓存命中:", params.url);
     return cached;
   }
 
@@ -389,11 +398,14 @@ export interface ApiRequestBodySettings {
  * - auto: 不注入（由模型自行决定）
  * - low/medium/high/max: 注入对应 reasoning_effort 值
  */
-const THINKING_DEPTH_TO_REASONING_EFFORT: Record<Exclude<ThinkingDepth, 'minimal' | 'auto'>, string> = {
-  low: 'low',
-  medium: 'medium',
-  high: 'high',
-  max: 'max',
+const THINKING_DEPTH_TO_REASONING_EFFORT: Record<
+  Exclude<ThinkingDepth, "minimal" | "auto">,
+  string
+> = {
+  low: "low",
+  medium: "medium",
+  high: "high",
+  max: "max",
 };
 
 /**
@@ -403,15 +415,15 @@ const THINKING_DEPTH_TO_REASONING_EFFORT: Record<Exclude<ThinkingDepth, 'minimal
 export const parseCustomRequestBody = (
   customRequestBody?: string,
 ): Record<string, unknown> | null => {
-  const text = (customRequestBody ?? '').trim();
+  const text = (customRequestBody ?? "").trim();
   if (!text) return null;
   try {
     const parsed = JSON.parse(text);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? (parsed as Record<string, unknown>)
       : null;
   } catch (e) {
-    console.error('[API] 自定义请求体 JSON 解析失败:', e);
+    console.error("[API] 自定义请求体 JSON 解析失败:", e);
     return null;
   }
 };
@@ -423,14 +435,14 @@ export const parseCustomRequestBody = (
 export const validateCustomRequestBody = (
   customRequestBody?: string,
 ): { valid: boolean; error: string } => {
-  const text = (customRequestBody ?? '').trim();
-  if (!text) return { valid: true, error: '' };
+  const text = (customRequestBody ?? "").trim();
+  if (!text) return { valid: true, error: "" };
   try {
     const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return { valid: false, error: '必须是 JSON 对象' };
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return { valid: false, error: "必须是 JSON 对象" };
     }
-    return { valid: true, error: '' };
+    return { valid: true, error: "" };
   } catch (e) {
     return { valid: false, error: e instanceof Error ? e.message : String(e) };
   }
@@ -443,40 +455,40 @@ export const validateCustomRequestBody = (
 export const buildToolSchema = (toolType: string): Record<string, unknown> => {
   // v0.4.6: 内置工具的 JSON Schema 映射
   const builtinSchemas: Record<string, Record<string, unknown>> = {
-    'memory-recall': {
-      type: 'object',
+    "memory-recall": {
+      type: "object",
       properties: {
-        query: { type: 'string', description: '空格分隔的多个关键词' },
+        query: { type: "string", description: "空格分隔的多个关键词" },
       },
-      required: ['query'],
+      required: ["query"],
     },
-    'vector-memory': {
-      type: 'object',
+    "vector-memory": {
+      type: "object",
       properties: {
-        query: { type: 'string', description: '空格分隔的多个关键词' },
+        query: { type: "string", description: "空格分隔的多个关键词" },
       },
-      required: ['query'],
+      required: ["query"],
     },
-    'keyword-search': {
-      type: 'object',
+    "keyword-search": {
+      type: "object",
       properties: {
-        query: { type: 'string', description: '空格分隔的多个关键词' },
+        query: { type: "string", description: "空格分隔的多个关键词" },
       },
-      required: ['query'],
+      required: ["query"],
     },
-    'world-recall': {
-      type: 'object',
+    "world-recall": {
+      type: "object",
       properties: {
-        query: { type: 'string', description: '空格分隔的多个关键词' },
+        query: { type: "string", description: "空格分隔的多个关键词" },
       },
-      required: ['query'],
+      required: ["query"],
     },
-    'anysearch': {
-      type: 'object',
+    anysearch: {
+      type: "object",
       properties: {
-        query: { type: 'string', description: '联网搜索的查询内容' },
+        query: { type: "string", description: "联网搜索的查询内容" },
       },
-      required: ['query'],
+      required: ["query"],
     },
   };
 
@@ -487,14 +499,14 @@ export const buildToolSchema = (toolType: string): Record<string, unknown> => {
 
   // 用户工具的默认 schema
   const baseSchema = {
-    type: 'object',
+    type: "object",
     properties: {
       query: {
-        type: 'string',
-        description: '搜索/召回的查询关键词',
+        type: "string",
+        description: "搜索/召回的查询关键词",
       },
     },
-    required: ['query'],
+    required: ["query"],
   };
 
   return baseSchema;
@@ -530,39 +542,41 @@ export const buildApiRequestBody = (
 
   // 思考深度注入（v0.3.0 优先使用 thinkingDepth，回退到 enableThinking）
   const depth = settings.thinkingDepth;
-  if (depth && depth !== 'minimal' && depth !== 'auto') {
+  if (depth && depth !== "minimal" && depth !== "auto") {
     // low/medium/high/max → 注入 reasoning_effort + thinking
     const effort = THINKING_DEPTH_TO_REASONING_EFFORT[depth];
     if (effort) {
       result.reasoning_effort = effort;
     }
     // Anthropic 风格的 thinking 字段
-    result.thinking = { type: 'enabled' };
-  } else if (depth === 'auto') {
+    result.thinking = { type: "enabled" };
+  } else if (depth === "auto") {
     // auto: 不注入任何思考字段，由模型自行决定
   } else if (settings.enableThinking && !depth) {
     // 旧字段兼容：enableThinking=true 且未设置 thinkingDepth
-    result.thinking = { type: 'enabled' };
+    result.thinking = { type: "enabled" };
   }
 
   // v0.4.4: 原生 tool_calls 注入（在自定义 JSON 之前，可被自定义 JSON 覆盖）
   if (settings.activeTools && settings.activeTools.length > 0) {
     result.tools = settings.activeTools.map((tool) => ({
-      type: 'function',
+      type: "function",
       function: {
         name: tool.callName,
         description: tool.description,
         parameters: buildToolSchema(tool.type),
       },
     }));
-    result.tool_choice = settings.forceToolCall ? 'required' : 'auto';
+    result.tool_choice = settings.forceToolCall ? "required" : "auto";
   }
 
   // 自定义 JSON 合并（优先级最高，可覆盖思考字段和 tools）
   const customBody = parseCustomRequestBody(settings.customRequestBody);
   if (customBody) {
     for (const key of Object.keys(customBody)) {
-      if (key === 'model' || key === 'messages') continue;
+      // v0.8.2: 保护 tools 和 tool_choice 不被自定义 JSON 覆盖
+      if (key === "model" || key === "messages" || key === "tools" || key === "tool_choice")
+        continue;
       result[key] = customBody[key];
     }
   }
@@ -583,7 +597,7 @@ export const buildApiRequestBody = (
 export class ApiError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'ApiError';
+    this.name = "ApiError";
   }
 }
 
@@ -593,16 +607,13 @@ export class ApiError extends Error {
  * @param detail - 错误详情（字符串或对象）
  * @returns 格式化后的错误消息
  */
-export const formatApiErrorMessage = (
-  status: number | string,
-  detail: unknown,
-): string => {
+export const formatApiErrorMessage = (status: number | string, detail: unknown): string => {
   const lines: string[] = [];
-  if (status !== undefined && status !== null && status !== '') {
+  if (status !== undefined && status !== null && status !== "") {
     lines.push(`API Error: ${status}`);
   }
-  let detailText = '';
-  if (typeof detail === 'string') {
+  let detailText = "";
+  if (typeof detail === "string") {
     detailText = detail;
   } else if (detail !== null && detail !== undefined) {
     try {
@@ -611,8 +622,8 @@ export const formatApiErrorMessage = (
       detailText = String(detail);
     }
   }
-  lines.push(detailText.trim() || '请求失败');
-  return lines.join('\n');
+  lines.push(detailText.trim() || "请求失败");
+  return lines.join("\n");
 };
 
 /**
@@ -623,21 +634,20 @@ export const formatApiErrorMessage = (
  */
 export const extractApiErrorMessage = (
   payload: unknown,
-  fallbackStatus: number | string = '',
+  fallbackStatus: number | string = "",
 ): string => {
-  if (!payload || typeof payload !== 'object') return '';
+  if (!payload || typeof payload !== "object") return "";
   const obj = payload as Record<string, unknown>;
   const error = obj.error;
   const status = fallbackStatus;
-  if (typeof error === 'string') return formatApiErrorMessage(status, error);
-  if (error && typeof error === 'object') {
+  if (typeof error === "string") return formatApiErrorMessage(status, error);
+  if (error && typeof error === "object") {
     const errObj = error as Record<string, unknown>;
-    const detail =
-      errObj.message || errObj.detail || obj.message || obj.detail || error;
+    const detail = errObj.message || errObj.detail || obj.message || obj.detail || error;
     return formatApiErrorMessage(status, detail);
   }
   const detail = obj.message || obj.detail;
-  if (!detail) return '';
+  if (!detail) return "";
   return formatApiErrorMessage(status, detail);
 };
 
@@ -677,9 +687,7 @@ export interface StreamRequestResult {
  * 请求路径：XHR → http://localhost:18527/v1/chat/completions?_target=<真实API> → 真实API
  * 本地代理（NanoHTTPD）使用 newChunkedResponse 透传上游响应，支持流式。
  */
-const sendStreamRequestViaXHR = (
-  params: StreamRequestParams,
-): Promise<StreamRequestResult> => {
+const sendStreamRequestViaXHR = (params: StreamRequestParams): Promise<StreamRequestResult> => {
   const { url, apiKey, body, signal, onChunk, onError } = params;
 
   return new Promise<StreamRequestResult>((resolve, reject) => {
@@ -693,16 +701,14 @@ const sendStreamRequestViaXHR = (
       const pathname = targetUrl.pathname;
       const versionMatch = pathname.match(/^(\/v\d+)(\/.*)$/);
       const endpointPath = versionMatch ? versionMatch[2] : pathname;
-      const targetBase = versionMatch
-        ? `${targetUrl.origin}${versionMatch[1]}`
-        : targetUrl.origin;
+      const targetBase = versionMatch ? `${targetUrl.origin}${versionMatch[1]}` : targetUrl.origin;
       proxyUrl = `${NATIVE_PROXY_BASE}${endpointPath}?_target=${encodeURIComponent(targetBase)}`;
       if (targetUrl.search) {
-        proxyUrl += '&' + targetUrl.search.replace(/^\?/, '');
+        proxyUrl += "&" + targetUrl.search.replace(/^\?/, "");
       }
-      console.log('[XHR Stream] 代理 URL:', proxyUrl, '原始 URL:', url);
+      console.log("[XHR Stream] 代理 URL:", proxyUrl, "原始 URL:", url);
     } catch (e) {
-      console.warn('[XHR Stream] URL 解析失败，回退直连:', e);
+      console.warn("[XHR Stream] URL 解析失败，回退直连:", e);
       proxyUrl = url;
     }
 
@@ -710,17 +716,17 @@ const sendStreamRequestViaXHR = (
     const XhrCtor: typeof XMLHttpRequest = XMLHttpRequest;
 
     const xhr = new XhrCtor();
-    xhr.open('POST', proxyUrl, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('Accept', 'text/event-stream');
+    xhr.open("POST", proxyUrl, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Accept", "text/event-stream");
     if (apiKey) {
-      xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
     }
-    xhr.responseType = 'text';
+    xhr.responseType = "text";
     xhr.timeout = 0; // 流式请求不设超时
 
     let receivedLength = 0;
-    let buffer = '';
+    let buffer = "";
     let settled = false;
     let chunkError: Error | null = null;
     let onAbort: (() => void) | null = null;
@@ -734,13 +740,13 @@ const sendStreamRequestViaXHR = (
     const safeResolve = (value: StreamRequestResult): void => {
       if (settled) return;
       settled = true;
-      if (onAbort && signal) signal.removeEventListener('abort', onAbort);
+      if (onAbort && signal) signal.removeEventListener("abort", onAbort);
       resolve(value);
     };
     const safeReject = (reason: unknown): void => {
       if (settled) return;
       settled = true;
-      if (onAbort && signal) signal.removeEventListener('abort', onAbort);
+      if (onAbort && signal) signal.removeEventListener("abort", onAbort);
       reject(reason);
     };
 
@@ -753,7 +759,7 @@ const sendStreamRequestViaXHR = (
       const status = xhr.status;
       const ok = status >= 200 && status < 300;
       if (!ok) {
-        const errorText = xhr.responseText || '';
+        const errorText = xhr.responseText || "";
         onError?.(status, errorText);
         safeReject(new Error(formatApiErrorMessage(status, errorText)));
         return;
@@ -765,9 +771,9 @@ const sendStreamRequestViaXHR = (
     const processLine = (line: string): boolean => {
       const trimmedLine = line.trim();
       if (!trimmedLine) return true;
-      if (!trimmedLine.startsWith('data:')) return true;
-      const dataStr = trimmedLine.replace(/^data:\s*/, '');
-      if (dataStr === '[DONE]') return true;
+      if (!trimmedLine.startsWith("data:")) return true;
+      const dataStr = trimmedLine.replace(/^data:\s*/, "");
+      if (dataStr === "[DONE]") return true;
       let parsed: Record<string, unknown>;
       try {
         parsed = JSON.parse(dataStr);
@@ -803,8 +809,8 @@ const sendStreamRequestViaXHR = (
       while (pendingChunks.length > 0 && !chunkError && !settled) {
         const newChunk = pendingChunks.shift()!;
         buffer += newChunk;
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
 
         for (let i = 0; i < lines.length; i++) {
           if (signal?.aborted) {
@@ -817,12 +823,12 @@ const sendStreamRequestViaXHR = (
             return;
           }
           linesThisFrame++;
-          // v0.5.7: 每帧最多 3 行，达到后让出 16ms 帧时间让 React 渲染
+          // v0.8.3: 使用 requestAnimationFrame 对齐浏览器刷新帧，替代 setTimeout
           if (linesThisFrame >= MAX_LINES_PER_FRAME) {
             linesThisFrame = 0;
-            await new Promise<void>((resolve) => setTimeout(resolve, 16));
+            await nextFrame();
           } else {
-            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            await nextFrame();
           }
         }
       }
@@ -840,10 +846,10 @@ const sendStreamRequestViaXHR = (
     const processBufferSync = (): void => {
       if (buffer.trim()) {
         const trimmedLine = buffer.trim();
-        buffer = '';
-        if (trimmedLine.startsWith('data:')) {
-          const dataStr = trimmedLine.replace(/^data:\s*/, '');
-          if (dataStr !== '[DONE]') {
+        buffer = "";
+        if (trimmedLine.startsWith("data:")) {
+          const dataStr = trimmedLine.replace(/^data:\s*/, "");
+          if (dataStr !== "[DONE]") {
             try {
               const parsed = JSON.parse(dataStr);
               // v0.5.4: onChunk 抛错时设置 chunkError（修复 C-1：原实现静默吞错）
@@ -863,7 +869,7 @@ const sendStreamRequestViaXHR = (
     xhr.onprogress = (): void => {
       if (chunkError) return;
       try {
-        const fullText = xhr.responseText || '';
+        const fullText = xhr.responseText || "";
         if (fullText.length <= receivedLength) return;
         const newChunk = fullText.substring(receivedLength);
         receivedLength = fullText.length;
@@ -873,7 +879,7 @@ const sendStreamRequestViaXHR = (
           void processIncrementalAsync();
         }
       } catch (e) {
-        console.warn('[XHR Stream] onprogress 处理异常:', e);
+        console.warn("[XHR Stream] onprogress 处理异常:", e);
       }
     };
 
@@ -881,14 +887,14 @@ const sendStreamRequestViaXHR = (
       // v0.5.4: 处理最后可能残留的增量数据
       if (!chunkError) {
         try {
-          const fullText = xhr.responseText || '';
+          const fullText = xhr.responseText || "";
           if (fullText.length > receivedLength) {
             const newChunk = fullText.substring(receivedLength);
             receivedLength = fullText.length;
             pendingChunks.push(newChunk);
           }
         } catch (e) {
-          console.warn('[XHR Stream] onload 处理异常:', e);
+          console.warn("[XHR Stream] onload 处理异常:", e);
         }
       }
 
@@ -906,15 +912,15 @@ const sendStreamRequestViaXHR = (
           while (pendingChunks.length > 0) {
             const chunk = pendingChunks.shift()!;
             buffer += chunk;
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
             for (const line of lines) {
               if (!processLine(line)) break;
             }
           }
           processBufferSync();
         } catch (e) {
-          console.warn('[XHR Stream] onload 残留处理异常:', e);
+          console.warn("[XHR Stream] onload 残留处理异常:", e);
         }
       }
 
@@ -926,14 +932,14 @@ const sendStreamRequestViaXHR = (
         safeReject(chunkError);
         return;
       }
-      const errorText = xhr.responseText || '网络请求失败';
+      const errorText = xhr.responseText || "网络请求失败";
       onError?.(0, errorText);
       safeReject(new Error(formatApiErrorMessage(0, errorText)));
     };
 
     xhr.ontimeout = (): void => {
-      onError?.(0, '请求超时');
-      safeReject(new Error('流式请求超时'));
+      onError?.(0, "请求超时");
+      safeReject(new Error("流式请求超时"));
     };
 
     xhr.onabort = (): void => {
@@ -941,13 +947,13 @@ const sendStreamRequestViaXHR = (
         safeReject(chunkError);
         return;
       }
-      safeReject(new DOMException('Aborted', 'AbortError'));
+      safeReject(new DOMException("Aborted", "AbortError"));
     };
 
     // 支持 AbortController
     if (signal) {
       if (signal.aborted) {
-        safeReject(new DOMException('Aborted', 'AbortError'));
+        safeReject(new DOMException("Aborted", "AbortError"));
         return;
       }
       onAbort = (): void => {
@@ -957,7 +963,7 @@ const sendStreamRequestViaXHR = (
           /* 忽略 */
         }
       };
-      signal.addEventListener('abort', onAbort, { once: true });
+      signal.addEventListener("abort", onAbort, { once: true });
     }
 
     try {
@@ -981,10 +987,10 @@ const sendStreamRequestViaFetch = async (
   const { url, apiKey, body, signal, onChunk, onError } = params;
 
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
@@ -992,7 +998,7 @@ const sendStreamRequestViaFetch = async (
   });
 
   if (!response.ok) {
-    let errorDetail = '';
+    let errorDetail = "";
     try {
       const errorText = await response.text();
       try {
@@ -1011,8 +1017,8 @@ const sendStreamRequestViaFetch = async (
     throw new Error(formatApiErrorMessage(response.status, errorDetail));
   }
 
-  const contentType = response.headers.get('content-type') ?? '';
-  const isStream = contentType.includes('text/event-stream');
+  const contentType = response.headers.get("content-type") ?? "";
+  const isStream = contentType.includes("text/event-stream");
   const reader = isStream ? response.body?.getReader() : undefined;
 
   if (!isStream || !reader) {
@@ -1031,13 +1037,13 @@ const sendStreamRequestViaFetch = async (
     }
     if (!parsedAsJson) {
       // v0.5.4: SSE 文本解析改为分批处理，每 10 行让出主线程一次，模拟流式效果
-      const lines = rawText.split('\n');
+      const lines = rawText.split("\n");
       for (let i = 0; i < lines.length; i++) {
         if (signal?.aborted) break;
         const trimmedLine = lines[i].trim();
-        if (!trimmedLine.startsWith('data:')) continue;
-        const dataStr = trimmedLine.replace(/^data:\s*/, '');
-        if (dataStr === '[DONE]') continue;
+        if (!trimmedLine.startsWith("data:")) continue;
+        const dataStr = trimmedLine.replace(/^data:\s*/, "");
+        if (dataStr === "[DONE]") continue;
         try {
           const parsed = JSON.parse(dataStr) as Record<string, unknown>;
           const apiError = extractApiErrorMessage(parsed, response.status);
@@ -1050,8 +1056,8 @@ const sendStreamRequestViaFetch = async (
             throw new Error(formatApiErrorMessage(response.status, dataStr));
           }
         }
-        // v0.5.7: 非流式回退也每行让出 16ms，允许 React 渲染
-        await new Promise<void>((resolve) => setTimeout(resolve, 16));
+        // v0.8.3: 使用 requestAnimationFrame 对齐浏览器刷新帧，替代 setTimeout
+        await nextFrame();
       }
     }
     return { status: response.status, ok: true };
@@ -1059,7 +1065,7 @@ const sendStreamRequestViaFetch = async (
 
   // 流式响应：逐块读取并解析 SSE
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   // v0.5.7: 每帧最多处理 3 行，防止 React 批处理导致"突然蹦出"
   let fetchLinesThisFrame = 0;
   const FETCH_MAX_LINES_PER_FRAME = 3;
@@ -1069,16 +1075,16 @@ const sendStreamRequestViaFetch = async (
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
       for (const line of lines) {
         // v0.5.4: fetch 流式路径添加 abort 检查（修复 E-3）
         if (signal?.aborted) break;
         const trimmedLine = line.trim();
         if (!trimmedLine) continue;
-        if (!trimmedLine.startsWith('data:')) continue;
-        const dataStr = trimmedLine.replace(/^data:\s*/, '');
-        if (dataStr === '[DONE]') continue;
+        if (!trimmedLine.startsWith("data:")) continue;
+        const dataStr = trimmedLine.replace(/^data:\s*/, "");
+        if (dataStr === "[DONE]") continue;
         try {
           const parsed = JSON.parse(dataStr) as Record<string, unknown>;
           const apiError = extractApiErrorMessage(parsed, response.status);
@@ -1087,19 +1093,19 @@ const sendStreamRequestViaFetch = async (
         } catch (e) {
           if (e instanceof ApiError) throw e;
           // v0.5.4: 修复 E-1，改用结构化错误检测替代 /error/i 正则误报
-          if (e instanceof Error && e.message.includes('API Error')) {
+          if (e instanceof Error && e.message.includes("API Error")) {
             onError?.(response.status, dataStr);
             throw e;
           }
-          console.warn('Error parsing stream chunk:', e);
+          console.warn("Error parsing stream chunk:", e);
         }
-        // v0.5.7: 每帧最多 3 行，达到后让出 16ms 帧时间让 React 渲染
+        // v0.8.3: 使用 requestAnimationFrame 对齐浏览器刷新帧，替代 setTimeout
         fetchLinesThisFrame++;
         if (fetchLinesThisFrame >= FETCH_MAX_LINES_PER_FRAME) {
           fetchLinesThisFrame = 0;
-          await new Promise<void>((resolve) => setTimeout(resolve, 16));
+          await nextFrame();
         } else {
-          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          await nextFrame();
         }
       }
     }
@@ -1107,9 +1113,9 @@ const sendStreamRequestViaFetch = async (
     // 处理 buffer 中剩余的最后一行
     if (buffer.trim()) {
       const trimmedLine = buffer.trim();
-      if (trimmedLine.startsWith('data:')) {
-        const dataStr = trimmedLine.replace(/^data:\s*/, '');
-        if (dataStr !== '[DONE]') {
+      if (trimmedLine.startsWith("data:")) {
+        const dataStr = trimmedLine.replace(/^data:\s*/, "");
+        if (dataStr !== "[DONE]") {
           try {
             const parsed = JSON.parse(dataStr) as Record<string, unknown>;
             onChunk(dataStr, parsed);
@@ -1143,7 +1149,7 @@ export const sendStreamRequest = async (
     return await sendStreamRequestViaFetch(params);
   } catch (fetchErr) {
     if (isNativePlatform()) {
-      console.warn('[Stream] Fetch 流式失败，回退到 XHR + 本地代理:', fetchErr);
+      console.warn("[Stream] Fetch 流式失败，回退到 XHR + 本地代理:", fetchErr);
       return sendStreamRequestViaXHR(params);
     }
     throw fetchErr;
@@ -1180,14 +1186,12 @@ export interface RequestOptions {
  * @throws {ApiError} API 返回的业务错误
  * @throws {Error} 网络错误或格式化后的 API 错误
  */
-const sendRequestViaFetch = async (
-  params: RequestOptions,
-): Promise<Response> => {
+const sendRequestViaFetch = async (params: RequestOptions): Promise<Response> => {
   const { url, apiKey, body, signal, headers } = params;
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
       ...headers,
     },
@@ -1196,7 +1200,7 @@ const sendRequestViaFetch = async (
   });
 
   if (!response.ok) {
-    let errorDetail = '';
+    let errorDetail = "";
     try {
       const errorText = await response.text();
       try {
@@ -1229,9 +1233,7 @@ const sendRequestViaFetch = async (
  * @param params - 请求参数
  * @returns 模拟的 Response 对象（含 ok、status、text() 方法）
  */
-const sendRequestViaXHR = (
-  params: RequestOptions,
-): Promise<Response> => {
+const sendRequestViaXHR = (params: RequestOptions): Promise<Response> => {
   const { url, apiKey, body, signal, headers } = params;
 
   return new Promise<Response>((resolve, reject) => {
@@ -1242,31 +1244,29 @@ const sendRequestViaXHR = (
       const pathname = targetUrl.pathname;
       const versionMatch = pathname.match(/^(\/v\d+)(\/.*)$/);
       const endpointPath = versionMatch ? versionMatch[2] : pathname;
-      const targetBase = versionMatch
-        ? `${targetUrl.origin}${versionMatch[1]}`
-        : targetUrl.origin;
+      const targetBase = versionMatch ? `${targetUrl.origin}${versionMatch[1]}` : targetUrl.origin;
       proxyUrl = `${NATIVE_PROXY_BASE}${endpointPath}?_target=${encodeURIComponent(targetBase)}`;
       if (targetUrl.search) {
-        proxyUrl += '&' + targetUrl.search.replace(/^\?/, '');
+        proxyUrl += "&" + targetUrl.search.replace(/^\?/, "");
       }
     } catch (e) {
-      console.warn('[XHR Non-Stream] URL 解析失败，回退直连:', e);
+      console.warn("[XHR Non-Stream] URL 解析失败，回退直连:", e);
       proxyUrl = url;
     }
 
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', proxyUrl, true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.open("POST", proxyUrl, true);
+    xhr.setRequestHeader("Content-Type", "application/json");
+    xhr.setRequestHeader("Accept", "application/json");
     if (apiKey) {
-      xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+      xhr.setRequestHeader("Authorization", `Bearer ${apiKey}`);
     }
     if (headers) {
       for (const [key, value] of Object.entries(headers)) {
         xhr.setRequestHeader(key, value);
       }
     }
-    xhr.responseType = 'text';
+    xhr.responseType = "text";
     xhr.timeout = 300000; // 非流式请求 5 分钟超时
 
     let settled = false;
@@ -1274,31 +1274,35 @@ const sendRequestViaXHR = (
     const safeResolve = (value: Response): void => {
       if (settled) return;
       settled = true;
-      if (signal) signal.removeEventListener('abort', onAbort);
+      if (signal) signal.removeEventListener("abort", onAbort);
       resolve(value);
     };
     const safeReject = (reason: unknown): void => {
       if (settled) return;
       settled = true;
-      if (signal) signal.removeEventListener('abort', onAbort);
+      if (signal) signal.removeEventListener("abort", onAbort);
       reject(reason);
     };
 
     const onAbort = (): void => {
-      try { xhr.abort(); } catch { /* 忽略 */ }
-      safeReject(new DOMException('The user aborted a request.', 'AbortError'));
+      try {
+        xhr.abort();
+      } catch {
+        /* 忽略 */
+      }
+      safeReject(new DOMException("The user aborted a request.", "AbortError"));
     };
     if (signal) {
       if (signal.aborted) {
         onAbort();
         return;
       }
-      signal.addEventListener('abort', onAbort);
+      signal.addEventListener("abort", onAbort);
     }
 
     xhr.onload = (): void => {
       const status = xhr.status;
-      const responseText = xhr.responseText || '';
+      const responseText = xhr.responseText || "";
       const ok = status >= 200 && status < 300;
 
       // 构造模拟 Response 对象
@@ -1308,12 +1312,12 @@ const sendRequestViaXHR = (
         statusText: xhr.statusText,
         headers: new Headers(),
         url,
-        type: 'basic' as ResponseType,
+        type: "basic" as ResponseType,
         redirected: false,
         body: null,
         bodyUsed: false,
         clone: () => mockResponse,
-        blob: async () => new Blob([responseText], { type: 'application/json' }),
+        blob: async () => new Blob([responseText], { type: "application/json" }),
         arrayBuffer: async () => new TextEncoder().encode(responseText).buffer,
         formData: async () => new FormData(),
         text: async () => responseText,
@@ -1321,7 +1325,7 @@ const sendRequestViaXHR = (
       } as Response;
 
       if (!ok) {
-        let errorDetail = '';
+        let errorDetail = "";
         try {
           const errorJson = JSON.parse(responseText) as unknown;
           const apiError = extractApiErrorMessage(errorJson, status);
@@ -1345,11 +1349,11 @@ const sendRequestViaXHR = (
     };
 
     xhr.onerror = (): void => {
-      safeReject(new Error('XHR 请求失败：网络错误或代理不可用'));
+      safeReject(new Error("XHR 请求失败：网络错误或代理不可用"));
     };
 
     xhr.ontimeout = (): void => {
-      safeReject(new Error('XHR 请求超时（5 分钟）'));
+      safeReject(new Error("XHR 请求超时（5 分钟）"));
     };
 
     try {
@@ -1371,14 +1375,12 @@ const sendRequestViaXHR = (
  * @throws {ApiError} API 返回的业务错误
  * @throws {Error} 网络错误或格式化后的 API 错误
  */
-export const sendRequest = async (
-  params: RequestOptions,
-): Promise<Response> => {
+export const sendRequest = async (params: RequestOptions): Promise<Response> => {
   try {
     return await sendRequestViaFetch(params);
   } catch (fetchErr) {
     if (isNativePlatform()) {
-      console.warn('[Non-Stream] Fetch 失败，回退到 XHR + 本地代理:', fetchErr);
+      console.warn("[Non-Stream] Fetch 失败，回退到 XHR + 本地代理:", fetchErr);
       return sendRequestViaXHR(params);
     }
     throw fetchErr;

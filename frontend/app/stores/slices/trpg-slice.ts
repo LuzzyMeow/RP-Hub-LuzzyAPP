@@ -8,8 +8,8 @@
  * 3. 后处理：A 摘要写入 + 向量记忆写入 + GameState 更新 + 持久化
  */
 
-import type { StateCreator } from 'zustand';
-import { v4 as uuidv4 } from 'uuid';
+import type { StateCreator } from "zustand";
+import { v4 as uuidv4 } from "uuid";
 
 import type {
   TrpgCharacter,
@@ -17,31 +17,36 @@ import type {
   TrpgMessage,
   SaveSlot,
   WorldCard,
-  NarratorSections,
-  TrpgMode,
   Think4Result,
   OocResult,
   OocCheckItem,
-} from '~/types/trpg';
-import type {
-  MemorySettings,
-  ApiSettings,
-  VectorMemoryShard,
-} from '~/types/luzzy';
-import type { AppStoreState, TrpgSlice } from '~/stores/slices/types';
-import { buildTrpgContext } from '~/services/trpg/trpgContextService';
-import { executeTrpgToolCall, type StateOperation, type TrpgToolContext } from '~/services/trpg/trpgTools';
-import { applyStateOperations, applyStateOperationsToCharacter } from '~/services/trpg/rules/stateOperations';
+  DesignSession,
+} from "~/types/trpg";
+import type { MemorySettings, ApiSettings, VectorMemoryShard } from "~/types/luzzy";
+import type { AppStoreState, TrpgSlice } from "~/stores/slices/types";
+import { buildTrpgContext } from "~/services/trpg/trpgContextService";
+import { createInitialDesignSession, parseDesignModeResponse } from "~/services/trpg/designMode";
+import { sendDesignModeMessage } from "~/services/trpg/designModeApi";
+import { validateWorldCard } from "~/services/trpg/designModeTools";
+import { runAgenticToolLoop } from "~/services/trpg/agenticLoop";
+import {
+  executeTrpgToolCall,
+  type StateOperation,
+  type TrpgToolContext,
+} from "~/services/trpg/trpgTools";
+import {
+  applyStateOperations,
+  applyStateOperationsToCharacter,
+} from "~/services/trpg/rules/stateOperations";
 import {
   parseThinkSections,
-  parseNarratorSections,
   parseOocFromReasoning,
   parseThink1FromReasoning,
   parseThink2FromReasoning,
-} from '~/services/trpg/parseThinkSections';
-import { checkAndGenerateSummaries } from '~/services/trpg/memoryCompression';
-import { scoreAction } from '~/services/trpg/rules/think4Scoring';
-import { runOocCheck } from '~/services/trpg/rules/oocCheck';
+} from "~/services/trpg/parseThinkSections";
+import { checkAndGenerateSummaries } from "~/services/trpg/memoryCompression";
+import { scoreAction } from "~/services/trpg/rules/think4Scoring";
+import { runOocCheck } from "~/services/trpg/rules/oocCheck";
 import {
   getSave,
   getAllSaves,
@@ -51,23 +56,19 @@ import {
   getAllWorldCards,
   putWorldCard,
   deleteWorldCard,
-} from '~/services/trpg/trpgStorage';
-import {
-  sendStreamRequest,
-  buildApiRequestBody,
-  parseSSEChunk,
-  ApiError,
-} from '~/services/apiClient';
+} from "~/services/trpg/trpgStorage";
+import { ApiError } from "~/services/apiClient";
 import {
   getApiUrlForModel,
   getApiKeyForModel,
   getActualModelName,
+  getChatCompletionsUrl,
   parseModelName,
-} from '~/services/providerService';
-import { getItem } from '~/services/storage';
-import { BUILTIN_PROVIDERS } from '~/stores/slices/settings-slice';
-import { logger } from '~/services/logger';
-import { toast } from 'sonner';
+} from "~/services/providerService";
+import { getItem } from "~/services/storage";
+import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
+import { logger } from "~/services/logger";
+import { toast } from "sonner";
 
 // ============================================================================
 // 辅助函数：从 state 提取 API 设置（参考 chat-slice.ts）
@@ -81,9 +82,7 @@ const extractApiSettings = (state: AppStoreState): ApiSettings => {
   const targetProvider = providerId
     ? allProviders.find((p) => p.id === providerId)
     : currentProvider;
-  const currentModel = targetProvider?.models?.find(
-    (m) => m.name === actualModelName,
-  );
+  const currentModel = targetProvider?.models?.find((m) => m.name === actualModelName);
   const enableThinking = !!currentModel?.supportsReasoning;
 
   return {
@@ -100,7 +99,7 @@ const extractApiSettings = (state: AppStoreState): ApiSettings => {
 // 默认状态
 // ============================================================================
 
-const DEFAULT_TRPG_MODEL_KEY = 'trpg_model';
+const DEFAULT_TRPG_MODEL_KEY = "trpg_model";
 const AUTO_SAVE_INTERVAL = 10; // 每 10 轮自动保存
 
 /** 创建默认游戏状态 */
@@ -108,12 +107,12 @@ function createDefaultGameState(saveId: string): TrpgGameState {
   return {
     saveId,
     roundNumber: 0,
-    activeCharacterId: '',
-    currentLocation: '未知地点',
-    phase: 'explore',
+    activeCharacterId: "",
+    currentLocation: "未知地点",
+    phase: "explore",
     world: {},
     quests: [],
-    time: { day: 1, hour: 8, calendarEra: '第一纪元' },
+    time: { day: 1, hour: 8, calendarEra: "第一纪元" },
     factionRelations: {},
     npcs: [],
     locations: [],
@@ -124,22 +123,22 @@ function createDefaultGameState(saveId: string): TrpgGameState {
 function createDefaultCharacter(): TrpgCharacter {
   return {
     charId: uuidv4(),
-    name: '冒险者',
-    race: '人类',
-    class: '战士',
+    name: "冒险者",
+    race: "人类",
+    class: "战士",
     level: 1,
     abilities: { str: 16, dex: 14, con: 15, int: 10, wis: 12, cha: 10 },
     hp: { current: 12, max: 12 },
     ac: 16,
-    proficientSkills: ['athletics', 'perception'],
+    proficientSkills: ["athletics", "perception"],
     expertiseSkills: [],
     conditions: [],
     inventory: [],
-    equipment: { weapon: '长剑', armor: '锁子甲' },
+    equipment: { weapon: "长剑", armor: "锁子甲" },
     classFeatures: [],
     xp: 0,
-    background: '',
-    alignment: '中立',
+    background: "",
+    alignment: "中立",
   };
 }
 
@@ -147,27 +146,28 @@ function createDefaultCharacter(): TrpgCharacter {
 // TRPG Slice 实现
 // ============================================================================
 
-export const createTrpgSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  TrpgSlice
-> = (set, get) => ({
+export const createTrpgSlice: StateCreator<AppStoreState, [], [], TrpgSlice> = (set, get) => ({
   // ===== 状态 =====
-  trpgMode: 'game',
-  trpgModel: '',
+  trpgMode: "game",
+  trpgModel: "",
   trpgMessages: [],
   trpgSave: null,
   trpgWorldCard: null,
   trpgIsGenerating: false,
-  trpgInputDraft: '',
+  trpgInputDraft: "",
   trpgActiveSheet: null,
   trpgAllSaves: [],
   trpgAllWorldCards: [],
   trpgPrevSemiStable: null,
+  trpgDesignSession: null,
 
   // ===== Actions：模式与设置 =====
-  setTrpgMode: (mode) => set({ trpgMode: mode }),
+  setTrpgMode: (mode) => {
+    set({ trpgMode: mode });
+    if (mode === "design" && !get().trpgDesignSession) {
+      set({ trpgDesignSession: createInitialDesignSession() });
+    }
+  },
   setTrpgModel: (model) => {
     set({ trpgModel: model });
     localStorage.setItem(DEFAULT_TRPG_MODEL_KEY, model);
@@ -186,7 +186,7 @@ export const createTrpgSlice: StateCreator<
     try {
       const save = await getSave(saveId);
       if (!save) {
-        toast.error('存档不存在');
+        toast.error("存档不存在");
         return;
       }
 
@@ -202,8 +202,8 @@ export const createTrpgSlice: StateCreator<
         trpgWorldCard: worldCard,
       });
     } catch (e) {
-      logger.error('trpg', '加载存档失败: ' + String(e));
-      toast.error('加载存档失败');
+      logger.error("trpg", "加载存档失败: " + String(e));
+      toast.error("加载存档失败");
     }
   },
 
@@ -232,10 +232,16 @@ export const createTrpgSlice: StateCreator<
 
     await putSave(save);
 
-    // 加载世界卡
+    // v0.8.3: 世界卡绑定存档 — 创建存档时同步更新世界卡的 saveIds
     let worldCard: WorldCard | null = null;
     if (worldCardId) {
       worldCard = (await getWorldCard(worldCardId)) ?? null;
+      if (worldCard) {
+        // v0.8.3: 将新存档 ID 添加到世界卡的 saveIds 列表
+        const existingSaveIds = worldCard.saveIds ?? [];
+        worldCard.saveIds = [...existingSaveIds, saveId];
+        await putWorldCard(worldCard);
+      }
     }
 
     set({
@@ -261,21 +267,32 @@ export const createTrpgSlice: StateCreator<
       await putSave(updated);
       set({ trpgSave: updated });
     } catch (e) {
-      logger.error('trpg', '保存存档失败: ' + String(e));
-      toast.error('保存存档失败');
+      logger.error("trpg", "保存存档失败: " + String(e));
+      toast.error("保存存档失败");
     }
   },
 
   deleteTrpgSave: async (saveId) => {
     try {
+      // v0.8.3: 删除存档时同步从世界卡的 saveIds 中移除
+      const { trpgAllSaves } = get();
+      const saveToDelete = trpgAllSaves.find((s) => s.saveId === saveId);
+      if (saveToDelete?.worldCardId) {
+        const worldCard = await getWorldCard(saveToDelete.worldCardId);
+        if (worldCard && worldCard.saveIds) {
+          worldCard.saveIds = worldCard.saveIds.filter((id) => id !== saveId);
+          await putWorldCard(worldCard);
+        }
+      }
+
       await deleteSave(saveId);
       const { trpgSave } = get();
       if (trpgSave?.saveId === saveId) {
         set({ trpgSave: null, trpgMessages: [], trpgWorldCard: null });
       }
     } catch (e) {
-      logger.error('trpg', '删除存档失败: ' + String(e));
-      toast.error('删除存档失败');
+      logger.error("trpg", "删除存档失败: " + String(e));
+      toast.error("删除存档失败");
     }
   },
 
@@ -284,7 +301,7 @@ export const createTrpgSlice: StateCreator<
       const saves = await getAllSaves();
       set({ trpgAllSaves: saves });
     } catch (e) {
-      logger.error('trpg', '加载存档列表失败: ' + String(e));
+      logger.error("trpg", "加载存档列表失败: " + String(e));
     }
   },
 
@@ -293,24 +310,23 @@ export const createTrpgSlice: StateCreator<
       const cards = await getAllWorldCards();
       set({ trpgAllWorldCards: cards });
     } catch (e) {
-      logger.error('trpg', '加载世界卡列表失败: ' + String(e));
+      logger.error("trpg", "加载世界卡列表失败: " + String(e));
     }
   },
 
   importWorldCard: async (json) => {
     try {
       const card = JSON.parse(json) as WorldCard;
-      if (!card.metadata?.cardId) {
-        toast.error('无效的世界卡格式');
+      if (!card.manifest?.card_id) {
+        toast.error("无效的世界卡格式");
         return;
       }
-      card.metadata.updatedAt = Date.now();
       await putWorldCard(card);
       await get().loadAllWorldCards();
-      toast.success('世界卡导入成功');
+      toast.success("世界卡导入成功");
     } catch (e) {
-      logger.error('trpg', '导入世界卡失败: ' + String(e));
-      toast.error('导入世界卡失败');
+      logger.error("trpg", "导入世界卡失败: " + String(e));
+      toast.error("导入世界卡失败");
     }
   },
 
@@ -318,35 +334,274 @@ export const createTrpgSlice: StateCreator<
     try {
       await deleteWorldCard(cardId);
       await get().loadAllWorldCards();
-      toast.success('世界卡已删除');
+      toast.success("世界卡已删除");
     } catch (e) {
-      logger.error('trpg', '删除世界卡失败: ' + String(e));
-      toast.error('删除世界卡失败');
+      logger.error("trpg", "删除世界卡失败: " + String(e));
+      toast.error("删除世界卡失败");
+    }
+  },
+
+  // ===== Actions：设计模式 =====
+  createTrpgDesignSession: () => {
+    set({ trpgDesignSession: createInitialDesignSession() });
+    logger.info("trpg", "创建设计模式会话");
+  },
+
+  resetTrpgDesignSession: () => {
+    set({ trpgDesignSession: createInitialDesignSession() });
+    toast.success("设计会话已重置");
+    logger.info("trpg", "重置设计模式会话");
+  },
+
+  sendDesignModeMessage: async (input) => {
+    const state = get();
+    let session = state.trpgDesignSession;
+
+    if (!session) {
+      session = createInitialDesignSession();
+      set({ trpgDesignSession: session });
+    }
+
+    if (state.trpgIsGenerating) return;
+
+    set({ trpgIsGenerating: true, trpgInputDraft: "" });
+
+    try {
+      // 1. 添加用户消息
+      const userMessage: TrpgMessage = {
+        id: uuidv4(),
+        role: "user",
+        content: input,
+        createdAt: Date.now(),
+      };
+
+      const messagesWithUser = [...session.messages, userMessage];
+      session = { ...session, messages: messagesWithUser, updatedAt: Date.now() };
+      set({ trpgDesignSession: session });
+
+      // 2. 解析模型配置
+      const modelKey = state.trpgModel || state.modelName;
+      const allProviders = [...BUILTIN_PROVIDERS, ...state.customApiProviders];
+      const apiUrl = getApiUrlForModel(modelKey, allProviders, state.apiUrl);
+      const apiKey = getApiKeyForModel(modelKey, state.apiProviderKeys, state.apiKey, allProviders);
+      const actualModelName = getActualModelName(modelKey, allProviders);
+
+      if (!apiUrl || !apiKey) {
+        toast.error("TRPG 模型未配置，请在设置面板中选择模型");
+        set({ trpgIsGenerating: false });
+        return;
+      }
+
+      // 3. 发送流式请求
+      const assistantMessage: TrpgMessage = {
+        id: uuidv4(),
+        role: "assistant",
+        content: "",
+        reasoningContent: "",
+        createdAt: Date.now(),
+      };
+
+      const messagesWithAssistant = [...messagesWithUser, assistantMessage];
+      session = { ...session, messages: messagesWithAssistant, updatedAt: Date.now() };
+      set({ trpgDesignSession: session });
+
+      const url = getChatCompletionsUrl(apiUrl);
+      const result = await sendDesignModeMessage(
+        session,
+        input,
+        {
+          url,
+          apiKey,
+          model: actualModelName,
+          customRequestBody: state.customRequestBody,
+        },
+        {
+          onFirstReasoningDelta: (delta) => {
+            assistantMessage.reasoningContent = (assistantMessage.reasoningContent || "") + delta;
+            const currentSession = get().trpgDesignSession;
+            if (currentSession) {
+              set({
+                trpgDesignSession: {
+                  ...currentSession,
+                  messages: currentSession.messages.map((m) =>
+                    m.id === assistantMessage.id ? { ...assistantMessage } : m,
+                  ),
+                },
+              });
+            }
+          },
+          onFinalContentDelta: (delta) => {
+            assistantMessage.content += delta;
+            const currentSession = get().trpgDesignSession;
+            if (currentSession) {
+              set({
+                trpgDesignSession: {
+                  ...currentSession,
+                  messages: currentSession.messages.map((m) =>
+                    m.id === assistantMessage.id ? { ...assistantMessage } : m,
+                  ),
+                },
+              });
+            }
+          },
+          onToolCall: (tc) => {
+            assistantMessage.toolCalls = [...(assistantMessage.toolCalls ?? []), tc];
+          },
+        },
+      );
+
+      // 4. 应用最终结果
+      assistantMessage.content = result.content;
+      assistantMessage.reasoningContent = result.reasoningContent;
+      assistantMessage.toolCalls = result.toolCalls;
+
+      // 5. 解析阶段推进
+      const parseResult = parseDesignModeResponse(session, input);
+      let nextStage = session.currentStage;
+      let nextFramework = session.framework;
+      let nextDirection = session.direction;
+
+      if (parseResult.stageCompleted && parseResult.nextStage !== undefined) {
+        nextStage = parseResult.nextStage;
+      }
+
+      if (session.currentStage === 0 && parseResult.extractedData) {
+        nextDirection = parseResult.extractedData as DesignSession["direction"];
+      }
+
+      if (session.currentStage === 1 && parseResult.extractedData) {
+        nextFramework = {
+          ...(session.framework ?? {
+            context_world: "",
+            context_rules: "",
+            context_chars: "",
+            context_timeline: "",
+            style_guide: "",
+          }),
+          ...(parseResult.extractedData as Partial<DesignSession["framework"]>),
+        } as DesignSession["framework"];
+      }
+
+      const finalSession: DesignSession = {
+        ...session,
+        currentStage: nextStage,
+        direction: nextDirection,
+        framework: nextFramework,
+        messages: messagesWithAssistant.map((m) =>
+          m.id === assistantMessage.id ? { ...assistantMessage } : m,
+        ),
+        updatedAt: Date.now(),
+      };
+
+      set({ trpgDesignSession: finalSession });
+
+      // 6. 工具执行失败提示
+      if (result.hasToolError) {
+        toast.warning("部分工具调用失败，请检查输出");
+      }
+
+      logger.info("trpg", `设计模式 Stage ${finalSession.currentStage} 完成`);
+    } catch (e) {
+      logger.error("trpg", "设计模式消息发送失败: " + String(e));
+      const errorMsg =
+        e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e);
+      toast.error(`设计模式请求失败: ${errorMsg}`);
+    } finally {
+      set({ trpgIsGenerating: false });
+    }
+  },
+
+  saveDesignWorldCard: async () => {
+    const session = get().trpgDesignSession;
+    if (!session) {
+      toast.error("没有活跃的设计会话");
+      return;
+    }
+
+    const report = validateWorldCard(session.draft);
+    if (!report.passed) {
+      toast.error("世界卡校验未通过，无法保存");
+      return;
+    }
+
+    const now = Date.now();
+    const card: WorldCard = {
+      ...session.draft,
+      manifest: {
+        ...session.draft.manifest,
+      },
+      designMeta: {
+        ...(session.draft.designMeta ?? { phase: "p3", p2Stage: 4 }),
+        phase: "p3",
+        p2Stage: session.currentStage as number,
+      },
+    };
+
+    try {
+      await putWorldCard(card);
+      await get().loadAllWorldCards();
+      toast.success(`世界卡「${card.name}」已保存`);
+      logger.info("trpg", `设计模式保存世界卡: ${card.manifest.card_id}`);
+    } catch (e) {
+      logger.error("trpg", "保存世界卡失败: " + String(e));
+      toast.error("保存世界卡失败");
+    }
+  },
+
+  exportDesignWorldCard: () => {
+    const session = get().trpgDesignSession;
+    if (!session) return "";
+    return JSON.stringify(session.draft, null, 2);
+  },
+
+  importDesignWorldCard: (json) => {
+    try {
+      const parsed = JSON.parse(json) as WorldCard;
+      const session = get().trpgDesignSession ?? createInitialDesignSession();
+      set({
+        trpgDesignSession: {
+          ...session,
+          draft: parsed,
+          currentStage: 2,
+          updatedAt: Date.now(),
+        },
+      });
+      toast.success("世界卡已导入设计会话");
+    } catch (e) {
+      logger.error("trpg", "导入设计世界卡失败: " + String(e));
+      toast.error("导入失败：JSON 格式错误");
     }
   },
 
   // ===== Actions：消息发送（三阶段管线） =====
   sendTrpgMessage: async (input) => {
     const state = get();
+
+    // v0.8.2: 设计模式走独立管线
+    if (state.trpgMode === "design") {
+      await get().sendDesignModeMessage(input);
+      return;
+    }
+
     const { trpgSave, trpgWorldCard, trpgModel } = state;
 
     if (!trpgSave) {
-      toast.error('请先创建或加载存档');
+      toast.error("请先创建或加载存档");
       return;
     }
 
     if (state.trpgIsGenerating) return;
 
-    set({ trpgIsGenerating: true, trpgInputDraft: '' });
+    set({ trpgIsGenerating: true, trpgInputDraft: "" });
 
     try {
       // === 第一阶段：预执行（并行） ===
-      logger.info('trpg', 'Stage 1: 预执行开始');
+      logger.info("trpg", "Stage 1: 预执行开始");
 
       // 1.1 添加用户消息
       const userMessage: TrpgMessage = {
         id: uuidv4(),
-        role: 'user',
+        role: "user",
         content: input,
         createdAt: Date.now(),
       };
@@ -358,13 +613,13 @@ export const createTrpgSlice: StateCreator<
       let vectorMemories: Array<{ content: string; score: number }> = [];
       try {
         // 延迟导入避免循环依赖
-        const { searchVectorMemoryWithScore, loadVectorMemoryShards } = await import(
-          '~/services/memoryService'
-        );
+        const { searchVectorMemoryWithScore, loadVectorMemoryShards } =
+          await import("~/services/memoryService");
 
         // 加载记忆设置和 API 设置（参考 chat-slice.ts 模式）
-        const memorySettingsData = await getItem<MemorySettings>('memory', 'memorySettings');
-        const memorySettings = memorySettingsData ?? { embeddingModel: '', vectorTopK: 8 } as MemorySettings;
+        const memorySettingsData = await getItem<MemorySettings>("memory", "memorySettings");
+        const memorySettings =
+          memorySettingsData ?? ({ embeddingModel: "", vectorTopK: 8 } as MemorySettings);
         const apiSettings = extractApiSettings(get());
         const allProviders = [...BUILTIN_PROVIDERS, ...get().customApiProviders];
         const providerKeys = get().apiProviderKeys;
@@ -389,16 +644,21 @@ export const createTrpgSlice: StateCreator<
           vectorMemories = results.map((r) => ({ content: r.shard.content, score: r.score }));
         }
       } catch (e) {
-        logger.warn('trpg', '向量记忆召回失败: ' + String(e));
+        logger.warn("trpg", "向量记忆召回失败: " + String(e));
       }
 
-      logger.info('trpg', 'Stage 1 完成: 预执行结束');
+      logger.info("trpg", "Stage 1 完成: 预执行结束");
 
       // === 第二阶段：单次 API 请求 ===
-      logger.info('trpg', 'Stage 2: API 请求开始');
+      logger.info("trpg", "Stage 2: API 请求开始");
 
       // 2.1 构建上下文（传入半稳定层缓存，最大化 KV 缓存命中）
-      const { systemPrompt, messages: contextMessages, tools, semiStable } = buildTrpgContext({
+      const {
+        systemPrompt,
+        messages: contextMessages,
+        tools,
+        semiStable,
+      } = buildTrpgContext({
         character: trpgSave.character,
         gameState: trpgSave.gameState,
         worldCard: trpgWorldCard,
@@ -414,54 +674,27 @@ export const createTrpgSlice: StateCreator<
       // 2.2 解析 TRPG 模型配置
       const modelKey = trpgModel || state.modelName;
       const allProviders = [...BUILTIN_PROVIDERS, ...get().customApiProviders];
-      const { providerId, modelName } = parseModelName(modelKey, allProviders);
       const apiUrl = getApiUrlForModel(modelKey, allProviders, get().apiUrl);
       const apiKey = getApiKeyForModel(modelKey, get().apiProviderKeys, get().apiKey, allProviders);
       const actualModelName = getActualModelName(modelKey, allProviders);
 
       if (!apiUrl || !apiKey) {
-        toast.error('TRPG 模型未配置，请在设置面板中选择模型');
+        toast.error("TRPG 模型未配置，请在设置面板中选择模型");
         set({ trpgIsGenerating: false });
         return;
       }
 
-      // 2.3 构建 API 请求体
-      const baseBody: Record<string, unknown> = {
-        model: actualModelName,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...contextMessages,
-        ],
-        stream: true,
-        temperature: 0.8,
-      };
-
-      if (tools.length > 0) {
-        baseBody.tools = tools;
-      }
-
-      const requestBody = buildApiRequestBody(baseBody, {
-        thinkingDepth: 'auto',
-        enableThinking: true,
-        customRequestBody: state.customRequestBody,
-      });
-
-      // 2.4 发送流式请求
+      // 2.3 创建 assistant 占位消息
       const assistantMessage: TrpgMessage = {
         id: uuidv4(),
-        role: 'assistant',
-        content: '',
-        reasoningContent: '',
+        role: "assistant",
+        content: "",
+        reasoningContent: "",
         createdAt: Date.now(),
       };
 
       const messagesWithAssistant = [...messagesWithUser, assistantMessage];
       set({ trpgMessages: messagesWithAssistant });
-
-      let fullContent = '';
-      let fullReasoning = '';
-      let toolCalls: TrpgMessage['toolCalls'] = [];
-      const collectedStateOps: StateOperation[] = [];
 
       // 构建工具执行上下文
       const toolContext: TrpgToolContext = {
@@ -469,91 +702,78 @@ export const createTrpgSlice: StateCreator<
         gameState: trpgSave.gameState,
         worldCard: trpgWorldCard,
         recentInputs: messagesWithUser
-          .filter((m) => m.role === 'user')
+          .filter((m) => m.role === "user")
           .slice(-5)
           .map((m) => m.content),
       };
 
-      // 累积器：流式增量合并 tool_calls（参考 chat-slice.ts 第540-629行）
-      const accumulatedToolCalls: Array<{ id: string; function: { name: string; arguments: string } }> = [];
+      const collectedStateOps: StateOperation[] = [];
 
-      await sendStreamRequest({
-        url: apiUrl,
+      const toolExecutor = (name: string, args: Record<string, unknown>) => {
+        const resultStr = executeTrpgToolCall(name, args, toolContext);
+        try {
+          const parsed = JSON.parse(resultStr);
+          if (parsed.stateOps && Array.isArray(parsed.stateOps)) {
+            collectedStateOps.push(...parsed.stateOps);
+          }
+        } catch {
+          // stateOps 解析失败不影响主流程
+        }
+        return resultStr;
+      };
+
+      // v0.8.2: 修复 TRPG 模式 URL 缺少 /chat/completions 端点后缀的 bug
+      const url = getChatCompletionsUrl(apiUrl);
+
+      // 2.4 两阶段 agentic 工具调用闭环
+      const loopResult = await runAgenticToolLoop({
+        url,
         apiKey,
-        body: requestBody,
-        signal: undefined,
-        onChunk: (_dataStr, parsed) => {
-          const chunk = parseSSEChunk(parsed);
-
-          if (chunk.reasoningContent) {
-            fullReasoning += chunk.reasoningContent;
+        model: actualModelName,
+        customRequestBody: state.customRequestBody,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...contextMessages,
+          { role: "user", content: input },
+        ],
+        tools,
+        toolExecutor,
+        firstSystemAppend:
+          "【阶段 1：推理与工具规划】\n" +
+          "本轮你只输出内部思考链（Think-1/2/OOC）和必要的 tool_calls。\n" +
+          "禁止输出 Narrator 叙事。工具的真实执行结果会在下一阶段回传给你。",
+        finalSystemAppend:
+          "【阶段 2：基于真实工具结果生成叙事】\n" +
+          "上面的 tool 消息是本地引擎执行工具后的真实结果（骰子点数、伤害、状态变更等）。\n" +
+          "你必须基于这些真实结果生成最终 Narrator 七段式输出，不得改写或忽略已发生的数值。",
+        callbacks: {
+          onFirstReasoningDelta: (delta) => {
             set({
               trpgMessages: get().trpgMessages.map((m) =>
                 m.id === assistantMessage.id
-                  ? { ...m, reasoningContent: fullReasoning }
+                  ? { ...m, reasoningContent: (m.reasoningContent || "") + delta }
                   : m,
               ),
             });
-          }
-
-          if (chunk.content) {
-            fullContent += chunk.content;
+          },
+          onFinalContentDelta: (delta) => {
             set({
               trpgMessages: get().trpgMessages.map((m) =>
-                m.id === assistantMessage.id
-                  ? { ...m, content: fullContent }
-                  : m,
+                m.id === assistantMessage.id ? { ...m, content: (m.content || "") + delta } : m,
               ),
             });
-          }
-
-          // 流式增量合并 tool_calls
-          if (chunk.toolCalls && chunk.toolCalls.length > 0) {
-            for (const tc of chunk.toolCalls) {
-              const existing = accumulatedToolCalls.find((t) => t.id === tc.id && tc.id);
-              if (existing) {
-                existing.function.name += tc.function?.name ?? '';
-                existing.function.arguments += tc.function?.arguments ?? '';
-              } else {
-                accumulatedToolCalls.push({
-                  id: tc.id ?? '',
-                  function: {
-                    name: tc.function?.name ?? '',
-                    arguments: tc.function?.arguments ?? '',
-                  },
-                });
-              }
-            }
-          }
+          },
         },
+        maxLoops: 3,
       });
 
-      // 流式结束后，处理完整的 tool_calls（本地执行 TRPG 工具）
-      for (const tc of accumulatedToolCalls) {
-        let result: string;
-        try {
-          const args = JSON.parse(tc.function.arguments);
-          const resultStr = executeTrpgToolCall(tc.function.name, args, toolContext);
-          result = resultStr;
-
-          // 解析返回的 stateOps 并收集
-          try {
-            const parsed = JSON.parse(resultStr);
-            if (parsed.stateOps && Array.isArray(parsed.stateOps)) {
-              collectedStateOps.push(...parsed.stateOps);
-            }
-          } catch {
-            // stateOps 解析失败不影响主流程
-          }
-        } catch (e) {
-          result = JSON.stringify({ error: String(e) });
-        }
-
-        toolCalls = [
-          ...(toolCalls ?? []),
-          { id: tc.id, name: tc.function.name, arguments: tc.function.arguments, result },
-        ];
-      }
+      const fullContent = loopResult.finalContent;
+      const fullReasoning =
+        loopResult.firstReasoningContent +
+        (loopResult.finalReasoningContent
+          ? `\n\n[阶段 2 思考]\n${loopResult.finalReasoningContent}`
+          : "");
+      const toolCalls: TrpgMessage["toolCalls"] = loopResult.toolCalls;
 
       if (toolCalls.length > 0) {
         set({
@@ -563,10 +783,10 @@ export const createTrpgSlice: StateCreator<
         });
       }
 
-      logger.info('trpg', 'Stage 2 完成: API 请求结束');
+      logger.info("trpg", "Stage 2 完成: 两阶段 agentic 闭环结束");
 
       // === 第三阶段：后处理 ===
-      logger.info('trpg', 'Stage 3: 后处理开始');
+      logger.info("trpg", "Stage 3: 后处理开始");
 
       // 3.1 解析思考链（Think-1/2/OOC/Narrator）
       const parsedChain = parseThinkSections(fullContent);
@@ -579,17 +799,26 @@ export const createTrpgSlice: StateCreator<
       const think1Result = parseThink1FromReasoning(fullReasoning);
       const think2Result = parseThink2FromReasoning(fullReasoning);
       if (think1Result) {
-        logger.info('trpg', `Think-1 解析: category=${think1Result.category}, skill=${think1Result.skillRequired}, dc=${think1Result.estimatedDc}`);
+        logger.info(
+          "trpg",
+          `Think-1 解析: category=${think1Result.category}, skill=${think1Result.skillRequired}, dc=${think1Result.estimatedDc}`,
+        );
       }
       if (think2Result) {
-        logger.info('trpg', `Think-2 解析: paths=${think2Result.paths.length}, recommended=${think2Result.recommended}`);
+        logger.info(
+          "trpg",
+          `Think-2 解析: paths=${think2Result.paths.length}, recommended=${think2Result.recommended}`,
+        );
       }
 
       // 3.4 执行 OOC TS 端审查（审查项 3/4/6），与 LLM 端审查合并
       const tsOocResult = runOocCheck(
         {
           player_input: input,
-          recent_inputs: messagesWithUser.filter((m) => m.role === 'user').slice(-5).map((m) => m.content),
+          recent_inputs: messagesWithUser
+            .filter((m) => m.role === "user")
+            .slice(-5)
+            .map((m) => m.content),
           phase: trpgSave.gameState.phase,
         },
         trpgSave.character,
@@ -601,11 +830,17 @@ export const createTrpgSlice: StateCreator<
         const llmCheck = llmOocChecks.find((lc) => lc.id === tc.id);
         return llmCheck ?? tc;
       });
-      const hasHardBlock = mergedChecks.some((c) => c.result === 'hard_block');
-      const hasSoftWarn = mergedChecks.some((c) => c.result === 'soft_warn');
-      const oocAction: OocResult['action'] = hasHardBlock ? 'blocked' : hasSoftWarn ? 'partial' : 'resolved';
-      const mergedOoc: OocResult = { checks: mergedChecks, hasHardBlock, hasSoftWarn, action: oocAction };
-      logger.info('trpg', `OOC 审查合并完成: action=${oocAction}, hardBlock=${hasHardBlock}, softWarn=${hasSoftWarn}`);
+      const hasHardBlock = mergedChecks.some((c) => c.result === "hard_block");
+      const hasSoftWarn = mergedChecks.some((c) => c.result === "soft_warn");
+      const oocAction: OocResult["action"] = hasHardBlock
+        ? "blocked"
+        : hasSoftWarn
+          ? "partial"
+          : "resolved";
+      logger.info(
+        "trpg",
+        `OOC 审查合并完成: action=${oocAction}, hardBlock=${hasHardBlock}, softWarn=${hasSoftWarn}`,
+      );
 
       // 3.5 更新消息
       const finalMessages = get().trpgMessages.map((m) =>
@@ -634,7 +869,9 @@ export const createTrpgSlice: StateCreator<
       try {
         think4Result = scoreAction(
           {
-            diceResult: collectedStateOps.find((op) => op.type === 'hp_change') ? undefined : undefined,
+            diceResult: collectedStateOps.find((op) => op.type === "hp_change")
+              ? undefined
+              : undefined,
             narratorSections,
             stateOps: collectedStateOps,
             aSummaryCount: trpgSave.aSummaries.length,
@@ -643,16 +880,29 @@ export const createTrpgSlice: StateCreator<
           updatedGameState,
           trpgWorldCard,
         );
-        logger.info('trpg', `Think-4 评分: total=${think4Result.total}, verdict=${think4Result.verdict}`);
+        logger.info(
+          "trpg",
+          `Think-4 评分: total=${think4Result.total}, verdict=${think4Result.verdict}`,
+        );
       } catch (e) {
-        logger.warn('trpg', 'Think-4 评分失败: ' + String(e));
+        logger.warn("trpg", "Think-4 评分失败: " + String(e));
       }
 
       // 3.8 A/B/C 记忆摘要生成
       const newRound = updatedGameState.roundNumber;
       const summaryResult = checkAndGenerateSummaries(
         newRound,
-        [userMessage, { id: assistantMessage.id, role: 'assistant', content: fullContent, reasoningContent: fullReasoning, narratorSections, createdAt: Date.now() } as TrpgMessage],
+        [
+          userMessage,
+          {
+            id: assistantMessage.id,
+            role: "assistant",
+            content: fullContent,
+            reasoningContent: fullReasoning,
+            narratorSections,
+            createdAt: Date.now(),
+          } as TrpgMessage,
+        ],
         trpgSave.aSummaries,
         trpgSave.bSummaries,
         trpgSave.cSummaries,
@@ -664,16 +914,16 @@ export const createTrpgSlice: StateCreator<
       if (summaryResult.newASummary) {
         updatedASummaries.push(summaryResult.newASummary);
         while (updatedASummaries.length > 50) updatedASummaries.shift();
-        logger.info('trpg', `A 级摘要生成: round ${newRound}`);
+        logger.info("trpg", `A 级摘要生成: round ${newRound}`);
       }
       if (summaryResult.newBSummary) {
         updatedBSummaries.push(summaryResult.newBSummary);
         while (updatedBSummaries.length > 10) updatedBSummaries.shift();
-        logger.info('trpg', `B 级摘要生成: round ${newRound}`);
+        logger.info("trpg", `B 级摘要生成: round ${newRound}`);
       }
       if (summaryResult.newCSummary) {
         updatedCSummaries.push(summaryResult.newCSummary);
-        logger.info('trpg', `C 级摘要生成: round ${newRound}`);
+        logger.info("trpg", `C 级摘要生成: round ${newRound}`);
       }
 
       const updatedSave: SaveSlot = {
@@ -696,13 +946,12 @@ export const createTrpgSlice: StateCreator<
 
       // 3.5 向量记忆写入（异步，不阻塞）
       try {
-        const { getEmbedding, saveVectorMemoryShards } = await import(
-          '~/services/memoryService'
-        );
+        const { getEmbedding, saveVectorMemoryShards } = await import("~/services/memoryService");
 
         // 加载记忆设置和 API 设置
-        const memorySettingsData = await getItem<MemorySettings>('memory', 'memorySettings');
-        const memorySettings = memorySettingsData ?? { embeddingModel: '', vectorTopK: 8 } as MemorySettings;
+        const memorySettingsData = await getItem<MemorySettings>("memory", "memorySettings");
+        const memorySettings =
+          memorySettingsData ?? ({ embeddingModel: "", vectorTopK: 8 } as MemorySettings);
         const apiSettings = extractApiSettings(get());
         const allProviders = [...BUILTIN_PROVIDERS, ...get().customApiProviders];
         const providerKeys = get().apiProviderKeys;
@@ -728,13 +977,14 @@ export const createTrpgSlice: StateCreator<
           }
         }
       } catch (e) {
-        logger.warn('trpg', '向量记忆写入失败: ' + String(e));
+        logger.warn("trpg", "向量记忆写入失败: " + String(e));
       }
 
-      logger.info('trpg', 'Stage 3 完成: 后处理结束');
+      logger.info("trpg", "Stage 3 完成: 后处理结束");
     } catch (e) {
-      logger.error('trpg', '消息发送失败: ' + String(e));
-      const errorMsg = e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e);
+      logger.error("trpg", "消息发送失败: " + String(e));
+      const errorMsg =
+        e instanceof ApiError ? e.message : e instanceof Error ? e.message : String(e);
       toast.error(`TRPG 请求失败: ${errorMsg}`);
     } finally {
       set({ trpgIsGenerating: false });
@@ -745,4 +995,3 @@ export const createTrpgSlice: StateCreator<
     set({ trpgIsGenerating: false });
   },
 });
-

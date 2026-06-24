@@ -1,5 +1,79 @@
 # Changelog
 
+## v0.8.4
+
+### 🤖 TRPG 两阶段 Agentic 闭环（核心）
+
+- **游戏模式两阶段工具循环**：将原来的单次 API 请求（模型同时输出叙事 + tool_calls）重构为真正的 ReAct 闭环——第一阶段模型只输出思考链 + tool_calls（不生成叙事），本地引擎执行 d20 检定/伤害/状态变更后，第二阶段将真实工具结果以 `role: 'tool'` 消息回传 LLM，模型基于真实骰子点数和伤害数值生成最终 Narrator 七段叙事。最大循环深度 3，防止无限工具调用
+- **设计模式两阶段工具循环**：设计模式同样升级为两阶段闭环——第一阶段模型规划并调用设计工具（write_card / patch_card 等）修改世界卡草稿，第二阶段基于工具执行结果生成面向用户的引导文案
+- **第一阶段思考可见**：第一阶段 reasoning_content 实时更新到思考卡片，与聊天页展示方式一致
+- **通用 agentic 循环引擎**：新增 `agenticLoop.ts`，提供 `runAgenticToolLoop` 通用函数，支持 system prompt 阶段追加、回调式流式更新、递归多轮工具调用
+
+### 🎨 设计模式入口卡片
+
+- **方向选择欢迎页**：替换原来的空白图标 + 按钮，新增 `DesignModeWelcome` 组件——4 张方向卡片网格（PERSONA 扮演一个角色 / WORLD 构建一个世界 / SCENE 我有一个画面 / IMPROV 随便来一个），每张卡片含图标、方向名、示例文案
+- **点击填入输入框**：点击卡片将方向文案填入底部输入框，不自动发送，等用户编辑后发送
+- **图标来源**：全部使用 game-icon-pack（IconUser / IconGlobe / IconImage / IconDice）
+- **设计模式发送修复**：设计模式下不再要求 trpgSave 存在才能发送
+
+### 📋 世界卡 Schema 破坏性升级
+
+- **完全对标标准世界卡结构**：WorldCard 类型从扁平数组结构重写为标准嵌套结构：
+  - 顶层 `name/description/contentLocale/localizations/manifest/snapshot/designMeta`
+  - `snapshot.world_setting.settings` 为 entity_id 映射，每个实体含 `display_name/atmosphere/chapters`（6 章节均为字符串数组）/`sites`（含 `spots[]`，每个 spot 有 `atmosphere`）/`narrative_core_characters`
+  - `snapshot.character_database` 为 Record，角色含 `dialogue_examples.in_person[]/sms[]`（每条含 context/line）、`relationships/cognitive_state/initial_status/dialogue_tone`、`species/profession/affiliation/combat_style/personality/appearance/clothing/hidden_motive/scar_mark/stance/faction/current_goal/is_protagonist`
+  - `snapshot.world_timeline.events[]` 含 `time/day/time_str/location{country,site,spot}/content/entity_refs/character_refs`
+  - `snapshot.prompt_modules.modules` 按名映射 + `module_meta` + `_summary`
+  - `snapshot.panel_fields` 结构化字段定义数组 + `_worldTermsSource`
+  - `snapshot.laws/mods/artifacts` 全部 Record 化，字段对标标准（law 的 scope/body/binding，mod 的 ref/config/prose/owns_vars/hooks，artifact 的 owner/location/attrs）
+- **设计工具全量重写**：`designModeTools.ts` 工具 schema 从 14 个扩展为标准化工具集（write_card / patch_card / add_world_setting_entity / add_world_setting_site / add_character / add_timeline_event / add_prompt_module / set_panel_fields / add_law / add_mod / add_artifact / set_opening_greeting / finalize_world_card / rollback_stage），参数对标标准字段
+- **校验逻辑升级**：`validateWorldCard` 检查项覆盖并超越标准——每个实体必须有 atmosphere 和 _summary、每个 site 下 spots 不少于 3 个、角色 dialogue_examples.in_person ≥ 6 且 sms ≥ 4、角色关系双向性、prompt_modules 必须含 module_meta、时间线事件必须含 entity_refs/character_refs
+- **游戏模式上下文渲染适配**：`buildWorldCardText` 重写以读取新嵌套结构，渲染 atmosphere、chapters 数组、sites/spots 嵌套、角色 dialogue_tone/affiliation/combat_style/hidden_motive/current_goal、时间线 location 对象等
+
+### 🧪 测试
+
+- 新增 `trpgTools.test.ts`：TRPG 工具注册与执行测试（schema/executor 对齐、d20_check、roll_damage、inventory_add、未知工具错误），共 38 个测试全部通过
+
+### 📦 工程变更
+
+- Android `versionCode` 46→47，`versionName` 0.8.3→0.8.4
+- `android-patches/build.gradle` 同步至 47/0.8.4
+- 版本号同步：`package.json` / `about.tsx` / `android/app/build.gradle` / `android-patches/build.gradle`
+- 新增文件：`frontend/app/services/trpg/agenticLoop.ts`、`frontend/app/services/trpg/designModeApi.ts`、`frontend/app/services/trpg/designModeTools.ts`、`frontend/app/services/__tests__/trpgTools.test.ts`
+- `CHANGELOG.md` / `README.md` 同步更新
+
+---
+
+## v0.8.3
+
+### 🐛 修复
+
+- **[]内容消失**（致命）：Streamdown 流式结束后 `[文字]` 被解析为 shortcut reference link 并丢弃；新增 `protectUndefinedReferences` remark 插件，支持嵌套格式化（`[*italic*]`、`[**bold**]`）、fullReference（`[text][ref]`）、imageReference（`![text]`）、collapsed（`[text][]`）全场景还原
+- **Agentic 模式空响应误判**：模型只返回 tool_calls 无正文时被误判为空响应终止；空响应检查加入 tool_calls 判断，forceToolCall 改为仅 force 模式强制
+- **TRPG 模式 API 请求失败**：URL 缺少 `/chat/completions` 端点后缀；提取 `getChatCompletionsUrl` 公共函数，TRPG 模式复用
+- **嵌入供应商解析错误**：记忆设置配置供应商A嵌入模型，聊天选供应商B时错误使用供应商B的 API；移除 Level 3/4 回退，下拉选择时同步写入 `embeddingApiProviderId`
+- **customRequestBody 覆盖工具配置**：自定义请求体 JSON 合并时覆盖 `tools` 和 `tool_choice`；合并时跳过这些保护字段
+
+### ✨ 优化
+
+- **流式掉帧优化**：5处 `setTimeout` 替换为 `requestAnimationFrame`，精确对齐浏览器 16.67ms 刷新帧，消除最小 4ms 延迟导致的掉帧
+- **首字延迟优化**：world-recall 语义检索改为异步非阻塞（fire-and-forget），当前消息仅使用 constant + keyword 结果，首字延迟降低 60%+；语义检索结果异步持久化到 IndexedDB，下次消息生效
+- **思考节点流式渲染**：`luzzy-thinking-timeline` 添加 `directRender`，消除词级动画卡顿
+
+### 🏗️ 重构
+
+- **TRPG 存档/世界卡绑定关系**：从"存档绑定世界卡"改为"世界卡绑定存档"。WorldCard 新增 `saveIds` 字段，UI 改为世界卡列表展开显示存档；创建/删除存档时同步更新世界卡的 saveIds；移除角色名输入框（角色名由设计模式取名）
+- **TRPG 用户引导**：新增首次使用分步引导（4步：欢迎→设计模式创建世界卡→创建存档→开始游戏），使用 localStorage 标记完成状态，支持跳过
+
+### 📦 工程变更
+
+- Android `versionCode` 45→46，`versionName` 0.8.2→0.8.3
+- `android-patches/build.gradle` 同步至 46/0.8.3（修复之前未同步的问题）
+- 版本号同步：`package.json` / `about.tsx` / `android/build.gradle` / `android-patches/build.gradle`
+- `CHANGELOG.md` / `README.md` 同步更新
+
+---
+
 ## v0.8.1
 
 ### 🏗️ 架构（核心）

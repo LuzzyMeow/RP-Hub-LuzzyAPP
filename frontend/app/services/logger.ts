@@ -19,8 +19,18 @@
  * 在 Web 环境下回退到 console，在 Capacitor 原生环境下写入文件系统
  */
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
-type LogCategory = 'app' | 'agent' | 'api' | 'user' | 'chat' | 'memory' | 'world' | 'tool' | 'stream' | 'trpg';
+type LogLevel = "debug" | "info" | "warn" | "error";
+type LogCategory =
+  | "app"
+  | "agent"
+  | "api"
+  | "user"
+  | "chat"
+  | "memory"
+  | "world"
+  | "tool"
+  | "stream"
+  | "trpg";
 export type { LogLevel, LogCategory };
 
 interface LogEntry {
@@ -40,7 +50,7 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 /** 当前日志级别（可按需调整） */
-let currentLogLevel: LogLevel = 'debug';
+let currentLogLevel: LogLevel = "debug";
 
 /** 内存中的日志缓冲区（用于 Web 环境或文件写入前的缓存） */
 const logBuffer: LogEntry[] = [];
@@ -49,13 +59,13 @@ const MAX_BUFFER_SIZE = 2000;
 /** 文件系统就绪标志 */
 let filesystemReady = false;
 /** 当日日志文件路径 */
-let currentLogFile = '';
+let currentLogFile = "";
 
 /**
  * 格式化时间戳：YYYY-MM-DD HH:mm:ss.SSS
  */
 function formatTimestamp(date: Date): string {
-  const pad = (n: number, len = 2) => String(n).padStart(len, '0');
+  const pad = (n: number, len = 2) => String(n).padStart(len, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 }
 
@@ -63,7 +73,7 @@ function formatTimestamp(date: Date): string {
  * 获取日期字符串：YYYYMMDD
  */
 function getDateString(date: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
+  const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
 }
 
@@ -81,8 +91,8 @@ function formatLogEntry(entry: LogEntry): string {
 async function writeToFile(entry: LogEntry): Promise<void> {
   if (!filesystemReady) return;
   try {
-    const { appendFile, mkdir, writeFile } = await import('~/services/nativeBridge');
-    const line = formatLogEntry(entry) + '\n';
+    const { appendFile, mkdir, writeFile } = await import("~/services/nativeBridge");
+    const line = formatLogEntry(entry) + "\n";
     const filename = `logs/${getDateString()}.log`;
 
     try {
@@ -101,7 +111,7 @@ async function writeToFile(entry: LogEntry): Promise<void> {
     currentLogFile = filename;
   } catch (e) {
     // 文件写入失败时回退到 console
-    console.warn('[Logger] 文件写入失败:', e);
+    console.warn("[Logger] 文件写入失败:", e);
   }
 }
 
@@ -110,7 +120,7 @@ async function writeToFile(entry: LogEntry): Promise<void> {
  */
 async function cleanOldLogs(): Promise<void> {
   try {
-    const { readdir, deleteFile } = await import('~/services/nativeBridge');
+    const { readdir, deleteFile } = await import("~/services/nativeBridge");
     const result = await readdir("DOCUMENTS", "logs").catch(() => null);
 
     if (!result) return;
@@ -141,18 +151,18 @@ async function cleanOldLogs(): Promise<void> {
 export async function initLogger(): Promise<void> {
   try {
     // v0.4.5: 方案 D - 使用 NativeBridge 检测原生平台
-    const { isNativePlatform } = await import('~/services/nativeBridge');
+    const { isNativePlatform } = await import("~/services/nativeBridge");
     if (isNativePlatform()) {
       filesystemReady = true;
       // 清理旧日志
       await cleanOldLogs();
-      console.log('[Logger] 文件日志系统已初始化');
+      console.log("[Logger] 文件日志系统已初始化");
     }
   } catch {
     // Web 环境,仅使用 console
   }
   // 记录启动日志
-  log('info', 'app', '应用启动');
+  log("info", "app", "应用启动");
 }
 
 /**
@@ -161,7 +171,7 @@ export async function initLogger(): Promise<void> {
 export async function getLogFilePath(): Promise<string | null> {
   if (!filesystemReady) return null;
   try {
-    const { getUri } = await import('~/services/nativeBridge');
+    const { getUri } = await import("~/services/nativeBridge");
     const filename = `logs/${getDateString()}.log`;
     const { uri } = await getUri("DOCUMENTS", filename);
     return uri ?? null;
@@ -201,16 +211,16 @@ function log(level: LogLevel, category: LogCategory, message: string): void {
   // 写入 console
   const formatted = formatLogEntry(entry);
   switch (level) {
-    case 'debug':
+    case "debug":
       console.debug(formatted);
       break;
-    case 'info':
+    case "info":
       console.info(formatted);
       break;
-    case 'warn':
+    case "warn":
       console.warn(formatted);
       break;
-    case 'error':
+    case "error":
       console.error(formatted);
       break;
   }
@@ -227,8 +237,8 @@ function log(level: LogLevel, category: LogCategory, message: string): void {
 
 /** 导出日志函数 */
 export const logger = {
-  debug: (category: LogCategory, message: string) => log('debug', category, message),
-  info: (category: LogCategory, message: string) => log('info', category, message),
-  warn: (category: LogCategory, message: string) => log('warn', category, message),
-  error: (category: LogCategory, message: string) => log('error', category, message),
+  debug: (category: LogCategory, message: string) => log("debug", category, message),
+  info: (category: LogCategory, message: string) => log("info", category, message),
+  warn: (category: LogCategory, message: string) => log("warn", category, message),
+  error: (category: LogCategory, message: string) => log("error", category, message),
 };

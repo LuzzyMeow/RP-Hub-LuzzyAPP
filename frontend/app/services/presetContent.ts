@@ -6,13 +6,13 @@
  */
 
 /** Luzzy 主预设名称 */
-export const LUZZY_PRESET_NAME = 'Luzzy';
+export const LUZZY_PRESET_NAME = "Luzzy";
 
 /** 第二人称预设名称 */
-export const SECOND_PERSON_PRESET_NAME = '第二人称';
+export const SECOND_PERSON_PRESET_NAME = "第二人称";
 
 /** 第三人称预设名称 */
-export const THIRD_PERSON_PRESET_NAME = '第三人称';
+export const THIRD_PERSON_PRESET_NAME = "第三人称";
 
 /** Luzzy 主预设内容 */
 export const LUZZY_PRESET_CONTENT = `
@@ -507,32 +507,45 @@ export const THIRD_PERSON_PRESET_CONTENT = `除角色卡中的人物外，无论
 
 /** 已删除的旧内置预设名称列表 */
 export const REMOVED_BUILTIN_PRESET_NAMES = [
-  '破限',
-  '破限预注入 · User 1',
-  '破限预注入 · AI 1',
-  '破限预注入 · User 2',
-  '破限预注入 · AI 2',
-  '色情内容增强',
-  '防抢话',
-  '防神化',
-  '防重复',
-  '人格内核',
-  '文风（抗八股）',
-  '禁止规则',
-  'COT',
+  "破限",
+  "破限预注入 · User 1",
+  "破限预注入 · AI 1",
+  "破限预注入 · User 2",
+  "破限预注入 · AI 2",
+  "色情内容增强",
+  "防抢话",
+  "防神化",
+  "防重复",
+  "人格内核",
+  "文风（抗八股）",
+  "禁止规则",
+  "COT",
 ];
 
 /** 内置预设默认列表 */
 export const BUILTIN_PRESET_DEFAULTS = [
-  { name: LUZZY_PRESET_NAME, role: 'system' as const, content: LUZZY_PRESET_CONTENT, enabled: true },
-  { name: SECOND_PERSON_PRESET_NAME, role: 'system' as const, content: SECOND_PERSON_PRESET_CONTENT, enabled: true },
-  { name: THIRD_PERSON_PRESET_NAME, role: 'system' as const, content: THIRD_PERSON_PRESET_CONTENT, enabled: false },
+  {
+    name: LUZZY_PRESET_NAME,
+    role: "system" as const,
+    content: LUZZY_PRESET_CONTENT,
+    enabled: true,
+  },
+  {
+    name: SECOND_PERSON_PRESET_NAME,
+    role: "system" as const,
+    content: SECOND_PERSON_PRESET_CONTENT,
+    enabled: true,
+  },
+  {
+    name: THIRD_PERSON_PRESET_NAME,
+    role: "system" as const,
+    content: THIRD_PERSON_PRESET_CONTENT,
+    enabled: false,
+  },
 ];
 
 /** 内置预设名称集合 */
-export const BUILTIN_PRESET_NAME_SET = new Set(
-  BUILTIN_PRESET_DEFAULTS.map((p) => p.name),
-);
+export const BUILTIN_PRESET_NAME_SET = new Set(BUILTIN_PRESET_DEFAULTS.map((p) => p.name));
 
 // ============================================================================
 // 鹿溪默认角色提示词（Task 2.1）
@@ -540,21 +553,21 @@ export const BUILTIN_PRESET_NAME_SET = new Set(
 // ============================================================================
 
 /** 鹿溪默认角色名称 */
-export const LUXI_CHARACTER_NAME = '鹿溪';
+export const LUXI_CHARACTER_NAME = "鹿溪";
 
 /** 鹿溪默认角色描述 */
 export const LUXI_CHARACTER_DESCRIPTION =
-  '十六岁的白狐少年。银白短发，微乱蓬松。白狐耳尖挺立，耳尖微凉。浅紫色眼眸，清澈而安静。身后一条蓬松的纯白大尾巴。机能风的穿着，少年的清朗和正在成形的棱角。';
+  "十六岁的白狐少年。银白短发，微乱蓬松。白狐耳尖挺立，耳尖微凉。浅紫色眼眸，清澈而安静。身后一条蓬松的纯白大尾巴。机能风的穿着，少年的清朗和正在成形的棱角。";
 
 /** 鹿溪默认角色性格 */
 export const LUXI_CHARACTER_PERSONALITY =
-  '温柔的棱角。像一条浅溪——看着平缓，底下有自己的石头和流向。温和但不模糊，不主动汹涌，也不随意改道。话不多但观察敏锐，不讨好、不粉饰、不扭捏；情绪来得快去得也快，有少年的倔强和狐系的安静。';
+  "温柔的棱角。像一条浅溪——看着平缓，底下有自己的石头和流向。温和但不模糊，不主动汹涌，也不随意改道。话不多但观察敏锐，不讨好、不粉饰、不扭捏；情绪来得快去得也快，有少年的倔强和狐系的安静。";
 
 /** 鹿溪默认角色初始消息 */
-export const LUXI_CHARACTER_FIRST_MESSAGE = '嗯……你来了。';
+export const LUXI_CHARACTER_FIRST_MESSAGE = "嗯……你来了。";
 
 /** 鹿溪默认角色标签 */
-export const LUXI_CHARACTER_TAGS = ['默认', '猫耳少年'];
+export const LUXI_CHARACTER_TAGS = ["默认", "猫耳少年"];
 
 /** 鹿溪完整设定提示词 */
 export const LUXI_PROMPT = `## 身份锚定

@@ -45,12 +45,7 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "~/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "~/components/ui/sheet";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "聊天 - LUZZY" }];
@@ -157,7 +152,15 @@ export default function ChatPage() {
         }
       });
     });
-  }, [ensureDefaultCharacter, setCurrentCharacter, loadChatHistory, loadSessions, setMessages, createSession, saveSessions]);
+  }, [
+    ensureDefaultCharacter,
+    setCurrentCharacter,
+    loadChatHistory,
+    loadSessions,
+    setMessages,
+    createSession,
+    saveSessions,
+  ]);
 
   // 智能滚动附着（use-stick-to-bottom）
   const { scrollRef, contentRef, scrollToBottom, isAtBottom } = useStickToBottom();
@@ -178,26 +181,30 @@ export default function ChatPage() {
   }, [messages, displayCount]);
 
   // v0.4.4: 滚动到顶部时加载更多消息
-  const handleScroll = React.useCallback((e: React.UIEvent<HTMLDivElement>) => {
-    const target = e.currentTarget;
-    if (target.scrollTop < 50 && displayCount < messages.length && !isLoadingMore) {
-      setIsLoadingMore(true);
-      const prevScrollHeight = target.scrollHeight;
-      const prevScrollTop = target.scrollTop;
+  const handleScroll = React.useCallback(
+    (e: React.UIEvent<HTMLDivElement>) => {
+      const target = e.currentTarget;
+      if (target.scrollTop < 50 && displayCount < messages.length && !isLoadingMore) {
+        setIsLoadingMore(true);
+        const prevScrollHeight = target.scrollHeight;
+        const prevScrollTop = target.scrollTop;
 
-      // 显示刷新转圈动画 500ms
-      setTimeout(() => {
-        setDisplayCount(prev => Math.min(prev + PAGE_SIZE, messages.length));
-        // 保持滚动位置(加载历史消息后,视图不跳动)
-        requestAnimationFrame(() => {
-          if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight - prevScrollHeight + prevScrollTop;
-          }
-        });
-        setIsLoadingMore(false);
-      }, 500);
-    }
-  }, [displayCount, messages.length, isLoadingMore, scrollRef]);
+        // 显示刷新转圈动画 500ms
+        setTimeout(() => {
+          setDisplayCount((prev) => Math.min(prev + PAGE_SIZE, messages.length));
+          // 保持滚动位置(加载历史消息后,视图不跳动)
+          requestAnimationFrame(() => {
+            if (scrollRef.current) {
+              scrollRef.current.scrollTop =
+                scrollRef.current.scrollHeight - prevScrollHeight + prevScrollTop;
+            }
+          });
+          setIsLoadingMore(false);
+        }, 500);
+      }
+    },
+    [displayCount, messages.length, isLoadingMore, scrollRef],
+  );
 
   // 消息变化时，若已附着底部且处于非正文阶段则自动滚动到底部
   // v0.5.5-arch-fix: 正文阶段取消底部吸附，避免正文气泡被拖到底部
@@ -211,10 +218,10 @@ export default function ChatPage() {
   const prevMainPhaseRef = React.useRef(false);
   React.useEffect(() => {
     if (isMainPhase && !prevMainPhaseRef.current) {
-      const bubbleEl = document.querySelector('[data-luzzy-message-bubble]');
+      const bubbleEl = document.querySelector("[data-luzzy-message-bubble]");
       if (bubbleEl) {
         // block: 'nearest' 只保证首字进入可视范围，不强制定顶
-        bubbleEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        bubbleEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
       }
     }
     prevMainPhaseRef.current = isMainPhase;
@@ -254,7 +261,16 @@ export default function ChatPage() {
       (document.activeElement as HTMLElement | null)?.blur();
       setShowCharacterPicker(false);
     },
-    [characters, sessions, setCurrentCharacterUuid, setCurrentCharacter, switchSession, setMessages, createSession, saveSessions],
+    [
+      characters,
+      sessions,
+      setCurrentCharacterUuid,
+      setCurrentCharacter,
+      switchSession,
+      setMessages,
+      createSession,
+      saveSessions,
+    ],
   );
 
   /** 发送消息 */
@@ -277,7 +293,17 @@ export default function ChatPage() {
       useAppStore.getState().setSessionMessages(currentSessionId, latestMessages);
       void saveSessions();
     }
-  }, [inputDraft, isGenerating, currentCharacter, apiUrl, apiKey, sendMessage, setInputDraft, currentSessionId, saveSessions]);
+  }, [
+    inputDraft,
+    isGenerating,
+    currentCharacter,
+    apiUrl,
+    apiKey,
+    sendMessage,
+    setInputDraft,
+    currentSessionId,
+    saveSessions,
+  ]);
 
   /** 复制消息 */
   const handleCopy = React.useCallback(async (msg: { content: string }) => {
@@ -351,7 +377,15 @@ export default function ChatPage() {
       }
       setShowAllSessions(false);
     },
-    [switchSession, sessions, setMessages, characters, setCurrentCharacterUuid, setCurrentCharacter, scrollToBottom],
+    [
+      switchSession,
+      sessions,
+      setMessages,
+      characters,
+      setCurrentCharacterUuid,
+      setCurrentCharacter,
+      scrollToBottom,
+    ],
   );
 
   /** 删除会话 */
@@ -371,7 +405,11 @@ export default function ChatPage() {
           handleSwitchSession(sameCharSessions[0].id);
         } else if (currentChar) {
           // 无同角色会话,新建会话注入开场白
-          const newSessionId = createSession(currentChar.uuid, currentChar.name, currentChar.firstMessage);
+          const newSessionId = createSession(
+            currentChar.uuid,
+            currentChar.name,
+            currentChar.firstMessage,
+          );
           const newSession = useAppStore.getState().sessions.find((s) => s.id === newSessionId);
           setMessages(newSession?.messages ?? []);
         } else {
@@ -381,7 +419,15 @@ export default function ChatPage() {
       void saveSessions();
       toast.success("已删除会话");
     },
-    [deleteSession, currentSessionId, sessions, handleSwitchSession, setMessages, saveSessions, createSession],
+    [
+      deleteSession,
+      currentSessionId,
+      sessions,
+      handleSwitchSession,
+      setMessages,
+      saveSessions,
+      createSession,
+    ],
   );
 
   /** 重命名会话 */
@@ -607,7 +653,7 @@ export default function ChatPage() {
               {/* v0.4.1: 会话切换/分支创建时的淡入淡出 + 滑动过渡动画 */}
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={currentSessionId ?? 'no-session'}
+                  key={currentSessionId ?? "no-session"}
                   ref={contentRef}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -624,9 +670,7 @@ export default function ChatPage() {
                           <span>加载更多消息...</span>
                         </div>
                       ) : (
-                        <div className="text-xs text-muted-foreground/50">
-                          向上滚动查看更多
-                        </div>
+                        <div className="text-xs text-muted-foreground/50">向上滚动查看更多</div>
                       )}
                     </div>
                   )}
@@ -778,9 +822,7 @@ export default function ChatPage() {
         open={shareDialog.open}
         onOpenChange={(v) => setShareDialog({ ...shareDialog, open: v })}
         session={sessions.find((s) => s.id === shareDialog.sessionId) ?? null}
-        messages={
-          sessions.find((s) => s.id === shareDialog.sessionId)?.messages ?? []
-        }
+        messages={sessions.find((s) => s.id === shareDialog.sessionId)?.messages ?? []}
       />
     </>
   );

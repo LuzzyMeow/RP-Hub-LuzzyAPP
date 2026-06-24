@@ -32,17 +32,8 @@ import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Badge } from "~/components/ui/badge";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "~/components/ui/sheet";
-import {
-  springEnter,
-  pressableSubtle,
-  pressable,
-} from "~/lib/motion-presets";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "~/components/ui/sheet";
+import { springEnter, pressableSubtle, pressable } from "~/lib/motion-presets";
 import { LuzzyFullscreenEditor } from "~/components/luzzy/luzzy-fullscreen-editor";
 
 interface LuzzyChatInputProps {
@@ -162,7 +153,7 @@ export function LuzzyChatInput({
   // v0.4.0: 添加 builtinThinkingDepthOverrides 到依赖数组，修复思考深度修改后不刷新
   const allProviders = React.useMemo(
     () => getAllProviders(),
-    [getAllProviders, customApiProviders, builtinThinkingDepthOverrides]
+    [getAllProviders, customApiProviders, builtinThinkingDepthOverrides],
   );
 
   /** v0.3.4: 从当前模型的 supportsReasoning 派生 enableThinking */
@@ -271,11 +262,7 @@ export function LuzzyChatInput({
               disabled={!isGenerating && (disabled || !value.trim())}
               className="size-10 shrink-0 rounded-xl"
             >
-              {isGenerating ? (
-                <IconStop className="size-5" />
-              ) : (
-                <IconSend className="size-5" />
-              )}
+              {isGenerating ? <IconStop className="size-5" /> : <IconSend className="size-5" />}
             </Button>
           </motion.div>
         </div>
@@ -295,9 +282,9 @@ export function LuzzyChatInput({
               onClick={() => setShowModelPicker(true)}
               disabled={disabled}
               title="切换模型"
-              className="size-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="size-11 rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
-              <IconToolKit className="size-4" />
+              <IconToolKit className="size-5" />
             </Button>
           </motion.div>
           <motion.div
@@ -314,11 +301,11 @@ export function LuzzyChatInput({
               disabled={disabled || thinkingDepthLockedByJson}
               title={thinkingDepthLockedByJson ? "思考深度已在请求体内设置" : "思考深度"}
               className={cn(
-                "size-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                "size-11 rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                 thinkingDepthLockedByJson && "opacity-40",
               )}
             >
-              <IconLight className="size-4" />
+              <IconLight className="size-5" />
             </Button>
           </motion.div>
           <motion.div
@@ -334,14 +321,14 @@ export function LuzzyChatInput({
               onClick={() => setShowPlusMenu(true)}
               disabled={disabled || isGenerating}
               title="更多"
-              className="size-8 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="size-11 rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground"
             >
-              <IconPlus className="size-4" />
+              <IconPlus className="size-5" />
             </Button>
           </motion.div>
 
           {/* 右侧模型状态 */}
-          <div className="ml-auto flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground/60">
+          <div className="ml-auto flex min-w-0 items-center gap-1.5 text-sm text-label">
             <span className="truncate">{displayModelName}</span>
             {enableThinking && (
               <>
@@ -372,7 +359,11 @@ export function LuzzyChatInput({
 
       {/* 模型选择弹窗 */}
       <Sheet open={showModelPicker} onOpenChange={setShowModelPicker}>
-        <SheetContent side="bottom" className="h-[60vh] p-0" onOpenAutoFocus={(e) => e.preventDefault()}>
+        <SheetContent
+          side="bottom"
+          className="h-[60vh] p-0"
+          onOpenAutoFocus={(e) => e.preventDefault()}
+        >
           <SheetHeader>
             <SheetTitle>选择模型</SheetTitle>
           </SheetHeader>
@@ -384,9 +375,13 @@ export function LuzzyChatInput({
                 return (
                   <div key={provider.id} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2 px-1">
-                      <span className="text-sm font-semibold">{provider.displayName ?? provider.name}</span>
+                      <span className="text-sm font-semibold">
+                        {provider.displayName ?? provider.name}
+                      </span>
                       {provider.isBuiltin && (
-                        <Badge variant="secondary" className="text-xs">内置</Badge>
+                        <Badge variant="secondary" className="text-xs">
+                          内置
+                        </Badge>
                       )}
                     </div>
                     <div className="flex flex-col gap-1">
@@ -406,16 +401,24 @@ export function LuzzyChatInput({
                             }}
                             className={cn(
                               "flex items-center justify-between rounded-lg border border-border/20 bg-card/50 p-3 text-left transition-colors",
-                              isActive
-                                ? "border-primary/40 bg-primary/5"
-                                : "hover:bg-accent/50",
+                              isActive ? "border-primary/40 bg-primary/5" : "hover:bg-accent/50",
                             )}
                           >
                             <div className="flex flex-col gap-1">
-                              <span className="text-sm font-medium">{model.displayName ?? model.name}</span>
+                              <span className="text-sm font-medium">
+                                {model.displayName ?? model.name}
+                              </span>
                               <div className="flex flex-wrap gap-1">
-                                {model.supportsVision && <Badge variant="outline" className="text-xs">视觉</Badge>}
-                                {model.supportsReasoning && <Badge variant="outline" className="text-xs">推理</Badge>}
+                                {model.supportsVision && (
+                                  <Badge variant="outline" className="text-xs">
+                                    视觉
+                                  </Badge>
+                                )}
+                                {model.supportsReasoning && (
+                                  <Badge variant="outline" className="text-xs">
+                                    推理
+                                  </Badge>
+                                )}
                                 {model.contextLength && (
                                   <Badge variant="outline" className="text-xs">
                                     {model.contextLength >= 1000
@@ -466,9 +469,7 @@ export function LuzzyChatInput({
                   }}
                   className={cn(
                     "flex items-center justify-between rounded-lg border border-border/20 bg-card/50 p-3 text-left transition-colors",
-                    isActive
-                      ? "border-primary/40 bg-primary/5"
-                      : "hover:bg-accent/50",
+                    isActive ? "border-primary/40 bg-primary/5" : "hover:bg-accent/50",
                   )}
                 >
                   <div className="flex flex-col gap-1">
@@ -535,4 +536,3 @@ export function LuzzyChatInput({
     </>
   );
 }
-

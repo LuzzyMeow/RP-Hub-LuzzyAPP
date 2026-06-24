@@ -22,10 +22,7 @@ import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "~/components/ui/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import {
   Dialog,
   DialogContent,
@@ -107,9 +104,7 @@ export function AllSessionsList({
   onShareSession,
 }: AllSessionsListProps) {
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [searchMode, setSearchMode] = React.useState<"keyword" | "semantic">(
-    "keyword",
-  );
+  const [searchMode, setSearchMode] = React.useState<"keyword" | "semantic">("keyword");
   const [renamingSession, setRenamingSession] = React.useState<Session | null>(null);
   const [renameTitle, setRenameTitle] = React.useState("");
   const confirm = useConfirm();
@@ -119,9 +114,7 @@ export function AllSessionsList({
     if (!searchQuery.trim()) return sessions;
     const query = searchQuery.toLowerCase();
     return sessions.filter(
-      (s) =>
-        s.title.toLowerCase().includes(query) ||
-        s.characterName.toLowerCase().includes(query),
+      (s) => s.title.toLowerCase().includes(query) || s.characterName.toLowerCase().includes(query),
     );
   }, [sessions, searchQuery]);
 
@@ -167,7 +160,10 @@ export function AllSessionsList({
       {/* 顶部栏 */}
       <header
         className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/40 px-4 backdrop-blur-xl"
-        style={{ paddingTop: "env(safe-area-inset-top)", height: "calc(2.75rem + env(safe-area-inset-top))" }}
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          height: "calc(2.75rem + env(safe-area-inset-top))",
+        }}
       >
         <IconGrid className="size-5 text-muted-foreground" />
         <h1 className="flex-1 text-base font-semibold">所有会话</h1>
@@ -216,9 +212,7 @@ export function AllSessionsList({
               className="flex flex-col items-center justify-center py-12 text-muted-foreground"
             >
               <IconGrid className="mb-2 size-8 opacity-40" />
-              <p className="text-sm">
-                {searchQuery ? "未找到匹配的会话" : "暂无会话记录"}
-              </p>
+              <p className="text-sm">{searchQuery ? "未找到匹配的会话" : "暂无会话记录"}</p>
             </motion.div>
           ) : (
             TIME_GROUP_ORDER.map((group) => {

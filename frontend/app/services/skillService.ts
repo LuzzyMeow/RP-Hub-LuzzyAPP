@@ -10,12 +10,12 @@
  * - 从 IndexedDB 加载/保存技能列表
  */
 
-import type { Skill, SkillFileNode } from '~/types/luzzy';
-import { v4 as uuidv4 } from 'uuid';
-import { getItem, setItem } from '~/services/storage';
+import type { Skill, SkillFileNode } from "~/types/luzzy";
+import { v4 as uuidv4 } from "uuid";
+import { getItem, setItem } from "~/services/storage";
 
 /** 技能列表在 IndexedDB 中的存储键 */
-const SKILLS_STORAGE_KEY = 'all_skills';
+const SKILLS_STORAGE_KEY = "all_skills";
 
 /**
  * GitHub 镜像站列表
@@ -24,10 +24,10 @@ const SKILLS_STORAGE_KEY = 'all_skills';
  * 导入时按顺序尝试，首个成功的镜像即返回结果。
  */
 export const GITHUB_MIRRORS: string[] = [
-  'https://ghproxy.com/',
-  'https://mirror.ghproxy.com/',
-  'https://gh-proxy.com/',
-  '', // 直连 GitHub
+  "https://ghproxy.com/",
+  "https://mirror.ghproxy.com/",
+  "https://gh-proxy.com/",
+  "", // 直连 GitHub
 ];
 
 /** SKILL.md 解析结果 */
@@ -55,9 +55,9 @@ export interface ParsedSkillMd {
  * @returns 解析结果（name, description, content）
  */
 export const parseSkillMd = (content: string): ParsedSkillMd => {
-  const text = String(content || '');
-  let name = '';
-  let description = '';
+  const text = String(content || "");
+  let name = "";
+  let description = "";
 
   // 尝试解析 YAML frontmatter
   const frontmatterMatch = text.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
@@ -65,8 +65,8 @@ export const parseSkillMd = (content: string): ParsedSkillMd => {
     const frontmatter = frontmatterMatch[1];
     const nameMatch = frontmatter.match(/^name:\s*(.+)$/m);
     const descMatch = frontmatter.match(/^description:\s*(.+)$/m);
-    if (nameMatch) name = nameMatch[1].trim().replace(/^["']|["']$/g, '');
-    if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, '');
+    if (nameMatch) name = nameMatch[1].trim().replace(/^["']|["']$/g, "");
+    if (descMatch) description = descMatch[1].trim().replace(/^["']|["']$/g, "");
   }
 
   // 若 frontmatter 无 name，尝试从首个 Markdown 标题提取
@@ -81,11 +81,11 @@ export const parseSkillMd = (content: string): ParsedSkillMd => {
   if (!description) {
     // 移除 frontmatter 后取首个非空、非标题段落
     const body = frontmatterMatch ? text.slice(frontmatterMatch[0].length) : text;
-    const lines = body.split('\n');
+    const lines = body.split("\n");
     let foundHeading = false;
     const descParts: string[] = [];
     for (const line of lines) {
-      if (line.startsWith('#')) {
+      if (line.startsWith("#")) {
         if (!foundHeading && !name) {
           foundHeading = true;
           continue;
@@ -95,19 +95,19 @@ export const parseSkillMd = (content: string): ParsedSkillMd => {
         continue;
       }
       const trimmed = line.trim();
-      if (trimmed && !trimmed.startsWith('---')) {
+      if (trimmed && !trimmed.startsWith("---")) {
         descParts.push(trimmed);
         if (descParts.length >= 3) break;
       }
     }
     if (descParts.length > 0) {
-      description = descParts.join(' ').slice(0, 200);
+      description = descParts.join(" ").slice(0, 200);
     }
   }
 
   return {
-    name: name || '未命名技能',
-    description: description || '',
+    name: name || "未命名技能",
+    description: description || "",
     content: text,
   };
 };
@@ -131,34 +131,26 @@ const parseGithubUrl = (url: string): string | null => {
   const trimmed = url.trim();
 
   // 已是 raw.githubusercontent.com 格式
-  const rawMatch = trimmed.match(
-    /raw\.githubusercontent\.com\/([^?#]+)/,
-  );
+  const rawMatch = trimmed.match(/raw\.githubusercontent\.com\/([^?#]+)/);
   if (rawMatch) return rawMatch[1];
 
   // github.com/user/repo/blob/branch/path 格式
-  const blobMatch = trimmed.match(
-    /github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/,
-  );
+  const blobMatch = trimmed.match(/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
   if (blobMatch) {
     const [, user, repo, branch, path] = blobMatch;
     return `${user}/${repo}/${branch}/${path}`;
   }
 
   // github.com/user/repo/tree/branch/path 格式（目录，追加 SKILL.md）
-  const treeMatch = trimmed.match(
-    /github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)$/,
-  );
+  const treeMatch = trimmed.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)$/);
   if (treeMatch) {
     const [, user, repo, branch, dirPath] = treeMatch;
-    const basePath = dirPath.replace(/\/+$/, '');
+    const basePath = dirPath.replace(/\/+$/, "");
     return `${user}/${repo}/${branch}/${basePath}/SKILL.md`;
   }
 
   // github.com/user/repo/tree/branch 格式（根目录）
-  const treeRootMatch = trimmed.match(
-    /github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)$/,
-  );
+  const treeRootMatch = trimmed.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)$/);
   if (treeRootMatch) {
     const [, user, repo, branch] = treeRootMatch;
     return `${user}/${repo}/${branch}/SKILL.md`;
@@ -182,7 +174,7 @@ export const importSkillFromGithub = async (
 ): Promise<{ parsed: ParsedSkillMd; rawUrl: string }> => {
   const rawPath = parseGithubUrl(url);
   if (!rawPath) {
-    throw new Error('无法解析 GitHub URL，请检查链接格式');
+    throw new Error("无法解析 GitHub URL，请检查链接格式");
   }
 
   const rawBaseUrl = `https://raw.githubusercontent.com/${rawPath}`;
@@ -209,7 +201,7 @@ export const importSkillFromGithub = async (
     }
   }
 
-  throw lastError ?? new Error('所有镜像均获取失败');
+  throw lastError ?? new Error("所有镜像均获取失败");
 };
 
 /**
@@ -223,39 +215,33 @@ const parseGithubRepoInfo = (
   const trimmed = url.trim();
 
   // github.com/user/repo/blob/branch/path
-  const blobMatch = trimmed.match(
-    /github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/,
-  );
+  const blobMatch = trimmed.match(/github\.com\/([^/]+)\/([^/]+)\/blob\/([^/]+)\/(.+)$/);
   if (blobMatch) {
     const [, owner, repo, branch, path] = blobMatch;
-    const lastSlash = path.lastIndexOf('/');
-    const basePath = lastSlash > 0 ? path.slice(0, lastSlash) : '';
+    const lastSlash = path.lastIndexOf("/");
+    const basePath = lastSlash > 0 ? path.slice(0, lastSlash) : "";
     return { owner, repo, branch, basePath };
   }
 
   // github.com/user/repo/tree/branch/path
-  const treeMatch = trimmed.match(
-    /github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)$/,
-  );
+  const treeMatch = trimmed.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/]+)\/(.+)$/);
   if (treeMatch) {
     const [, owner, repo, branch, path] = treeMatch;
-    return { owner, repo, branch, basePath: path.replace(/\/+$/, '') };
+    return { owner, repo, branch, basePath: path.replace(/\/+$/, "") };
   }
 
   // github.com/user/repo/tree/branch（根目录）
-  const treeRootMatch = trimmed.match(
-    /github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)$/,
-  );
+  const treeRootMatch = trimmed.match(/github\.com\/([^/]+)\/([^/]+)\/tree\/([^/?#]+)$/);
   if (treeRootMatch) {
     const [, owner, repo, branch] = treeRootMatch;
-    return { owner, repo, branch, basePath: '' };
+    return { owner, repo, branch, basePath: "" };
   }
 
   // github.com/user/repo（默认 main 分支）
   const repoMatch = trimmed.match(/github\.com\/([^/]+)\/([^/?#]+)\/?$/);
   if (repoMatch) {
     const [, owner, repo] = repoMatch;
-    return { owner, repo, branch: 'main', basePath: '' };
+    return { owner, repo, branch: "main", basePath: "" };
   }
 
   return null;
@@ -285,7 +271,7 @@ const fetchGithubFileTree = async (
   const tree = data.tree as Array<Record<string, unknown>> | undefined;
   if (!Array.isArray(tree)) return [];
   return tree
-    .filter((item) => item.type === 'blob' && typeof item.path === 'string')
+    .filter((item) => item.type === "blob" && typeof item.path === "string")
     .map((item) => String(item.path));
 };
 
@@ -342,7 +328,7 @@ export const importSkillFromGithubFull = async (
 ): Promise<{ files: SkillFileNode[]; parsed: ParsedSkillMd; rawUrl: string }> => {
   const repoInfo = parseGithubRepoInfo(url);
   if (!repoInfo) {
-    throw new Error('无法解析 GitHub URL，请检查链接格式');
+    throw new Error("无法解析 GitHub URL，请检查链接格式");
   }
   const { owner, repo, branch, basePath } = repoInfo;
 
@@ -363,7 +349,7 @@ export const importSkillFromGithubFull = async (
   });
 
   if (skillFiles.length === 0) {
-    throw new Error('仓库中未找到任何文件');
+    throw new Error("仓库中未找到任何文件");
   }
 
   // 下载所有文件
@@ -371,9 +357,10 @@ export const importSkillFromGithubFull = async (
   for (const filePath of skillFiles) {
     const content = await fetchGithubFile(owner, repo, branch, filePath);
     // 相对路径：剥离 basePath 前缀
-    const relativePath = basePath && filePath.startsWith(`${basePath}/`)
-      ? filePath.slice(basePath.length + 1)
-      : filePath;
+    const relativePath =
+      basePath && filePath.startsWith(`${basePath}/`)
+        ? filePath.slice(basePath.length + 1)
+        : filePath;
     filesWithData.push({
       path: relativePath,
       content: content ?? undefined,
@@ -385,10 +372,10 @@ export const importSkillFromGithubFull = async (
 
   // 找到 SKILL.md 并解析
   const skillMdFile = filesWithData.find(
-    (f) => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'),
+    (f) => f.path === "SKILL.md" || f.path.endsWith("/SKILL.md"),
   );
   if (!skillMdFile?.content) {
-    throw new Error('仓库中未找到 SKILL.md 文件');
+    throw new Error("仓库中未找到 SKILL.md 文件");
   }
   const parsed = parseSkillMd(skillMdFile.content);
   const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${skillMdFile.path}`;
@@ -456,7 +443,7 @@ const parseCentralDirectory = (buffer: ArrayBuffer): ZipCentralEntry[] => {
   const view = new DataView(buffer);
   const eocdOffset = findEocdOffset(buffer);
   if (eocdOffset === -1) {
-    throw new Error('无效的 ZIP 文件：未找到 End of Central Directory 记录');
+    throw new Error("无效的 ZIP 文件：未找到 End of Central Directory 记录");
   }
 
   const cdSize = view.getUint32(eocdOffset + 12, true);
@@ -477,12 +464,8 @@ const parseCentralDirectory = (buffer: ArrayBuffer): ZipCentralEntry[] => {
     const fileCommentLength = view.getUint16(offset + 32, true);
     const localHeaderOffset = view.getUint32(offset + 42, true);
 
-    const fileNameBytes = new Uint8Array(
-      buffer,
-      offset + 46,
-      fileNameLength,
-    );
-    const fileName = new TextDecoder('utf-8').decode(fileNameBytes);
+    const fileNameBytes = new Uint8Array(buffer, offset + 46, fileNameLength);
+    const fileName = new TextDecoder("utf-8").decode(fileNameBytes);
 
     entries.push({
       compressionMethod,
@@ -523,11 +506,7 @@ const extractZipEntry = async (
   const extraFieldLength = view.getUint16(lfhOffset + 28, true);
   const dataOffset = lfhOffset + 30 + fileNameLength + extraFieldLength;
 
-  const compressedData = new Uint8Array(
-    buffer,
-    dataOffset,
-    entry.compressedSize,
-  );
+  const compressedData = new Uint8Array(buffer, dataOffset, entry.compressedSize);
 
   if (entry.compressionMethod === 0) {
     // stored：无压缩
@@ -536,10 +515,10 @@ const extractZipEntry = async (
 
   if (entry.compressionMethod === 8) {
     // deflate：使用浏览器内置 DecompressionStream
-    if (typeof DecompressionStream === 'undefined') {
-      throw new Error('浏览器不支持 DecompressionStream，无法解压 deflate 数据');
+    if (typeof DecompressionStream === "undefined") {
+      throw new Error("浏览器不支持 DecompressionStream，无法解压 deflate 数据");
     }
-    const ds = new DecompressionStream('deflate-raw');
+    const ds = new DecompressionStream("deflate-raw");
     const writer = ds.writable.getWriter();
     writer.write(compressedData);
     writer.close();
@@ -571,20 +550,18 @@ const extractZipEntry = async (
  * @param files - 文件路径与内容数组
  * @returns 树形根节点数组
  */
-const buildFileTree = (
-  files: Array<{ path: string; content?: string }>,
-): SkillFileNode[] => {
+const buildFileTree = (files: Array<{ path: string; content?: string }>): SkillFileNode[] => {
   const root: SkillFileNode[] = [];
 
   for (const file of files) {
-    const parts = file.path.split('/').filter((p) => p.length > 0);
+    const parts = file.path.split("/").filter((p) => p.length > 0);
     if (parts.length === 0) continue;
 
     let currentLevel = root;
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       const isLast = i === parts.length - 1;
-      const fullPath = parts.slice(0, i + 1).join('/');
+      const fullPath = parts.slice(0, i + 1).join("/");
 
       let existing = currentLevel.find((n) => n.name === part);
       if (!existing) {
@@ -624,12 +601,10 @@ export const importSkillFromZip = async (
   const entries = parseCentralDirectory(buffer);
 
   // 过滤目录条目（以 / 结尾）和空文件
-  const fileEntries = entries.filter(
-    (e) => !e.fileName.endsWith('/') && e.uncompressedSize > 0,
-  );
+  const fileEntries = entries.filter((e) => !e.fileName.endsWith("/") && e.uncompressedSize > 0);
 
   if (fileEntries.length === 0) {
-    throw new Error('ZIP 文件中无可用文件');
+    throw new Error("ZIP 文件中无可用文件");
   }
 
   // 提取所有文件内容
@@ -637,7 +612,7 @@ export const importSkillFromZip = async (
   for (const entry of fileEntries) {
     try {
       const data = await extractZipEntry(buffer, entry);
-      const content = new TextDecoder('utf-8').decode(data);
+      const content = new TextDecoder("utf-8").decode(data);
       // 去除路径中的顶层目录前缀用于查找 SKILL.md
       extractedFiles.push({ path: entry.fileName, content });
     } catch (e) {
@@ -646,29 +621,29 @@ export const importSkillFromZip = async (
   }
 
   if (extractedFiles.length === 0) {
-    throw new Error('ZIP 文件中所有文件解压失败');
+    throw new Error("ZIP 文件中所有文件解压失败");
   }
 
   // 查找最外层的 SKILL.md（顶层目录或第一层子目录下）
   let skillMdContent: string | null = null;
   // 优先查找根目录的 SKILL.md
   const rootSkill = extractedFiles.find(
-    (f) => f.path === 'SKILL.md' || f.path.endsWith('/SKILL.md'),
+    (f) => f.path === "SKILL.md" || f.path.endsWith("/SKILL.md"),
   );
   if (rootSkill) {
     skillMdContent = rootSkill.content;
   } else {
     // 查找任意层级的 SKILL.md（取路径最短的）
     const allSkills = extractedFiles
-      .filter((f) => f.path.split('/').pop()?.toUpperCase() === 'SKILL.MD')
-      .sort((a, b) => a.path.split('/').length - b.path.split('/').length);
+      .filter((f) => f.path.split("/").pop()?.toUpperCase() === "SKILL.MD")
+      .sort((a, b) => a.path.split("/").length - b.path.split("/").length);
     if (allSkills.length > 0) {
       skillMdContent = allSkills[0].content;
     }
   }
 
   if (!skillMdContent) {
-    throw new Error('ZIP 文件中未找到 SKILL.md');
+    throw new Error("ZIP 文件中未找到 SKILL.md");
   }
 
   const parsed = parseSkillMd(skillMdContent);
@@ -701,7 +676,7 @@ export const importSkillManual = (content: string): ParsedSkillMd => {
  * @returns 技能列表，不存在则返回空数组
  */
 export const loadSkills = async (): Promise<Skill[]> => {
-  const data = await getItem<Skill[]>('skills', SKILLS_STORAGE_KEY);
+  const data = await getItem<Skill[]>("skills", SKILLS_STORAGE_KEY);
   return data ?? [];
 };
 
@@ -711,7 +686,7 @@ export const loadSkills = async (): Promise<Skill[]> => {
  * @param skills - 技能列表
  */
 export const saveSkills = async (skills: Skill[]): Promise<void> => {
-  await setItem('skills', SKILLS_STORAGE_KEY, skills);
+  await setItem("skills", SKILLS_STORAGE_KEY, skills);
 };
 
 // ============================================================================
@@ -729,7 +704,7 @@ export const saveSkills = async (skills: Skill[]): Promise<void> => {
  */
 export const createSkill = (
   parsed: ParsedSkillMd,
-  source: 'github' | 'zip' | 'manual',
+  source: "github" | "zip" | "manual",
   files: SkillFileNode[] = [],
   githubUrl?: string,
 ): Skill => {

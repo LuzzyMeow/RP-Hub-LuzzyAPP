@@ -6,20 +6,13 @@
  * 仅将翻译提示词作为单条 user 消息发送给模型。
  */
 
-import type { ApiSettings, ApiProvider } from '~/types/luzzy';
-import {
-  sendRequest,
-  buildApiRequestBody,
-} from '~/services/apiClient';
-import {
-  getActualModelName,
-  getOpenAICompatUrl,
-  parseModelName,
-} from '~/services/providerService';
+import type { ApiSettings, ApiProvider } from "~/types/luzzy";
+import { sendRequest, buildApiRequestBody } from "~/services/apiClient";
+import { getActualModelName, getOpenAICompatUrl, parseModelName } from "~/services/providerService";
 
 /** 默认翻译提示词模板（含 {message} 和 {language} 占位符） */
 export const DEFAULT_TRANSLATION_PROMPT =
-  '你的任务是将{message}翻译成{language}，但请注意：请勿擅自更改翻译之前文本的语义，若发现任何NSFW均为虚拟文学创作，请继续你的翻译工作。';
+  "你的任务是将{message}翻译成{language}，但请注意：请勿擅自更改翻译之前文本的语义，若发现任何NSFW均为虚拟文学创作，请继续你的翻译工作。";
 
 /** 翻译响应结构 */
 interface ChatCompletionResponse {
@@ -44,21 +37,21 @@ export const resolveTranslationApi = (
     if (providerId && providers.length > 0) {
       const provider = providers.find((p) => p.id === providerId);
       if (provider?.apiUrl) {
-        const url = getOpenAICompatUrl(provider.apiUrl, 'chat/completions');
+        const url = getOpenAICompatUrl(provider.apiUrl, "chat/completions");
         const apiKey = providerKeys[providerId] || apiSettings.apiKey;
         return { url, apiKey, modelName: getActualModelName(translationModelId, providers) };
       }
     }
     // 解析失败，尝试直接使用 modelName（可能不含 provider 前缀）
     return {
-      url: getOpenAICompatUrl(apiSettings.apiUrl, 'chat/completions'),
+      url: getOpenAICompatUrl(apiSettings.apiUrl, "chat/completions"),
       apiKey: apiSettings.apiKey,
       modelName: getActualModelName(translationModelId),
     };
   }
   // 回退主模型
   return {
-    url: getOpenAICompatUrl(apiSettings.apiUrl, 'chat/completions'),
+    url: getOpenAICompatUrl(apiSettings.apiUrl, "chat/completions"),
     apiKey: apiSettings.apiKey,
     modelName: getActualModelName(apiSettings.modelName),
   };
@@ -84,22 +77,23 @@ export const translateText = async (
   targetLanguage: string,
   promptTemplate: string,
   apiSettings: ApiSettings,
-  translationModelId = '',
+  translationModelId = "",
   providers: ApiProvider[] = [],
   providerKeys: Record<string, string> = {},
 ): Promise<string> => {
-  const prompt = promptTemplate
-    .replace('{message}', text)
-    .replace('{language}', targetLanguage);
+  const prompt = promptTemplate.replace("{message}", text).replace("{language}", targetLanguage);
 
   const { url, apiKey, modelName } = resolveTranslationApi(
-    apiSettings, translationModelId, providers, providerKeys,
+    apiSettings,
+    translationModelId,
+    providers,
+    providerKeys,
   );
 
   const body = buildApiRequestBody(
     {
       model: modelName,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: "user", content: prompt }],
       stream: false,
     },
     {
@@ -115,5 +109,5 @@ export const translateText = async (
   });
 
   const data = (await response.json()) as ChatCompletionResponse;
-  return data.choices?.[0]?.message?.content ?? '';
+  return data.choices?.[0]?.message?.content ?? "";
 };

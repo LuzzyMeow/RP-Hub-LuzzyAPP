@@ -5,175 +5,179 @@
 
 /* Alibaba 字体声明 - LUZZY 项目唯一允许字体 */
 @font-face {
-  font-family: 'AlibabaPuHuiTi-3';
-  src: url('/fonts/AlibabaPuHuiTi-3-55-Regular.woff2') format('woff2');
+  font-family: "AlibabaPuHuiTi-3";
+  src: url("/fonts/AlibabaPuHuiTi-3-55-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaPuHuiTi-3';
-  src: url('/fonts/AlibabaPuHuiTi-3-65-Medium.woff2') format('woff2');
+  font-family: "AlibabaPuHuiTi-3";
+  src: url("/fonts/AlibabaPuHuiTi-3-65-Medium.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaPuHuiTi-3';
-  src: url('/fonts/AlibabaPuHuiTi-3-85-Bold.woff2') format('woff2');
+  font-family: "AlibabaPuHuiTi-3";
+  src: url("/fonts/AlibabaPuHuiTi-3-85-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaSans';
-  src: url('/fonts/AlibabaSans/AlibabaSans-Light.woff2') format('woff2');
+  font-family: "AlibabaSans";
+  src: url("/fonts/AlibabaSans/AlibabaSans-Light.woff2") format("woff2");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaSans';
-  src: url('/fonts/AlibabaSans/AlibabaSans-Regular.woff2') format('woff2');
+  font-family: "AlibabaSans";
+  src: url("/fonts/AlibabaSans/AlibabaSans-Regular.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaSans';
-  src: url('/fonts/AlibabaSans/AlibabaSans-Medium.woff2') format('woff2');
+  font-family: "AlibabaSans";
+  src: url("/fonts/AlibabaSans/AlibabaSans-Medium.woff2") format("woff2");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaSans';
-  src: url('/fonts/AlibabaSans/AlibabaSans-Bold.woff2') format('woff2');
+  font-family: "AlibabaSans";
+  src: url("/fonts/AlibabaSans/AlibabaSans-Bold.woff2") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaSans';
-  src: url('/fonts/AlibabaSans/AlibabaSans-Heavy.woff2') format('woff2');
+  font-family: "AlibabaSans";
+  src: url("/fonts/AlibabaSans/AlibabaSans-Heavy.woff2") format("woff2");
   font-weight: 800;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'AlibabaSans';
-  src: url('/fonts/AlibabaSans/AlibabaSans-Black.woff2') format('woff2');
+  font-family: "AlibabaSans";
+  src: url("/fonts/AlibabaSans/AlibabaSans-Black.woff2") format("woff2");
   font-weight: 900;
   font-style: normal;
   font-display: swap;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --background: #ffffff;
+  --foreground: #0e1115;
+  --card: #ffffff;
+  --card-foreground: #0e1115;
+  --popover: #ffffff;
+  --popover-foreground: #0e1115;
+  --primary: #0065fd;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f6f8;
+  --secondary-foreground: #0e1115;
+  --muted: #f5f6f8;
+  --muted-foreground: #7f8d9f;
+  --accent: #e5e9ff;
+  --accent-foreground: #0e1115;
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: #e7eaef;
+  --input: #e7eaef;
+  --ring: #557fff;
   --chart-1: oklch(0.81 0.1 252);
   --chart-2: oklch(0.62 0.19 260);
   --chart-3: oklch(0.55 0.22 263);
   --chart-4: oklch(0.49 0.22 264);
   --chart-5: oklch(0.42 0.18 266);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
-  --font-sans: 'AlibabaPuHuiTi-3', 'AlibabaSans', 'Noto Sans CJK SC', 'Noto Sans CJK KR', 'Noto Sans CJK JP', 'Malgun Gothic', 'Yu Gothic', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'AlibabaPuHuiTi-3', 'AlibabaSans', ui-serif, Georgia, serif;
-  --font-mono: 'AlibabaSans', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --radius: 0.625rem;
+  --sidebar: #eff1f4;
+  --sidebar-foreground: #0e1115;
+  --sidebar-primary: #0065fd;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e5e9ff;
+  --sidebar-accent-foreground: #0e1115;
+  --sidebar-border: #e7eaef;
+  --sidebar-ring: #557fff;
+  --font-sans:
+    "AlibabaPuHuiTi-3", "AlibabaSans", "Noto Sans CJK SC", "Noto Sans CJK KR", "Noto Sans CJK JP",
+    "Malgun Gothic", "Yu Gothic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "AlibabaPuHuiTi-3", "AlibabaSans", ui-serif, Georgia, serif;
+  --font-mono: "AlibabaSans", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 1.2rem;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
   --shadow-spread: 0px;
-  --shadow-opacity: 0.1;
+  --shadow-opacity: 0.04;
   --shadow-color: oklch(0 0 0);
-  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.02);
+  --shadow-xs: 0 1px 2px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0 1px 2px 0px hsl(0 0% 0% / 0.04);
+  --shadow: 0 1px 2px 0px hsl(0 0% 0% / 0.04);
+  --shadow-md: 0 2px 4px 0px hsl(0 0% 0% / 0.04);
+  --shadow-lg: 0 4px 6px 0px hsl(0 0% 0% / 0.04);
+  --shadow-xl: 0 8px 10px 0px hsl(0 0% 0% / 0.04);
+  --shadow-2xl: 0 12px 16px 0px hsl(0 0% 0% / 0.06);
   --tracking-normal: 0em;
   --spacing: 0.25rem;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.269 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.371 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #0e1115;
+  --foreground: #eff1f4;
+  --card: #171717;
+  --card-foreground: #eff1f4;
+  --popover: #1a1d23;
+  --popover-foreground: #eff1f4;
+  --primary: #557fff;
+  --primary-foreground: #ffffff;
+  --secondary: #1e2028;
+  --secondary-foreground: #eff1f4;
+  --muted: #1e2028;
+  --muted-foreground: #afbbcb;
+  --accent: #00266b;
+  --accent-foreground: #eff1f4;
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.275 0 0);
-  --input: oklch(0.325 0 0);
-  --ring: oklch(0.556 0 0);
+  --border: #333942;
+  --input: #2a2e36;
+  --ring: #557fff;
   --chart-1: oklch(0.81 0.1 252);
   --chart-2: oklch(0.62 0.19 260);
   --chart-3: oklch(0.55 0.22 263);
   --chart-4: oklch(0.49 0.22 264);
   --chart-5: oklch(0.42 0.18 266);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.275 0 0);
-  --sidebar-ring: oklch(0.439 0 0);
-  --font-sans: 'AlibabaPuHuiTi-3', 'AlibabaSans', 'Noto Sans CJK SC', 'Noto Sans CJK KR', 'Noto Sans CJK JP', 'Malgun Gothic', 'Yu Gothic', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'AlibabaPuHuiTi-3', 'AlibabaSans', ui-serif, Georgia, serif;
-  --font-mono: 'AlibabaSans', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --radius: 0.625rem;
+  --sidebar: #171717;
+  --sidebar-foreground: #eff1f4;
+  --sidebar-primary: #557fff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #00266b;
+  --sidebar-accent-foreground: #eff1f4;
+  --sidebar-border: #333942;
+  --sidebar-ring: #557fff;
+  --font-sans:
+    "AlibabaPuHuiTi-3", "AlibabaSans", "Noto Sans CJK SC", "Noto Sans CJK KR", "Noto Sans CJK JP",
+    "Malgun Gothic", "Yu Gothic", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "AlibabaPuHuiTi-3", "AlibabaSans", ui-serif, Georgia, serif;
+  --font-mono: "AlibabaSans", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --radius: 1.2rem;
   --shadow-x: 0;
   --shadow-y: 1px;
   --shadow-blur: 3px;
   --shadow-spread: 0px;
-  --shadow-opacity: 0.1;
+  --shadow-opacity: 0.04;
   --shadow-color: oklch(0 0 0);
-  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+  --shadow-2xs: 0 1px 2px 0px hsl(0 0% 0% / 0.02);
+  --shadow-xs: 0 1px 2px 0px hsl(0 0% 0% / 0.03);
+  --shadow-sm: 0 1px 2px 0px hsl(0 0% 0% / 0.04);
+  --shadow: 0 1px 2px 0px hsl(0 0% 0% / 0.04);
+  --shadow-md: 0 2px 4px 0px hsl(0 0% 0% / 0.04);
+  --shadow-lg: 0 4px 6px 0px hsl(0 0% 0% / 0.04);
+  --shadow-xl: 0 8px 10px 0px hsl(0 0% 0% / 0.04);
+  --shadow-2xl: 0 12px 16px 0px hsl(0 0% 0% / 0.06);
 }
 
 @theme inline {
@@ -235,6 +239,17 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Label text utility: ensures WCAG contrast in both light/dark modes */
+@layer utilities {
+  .text-label {
+    color: var(--muted-foreground);
+    opacity: 0.85;
+  }
+  .dark .text-label {
+    opacity: 1;
   }
 }
 

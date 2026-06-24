@@ -15,6 +15,79 @@ import "katex/dist/katex.min.css";
 import "./markdown.css";
 import "streamdown/styles.css";
 
+// v0.8.3: 自定义 remark 插件 — 保护未定义的 reference link/image 不被丢弃
+// 问题根因：Streamdown 流式结束后切换到 static 模式，[text] 被解析为 shortcut reference link，
+// 无引用定义时被丢弃，导致 [文字] 内容消失
+// 修复方案：将未匹配引用定义的 linkReference/imageReference 节点还原为纯文本
+// v0.8.3 增强：支持嵌套格式化（[*italic*]、[**bold**]）、fullReference（[text][ref]）、
+// imageReference（![text]）、collapsed（[text][]）全场景
+function extractNodeText(node: any): string {
+  if (!node) return "";
+  if (typeof node === "string") return node;
+  if (node.type === "text") return node.value || "";
+  if (node.type === "emphasis") return `*${(node.children || []).map(extractNodeText).join("")}*`;
+  if (node.type === "strong") return `**${(node.children || []).map(extractNodeText).join("")}**`;
+  if (node.type === "delete") return `~~${(node.children || []).map(extractNodeText).join("")}~~`;
+  if (node.type === "inlineCode") return `\`${node.value || ""}\``;
+  if (node.children && Array.isArray(node.children)) {
+    return node.children.map(extractNodeText).join("");
+  }
+  return node.value || "";
+}
+
+function protectUndefinedReferences(): (tree: any) => void {
+  return (tree: any) => {
+    // 第一遍：收集所有 reference 定义
+    const definitions = new Set<string>();
+    const collectDefs = (node: any): void => {
+      if (node.type === "definition" && node.identifier) {
+        definitions.add(node.identifier.toLowerCase());
+      }
+      if (node.children && Array.isArray(node.children)) {
+        for (const child of node.children) {
+          collectDefs(child);
+        }
+      }
+    };
+    collectDefs(tree);
+
+    // 第二遍：将未匹配的 linkReference/imageReference 节点还原为纯文本
+    const replaceUndefined = (node: any): void => {
+      if (node.children && Array.isArray(node.children)) {
+        for (let i = 0; i < node.children.length; i++) {
+          const child = node.children[i];
+          const isLinkRef = child.type === "linkReference";
+          const isImageRef = child.type === "imageReference";
+
+          if ((isLinkRef || isImageRef) && child.identifier) {
+            const identifier = child.identifier.toLowerCase();
+            if (!definitions.has(identifier)) {
+              // v0.8.3: 递归提取子节点文本，支持嵌套格式化
+              const text = (child.children || []).map((c: any) => extractNodeText(c)).join("");
+              const prefix = isImageRef ? "!" : "";
+              // 保留原始格式：[text]、![text]、[text][ref]、![text][ref]
+              if (child.referenceType === "full") {
+                node.children[i] = {
+                  type: "text",
+                  value: `${prefix}[${text}][${child.label || child.identifier}]`,
+                };
+              } else {
+                node.children[i] = {
+                  type: "text",
+                  value: `${prefix}[${text}]`,
+                };
+              }
+              continue;
+            }
+          }
+          replaceUndefined(child);
+        }
+      }
+    };
+    replaceUndefined(tree);
+  };
+}
+
 // Regex patterns for preprocessing
 const INLINE_LATEX_REGEX = /\\\((.+?)\\\)/g;
 const BLOCK_LATEX_REGEX = /\\\[(.+?)\\\]/gs;
@@ -22,7 +95,8 @@ const CODE_BLOCK_REGEX = /```[\s\S]*?```|`[^`\n]*`/g;
 // v0.4.6: 高亮支持多种括号:"" "" 「」 【】 〔〕 『』 {} ()
 // v0.4.3 曾包含 [] 方括号,v0.4.6 移除 [] 高亮
 // 统一正则匹配所有括号对,左括号和右括号分别捕获
-const QUOTE_HIGHLIGHT_REGEX = /([\u201C\u300C\u3010\u3014\u300E{("])([^\u201D\u300D\u3011\u3015\u300F})"]+?)([\u201D\u300D\u3011\u3015\u300F})"])/g;
+const QUOTE_HIGHLIGHT_REGEX =
+  /([\u201C\u300C\u3010\u3014\u300E{("])([^\u201D\u300D\u3011\u3015\u300F})"]+?)([\u201D\u300D\u3011\u3015\u300F})"])/g;
 
 // Preprocess markdown content
 function preProcess(content: string): string {
@@ -135,12 +209,18 @@ export default function Markdown({
   return (
     <div className={cn("markdown", className)}>
       <Streamdown
-        remarkPlugins={[remarkGfm, remarkMath, remarkBreaks]}
+        remarkPlugins={[remarkGfm, remarkMath, remarkBreaks, protectUndefinedReferences]}
         rehypePlugins={[rehypeKatex, rehypeRaw]}
         plugins={{ cjk: cjk }}
         isAnimating={isAnimating}
-        animated={directRender ? false : (isAnimating ? { animation: "fadeIn", sep: "word", duration: 150 } : false)}
-        controls={{code: false, mermaid: false}}
+        animated={
+          directRender
+            ? false
+            : isAnimating
+              ? { animation: "fadeIn", sep: "word", duration: 150 }
+              : false
+        }
+        controls={{ code: false, mermaid: false }}
         components={{
           pre: ({ children }) => <>{children}</>,
           code: ({ className, children, ...props }) => {

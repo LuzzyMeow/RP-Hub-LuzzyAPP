@@ -17,8 +17,8 @@ import type {
   NarratorSections,
   DiceResult,
   StateDelta,
-} from '~/types/trpg';
-import type { StateOperation } from '../trpgTools';
+} from "~/types/trpg";
+import type { StateOperation } from "../trpgTools";
 
 /** Think-4 评分参数 */
 export interface Think4ScoringParams {
@@ -38,10 +38,7 @@ export interface Think4ScoringParams {
  * 评分公平性
  * 基于 d20 检定结果与叙事描述是否匹配
  */
-function scoreFairness(
-  diceResult?: DiceResult,
-  narratorSections?: NarratorSections,
-): number {
+function scoreFairness(diceResult?: DiceResult, narratorSections?: NarratorSections): number {
   let score = 7; // 基础分
 
   if (diceResult) {
@@ -49,20 +46,18 @@ function scoreFairness(
     score = 8;
 
     // 大成功增加公平性
-    if (diceResult.critical === 'success') {
+    if (diceResult.critical === "success") {
       score = 10;
     }
     // 大失败略微降低公平性（玩家体验）
-    else if (diceResult.critical === 'failure') {
+    else if (diceResult.critical === "failure") {
       score = 6;
     }
 
     // 检定成功但叙事描述过于负面，降低公平性
     if (diceResult.success && narratorSections?.narrative) {
-      const negativeWords = ['失败', '错误', '糟糕', '不幸', '受伤'];
-      const hasNegative = negativeWords.some((w) =>
-        narratorSections.narrative.includes(w),
-      );
+      const negativeWords = ["失败", "错误", "糟糕", "不幸", "受伤"];
+      const hasNegative = negativeWords.some((w) => narratorSections.narrative.includes(w));
       if (hasNegative) {
         score = Math.max(4, score - 2);
       }
@@ -85,16 +80,19 @@ function scoreConsistency(
 
   // 有世界卡且规则数量多，一致性要求更高
   if (worldCard) {
-    const lawCount = worldCard.laws.length;
-    const modCount = worldCard.mods.length;
+    const lawCount = Object.keys(worldCard.snapshot.laws).length;
+    const modCount = Object.keys(worldCard.snapshot.mods).length;
 
     if (lawCount > 0 || modCount > 0) {
       score = 8; // 有规则约束，基础分更高
 
       // 状态变更中包含位置变更，检查是否与世界设定一致
       if (stateOps) {
-        const hasLocationChange = stateOps.some((op) => op.type === 'location_change');
-        if (hasLocationChange && worldCard.worldSetting.length > 0) {
+        const hasLocationChange = stateOps.some((op) => op.type === "location_change");
+        if (
+          hasLocationChange &&
+          Object.keys(worldCard.snapshot.world_setting.settings).length > 0
+        ) {
           score = 9; // 位置变更与世界设定关联，一致性高
         }
       }
@@ -122,12 +120,23 @@ function scoreConsequence(stateOps?: StateOperation[], stateDelta?: StateDelta):
     return 5;
   }
   const trackedTypes = new Set([
-    'hp_change', 'xp_add', 'condition_add', 'condition_remove',
-    'inventory_add', 'inventory_remove', 'equipment_equip',
-    'location_change', 'npc_update', 'npc_reveal',
-    'map_discover', 'map_archive', 'phase_change', 'time_advance',
+    "hp_change",
+    "xp_add",
+    "condition_add",
+    "condition_remove",
+    "inventory_add",
+    "inventory_remove",
+    "equipment_equip",
+    "location_change",
+    "npc_update",
+    "npc_reveal",
+    "map_discover",
+    "map_archive",
+    "phase_change",
+    "time_advance",
   ]);
-  const changeCount = new Set(stateOps.map((op) => op.type).filter((t) => trackedTypes.has(t))).size;
+  const changeCount = new Set(stateOps.map((op) => op.type).filter((t) => trackedTypes.has(t)))
+    .size;
   return Math.min(10, changeCount * 2);
 }
 
@@ -193,15 +202,18 @@ export function scoreAction(
   const consequence = scoreConsequence(args.stateOps, args.stateDelta);
   const coherence = scoreCoherence(args.narratorSections);
 
-  const total = Math.round((fairness * 0.35 + consistency * 0.25 + consequence * 0.25 + coherence * 0.15) * 10) / 10;
+  const total =
+    Math.round(
+      (fairness * 0.35 + consistency * 0.25 + consequence * 0.25 + coherence * 0.15) * 10,
+    ) / 10;
 
-  let verdict: Think4Result['verdict'];
+  let verdict: Think4Result["verdict"];
   if (total >= 6.0) {
-    verdict = 'pass';
+    verdict = "pass";
   } else if (total >= 3.0) {
-    verdict = 'retry';
+    verdict = "retry";
   } else {
-    verdict = 'warn';
+    verdict = "warn";
   }
 
   return {

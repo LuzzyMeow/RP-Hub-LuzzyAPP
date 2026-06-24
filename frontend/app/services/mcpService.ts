@@ -14,24 +14,24 @@
  * 从旧 Vue 3 app.js 迁移，改为纯函数风格，状态由 zustand store 管理。
  */
 
-import type { McpSubTool } from '~/types/luzzy';
+import type { McpSubTool } from "~/types/luzzy";
 
 // ============================================================================
 // 常量
 // ============================================================================
 
 /** MCP 协议版本（Streamable HTTP transport, 2025-03-26 规范） */
-export const MCP_PROTOCOL_VERSION = '2025-03-26';
+export const MCP_PROTOCOL_VERSION = "2025-03-26";
 
 /** MCP 客户端信息（品牌重塑后 name 为 LUZZY） */
-export const MCP_CLIENT_INFO = { name: 'LUZZY', version: '1.0.0' } as const;
+export const MCP_CLIENT_INFO = { name: "LUZZY", version: "1.0.0" } as const;
 
 /** MCP 请求超时时间（毫秒） */
 export const MCP_REQUEST_TIMEOUT_MS = 60000;
 
 /** JSON-RPC 请求体结构 */
 interface JsonRpcRequest {
-  jsonrpc: '2.0';
+  jsonrpc: "2.0";
   id: number;
   method: string;
   params: Record<string, unknown>;
@@ -97,68 +97,68 @@ const mcpRpcCall = async (
   headers?: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<RpcCallOutput> => {
-  const endpoint = String(url || '').trim();
-  if (!endpoint) throw new Error('MCP server URL 未配置');
+  const endpoint = String(url || "").trim();
+  if (!endpoint) throw new Error("MCP server URL 未配置");
 
   const id = ++mcpRpcIdCounter;
   const reqBody: JsonRpcRequest = {
-    jsonrpc: '2.0',
+    jsonrpc: "2.0",
     id,
     method,
     params: params || {},
   };
 
   const requestHeaders: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json, text/event-stream',
+    "Content-Type": "application/json",
+    Accept: "application/json, text/event-stream",
     ...headers,
   };
   if (sessionId) {
-    requestHeaders['Mcp-Session-Id'] = sessionId;
+    requestHeaders["Mcp-Session-Id"] = sessionId;
   }
 
   const response = await fetch(endpoint, {
-    method: 'POST',
+    method: "POST",
     headers: requestHeaders,
     body: JSON.stringify(reqBody),
     signal,
   });
 
   if (!response.ok) {
-    const errText = await response.text().catch(() => '');
+    const errText = await response.text().catch(() => "");
     throw new Error(`MCP HTTP ${response.status}: ${errText.slice(0, 200)}`);
   }
 
   // 如服务端在 initialize 时返回 Mcp-Session-Id，需缓存
-  const respSessionId = response.headers.get('mcp-session-id') || undefined;
+  const respSessionId = response.headers.get("mcp-session-id") || undefined;
 
   // 服务器可能返回 application/json 或 text/event-stream（Streamable HTTP）
-  const contentType = response.headers.get('content-type') || '';
+  const contentType = response.headers.get("content-type") || "";
 
-  if (contentType.includes('text/event-stream')) {
+  if (contentType.includes("text/event-stream")) {
     // SSE：取第一条匹配 id 的 data 事件作为响应（Streamable HTTP 单次调用语义）
     const reader = response.body?.getReader();
-    if (!reader) throw new Error('MCP SSE 响应无可读流');
+    if (!reader) throw new Error("MCP SSE 响应无可读流");
     const decoder = new TextDecoder();
-    let buffer = '';
+    let buffer = "";
     try {
       while (true) {
         const { done, value } = await reader.read();
-        if (done) throw new Error('MCP SSE 响应未收到 data 帧');
+        if (done) throw new Error("MCP SSE 响应未收到 data 帧");
         buffer += decoder.decode(value, { stream: true });
         // 按空行分割事件块，每个块内拼接多行 data
-        const blocks = buffer.split('\n\n');
-        buffer = blocks.pop() || '';
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() || "";
         for (const block of blocks) {
           const dataLines: string[] = [];
-          for (const line of block.split('\n')) {
+          for (const line of block.split("\n")) {
             const trimmed = line.trim();
-            if (trimmed.startsWith('data:')) {
+            if (trimmed.startsWith("data:")) {
               dataLines.push(trimmed.slice(5).trim());
             }
           }
           if (dataLines.length === 0) continue;
-          const jsonStr = dataLines.join('\n');
+          const jsonStr = dataLines.join("\n");
           if (!jsonStr) continue;
           try {
             const parsed = JSON.parse(jsonStr) as JsonRpcResponse;
@@ -180,9 +180,7 @@ const mcpRpcCall = async (
   try {
     parsed = (await response.json()) as JsonRpcResponse;
   } catch (e) {
-    throw new Error(
-      `MCP 响应 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`,
-    );
+    throw new Error(`MCP 响应 JSON 解析失败: ${e instanceof Error ? e.message : String(e)}`);
   }
   return { response: parsed, sessionId: respSessionId };
 };
@@ -208,12 +206,12 @@ export const initializeMcpServer = async (
   url: string,
   headers?: Record<string, string>,
 ): Promise<McpServerInfo> => {
-  const endpoint = String(url || '').trim();
-  if (!endpoint) throw new Error('MCP server URL 未配置');
+  const endpoint = String(url || "").trim();
+  if (!endpoint) throw new Error("MCP server URL 未配置");
 
   const { response, sessionId } = await mcpRpcCall(
     endpoint,
-    'initialize',
+    "initialize",
     {
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: { tools: {} },
@@ -232,21 +230,21 @@ export const initializeMcpServer = async (
   // 发送 notifications/initialized 通知（无 id 的通知）
   try {
     const notifyHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
-      Accept: 'application/json, text/event-stream',
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
       ...headers,
     };
-    if (sessionId) notifyHeaders['Mcp-Session-Id'] = sessionId;
+    if (sessionId) notifyHeaders["Mcp-Session-Id"] = sessionId;
     await fetch(endpoint, {
-      method: 'POST',
+      method: "POST",
       headers: notifyHeaders,
       body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'notifications/initialized',
+        jsonrpc: "2.0",
+        method: "notifications/initialized",
       }),
     });
   } catch (e) {
-    console.warn('[MCP] notifications/initialized 失败（非致命）:', e);
+    console.warn("[MCP] notifications/initialized 失败（非致命）:", e);
   }
 
   const resultData = (response.result || {}) as {
@@ -274,13 +272,7 @@ export const listMcpTools = async (
   sessionId?: string,
   headers?: Record<string, string>,
 ): Promise<McpSubTool[]> => {
-  const { response } = await mcpRpcCall(
-    url,
-    'tools/list',
-    {},
-    sessionId,
-    headers,
-  );
+  const { response } = await mcpRpcCall(url, "tools/list", {}, sessionId, headers);
 
   if (response?.error) {
     throw new Error(
@@ -293,9 +285,9 @@ export const listMcpTools = async (
   return tools.map((t) => {
     const tool = t as Record<string, unknown>;
     return {
-      name: String(tool.name || ''),
-      description: String(tool.description || ''),
-      inputSchema: (tool.inputSchema || { type: 'object' }) as Record<string, unknown>,
+      name: String(tool.name || ""),
+      description: String(tool.description || ""),
+      inputSchema: (tool.inputSchema || { type: "object" }) as Record<string, unknown>,
     };
   });
 };
@@ -320,7 +312,7 @@ export const callMcpTool = async (
 ): Promise<McpToolCallResult> => {
   const { response } = await mcpRpcCall(
     url,
-    'tools/call',
+    "tools/call",
     {
       name: toolName,
       arguments: args || {},
@@ -342,17 +334,17 @@ export const callMcpTool = async (
   };
   const content = Array.isArray(resultData.content) ? resultData.content : [];
   const textParts = content.map((part) => {
-    const type = String(part?.type || '');
-    if (type === 'text') return String(part.text || '');
-    if (type === 'image') return `[image:${part.mimeType || 'unknown'}]`;
-    if (type === 'resource') {
+    const type = String(part?.type || "");
+    if (type === "text") return String(part.text || "");
+    if (type === "image") return `[image:${part.mimeType || "unknown"}]`;
+    if (type === "resource") {
       const resource = part.resource as { uri?: string } | undefined;
-      return `[resource:${resource?.uri || ''}]`;
+      return `[resource:${resource?.uri || ""}]`;
     }
-    return `[${type || 'unknown'}]`;
+    return `[${type || "unknown"}]`;
   });
   return {
-    text: textParts.join('\n').trim(),
+    text: textParts.join("\n").trim(),
     isError: !!resultData.isError,
     raw: response.result,
   };
@@ -375,30 +367,30 @@ export const callMcpTool = async (
 const autoExtractMcpNameFromJson = (jsonText: string): string => {
   try {
     const parsed = JSON.parse(jsonText) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return '';
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return "";
     }
     const obj = parsed as Record<string, unknown>;
 
     // mcpServers 嵌套格式：取第一个 key
-    if (obj.mcpServers && typeof obj.mcpServers === 'object') {
+    if (obj.mcpServers && typeof obj.mcpServers === "object") {
       const keys = Object.keys(obj.mcpServers as object);
       if (keys.length > 0) return keys[0];
     }
 
     // 扁平格式：尝试从 url 提取 hostname 第一部分
-    if (typeof obj.url === 'string') {
+    if (typeof obj.url === "string") {
       try {
         const url = new URL(obj.url);
-        const parts = url.hostname.split('.');
+        const parts = url.hostname.split(".");
         if (parts.length > 0) return parts[0];
       } catch {
-        return '';
+        return "";
       }
     }
-    return '';
+    return "";
   } catch {
-    return '';
+    return "";
   }
 };
 
@@ -424,8 +416,8 @@ export interface McpImportConfig {
  * @throws JSON 无效、格式不支持时抛出错误
  */
 export const parseMcpImportJson = (jsonText: string): McpImportConfig => {
-  const text = String(jsonText || '').trim();
-  if (!text) throw new Error('JSON 不能为空');
+  const text = String(jsonText || "").trim();
+  if (!text) throw new Error("JSON 不能为空");
 
   let parsed: unknown;
   try {
@@ -434,8 +426,8 @@ export const parseMcpImportJson = (jsonText: string): McpImportConfig => {
     throw new Error(`JSON 无效: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('必须是 JSON 对象');
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("必须是 JSON 对象");
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -451,25 +443,21 @@ export const parseMcpImportJson = (jsonText: string): McpImportConfig => {
 
   let name = autoExtractMcpNameFromJson(text);
 
-  if (
-    obj.mcpServers &&
-    typeof obj.mcpServers === 'object' &&
-    !Array.isArray(obj.mcpServers)
-  ) {
+  if (obj.mcpServers && typeof obj.mcpServers === "object" && !Array.isArray(obj.mcpServers)) {
     const servers = obj.mcpServers as Record<string, unknown>;
     const serverNames = Object.keys(servers);
     if (serverNames.length === 0) {
-      throw new Error('mcpServers 为空');
+      throw new Error("mcpServers 为空");
     }
     // 取第一个服务器（名称已由 autoExtractMcpNameFromJson 提取）
     const serverName = name && servers[name] ? name : serverNames[0];
     const server = servers[serverName] as Record<string, unknown> | undefined;
-    if (!server || typeof server !== 'object') {
+    if (!server || typeof server !== "object") {
       throw new Error(`mcpServers.${serverName} 不是有效对象`);
     }
 
     // 情况 A：HTTP transport（直接有 url 字段）
-    if (typeof server.url === 'string') {
+    if (typeof server.url === "string") {
       config = {
         url: server.url,
         headers: server.headers,
@@ -480,11 +468,11 @@ export const parseMcpImportJson = (jsonText: string): McpImportConfig => {
     // 情况 B：stdio transport + mcp-remote 桥接
     else if (server.command && Array.isArray(server.args)) {
       const extracted = extractMcpFromRemoteArgs(
-        (server.args as unknown[]).map((a) => String(a ?? '')),
+        (server.args as unknown[]).map((a) => String(a ?? "")),
       );
       if (!extracted) {
         throw new Error(
-          'stdio transport 仅支持 mcp-remote 桥接的 HTTP server；纯本地命令（无 mcp-remote）不支持。请直接提供 url 字段，或使用 mcp-remote 桥接远程 HTTP server。',
+          "stdio transport 仅支持 mcp-remote 桥接的 HTTP server；纯本地命令（无 mcp-remote）不支持。请直接提供 url 字段，或使用 mcp-remote 桥接远程 HTTP server。",
         );
       }
       config = { url: extracted.url, headers: extracted.headers };
@@ -494,11 +482,11 @@ export const parseMcpImportJson = (jsonText: string): McpImportConfig => {
     }
   }
 
-  const url = String(config.url || '').trim();
-  if (!url) throw new Error('缺少 url 字段');
+  const url = String(config.url || "").trim();
+  if (!url) throw new Error("缺少 url 字段");
 
   const headers =
-    config.headers && typeof config.headers === 'object' && !Array.isArray(config.headers)
+    config.headers && typeof config.headers === "object" && !Array.isArray(config.headers)
       ? (config.headers as Record<string, string>)
       : {};
 
@@ -507,9 +495,7 @@ export const parseMcpImportJson = (jsonText: string): McpImportConfig => {
     url,
     headers,
     protocolVersion:
-      typeof config.protocolVersion === 'string'
-        ? config.protocolVersion
-        : undefined,
+      typeof config.protocolVersion === "string" ? config.protocolVersion : undefined,
   };
 };
 
@@ -525,24 +511,22 @@ export const extractMcpFromRemoteArgs = (
   args: string[],
 ): { url: string; headers: Record<string, string> } | null => {
   const list = Array.isArray(args) ? args : [];
-  const hasMcpRemote = list.some(
-    (a) => typeof a === 'string' && a.includes('mcp-remote'),
-  );
+  const hasMcpRemote = list.some((a) => typeof a === "string" && a.includes("mcp-remote"));
   if (!hasMcpRemote) return null;
 
-  let url = '';
+  let url = "";
   const headers: Record<string, string> = {};
 
   for (let i = 0; i < list.length; i++) {
-    const arg = String(list[i] || '').trim();
+    const arg = String(list[i] || "").trim();
     // 跳过选项标志
-    if (arg === '-y' || arg === 'mcp-remote' || arg === '--') continue;
-    if (arg.startsWith('-') && arg !== '--header' && arg !== '-H') continue;
+    if (arg === "-y" || arg === "mcp-remote" || arg === "--") continue;
+    if (arg.startsWith("-") && arg !== "--header" && arg !== "-H") continue;
 
     // --header / -H 后面跟 "Key: Value"
-    if (arg === '--header' || arg === '-H') {
-      const next = String(list[i + 1] || '').trim();
-      const colonIdx = next.indexOf(':');
+    if (arg === "--header" || arg === "-H") {
+      const next = String(list[i + 1] || "").trim();
+      const colonIdx = next.indexOf(":");
       if (colonIdx > 0) {
         const key = next.slice(0, colonIdx).trim();
         let value = next.slice(colonIdx + 1).trim();
@@ -556,8 +540,8 @@ export const extractMcpFromRemoteArgs = (
 
     // 第一个 http(s):// 开头的参数是 URL（可能被反引号/引号包裹）
     if (!url) {
-      const cleaned = arg.replace(/^[`'"]|[`'"]$/g, '').trim();
-      if (cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+      const cleaned = arg.replace(/^[`'"]|[`'"]$/g, "").trim();
+      if (cleaned.startsWith("http://") || cleaned.startsWith("https://")) {
         url = cleaned;
       }
     }
@@ -597,11 +581,9 @@ export interface McpImportMultiResult {
  * @returns 包含 configs 数组和 stdioSkipped 名称数组的对象
  * @throws JSON 无效、格式不支持时抛出错误
  */
-export const parseMcpImportJsonMulti = (
-  jsonText: string,
-): McpImportMultiResult => {
-  const text = String(jsonText || '').trim();
-  if (!text) throw new Error('JSON 不能为空');
+export const parseMcpImportJsonMulti = (jsonText: string): McpImportMultiResult => {
+  const text = String(jsonText || "").trim();
+  if (!text) throw new Error("JSON 不能为空");
 
   let parsed: unknown;
   try {
@@ -610,8 +592,8 @@ export const parseMcpImportJsonMulti = (
     throw new Error(`JSON 无效: ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('必须是 JSON 对象');
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("必须是 JSON 对象");
   }
 
   const obj = parsed as Record<string, unknown>;
@@ -619,31 +601,25 @@ export const parseMcpImportJsonMulti = (
   const stdioSkipped: string[] = [];
 
   // mcpServers 嵌套格式（Claude Desktop / Cursor）
-  if (
-    obj.mcpServers &&
-    typeof obj.mcpServers === 'object' &&
-    !Array.isArray(obj.mcpServers)
-  ) {
+  if (obj.mcpServers && typeof obj.mcpServers === "object" && !Array.isArray(obj.mcpServers)) {
     const servers = obj.mcpServers as Record<string, unknown>;
     const serverNames = Object.keys(servers);
     if (serverNames.length === 0) {
-      throw new Error('mcpServers 为空');
+      throw new Error("mcpServers 为空");
     }
 
     for (const serverName of serverNames) {
       const server = servers[serverName] as Record<string, unknown> | undefined;
-      if (!server || typeof server !== 'object') {
+      if (!server || typeof server !== "object") {
         throw new Error(`mcpServers.${serverName} 不是有效对象`);
       }
 
       // 情况 A：HTTP transport（直接有 url 字段）
-      if (typeof server.url === 'string') {
+      if (typeof server.url === "string") {
         const url = String(server.url).trim();
         if (!url) continue;
         const headers =
-          server.headers &&
-          typeof server.headers === 'object' &&
-          !Array.isArray(server.headers)
+          server.headers && typeof server.headers === "object" && !Array.isArray(server.headers)
             ? (server.headers as Record<string, string>)
             : {};
         configs.push({
@@ -651,15 +627,13 @@ export const parseMcpImportJsonMulti = (
           url,
           headers,
           protocolVersion:
-            typeof server.protocolVersion === 'string'
-              ? server.protocolVersion
-              : undefined,
+            typeof server.protocolVersion === "string" ? server.protocolVersion : undefined,
         });
       }
       // 情况 B：stdio transport + mcp-remote 桥接
       else if (server.command && Array.isArray(server.args)) {
         const extracted = extractMcpFromRemoteArgs(
-          (server.args as unknown[]).map((a) => String(a ?? '')),
+          (server.args as unknown[]).map((a) => String(a ?? "")),
         );
         if (extracted) {
           configs.push({
@@ -672,9 +646,7 @@ export const parseMcpImportJsonMulti = (
           stdioSkipped.push(serverName);
         }
       } else {
-        throw new Error(
-          `mcpServers.${serverName} 缺少 url 字段或 command+args`,
-        );
+        throw new Error(`mcpServers.${serverName} 缺少 url 字段或 command+args`);
       }
     }
 
@@ -682,23 +654,20 @@ export const parseMcpImportJsonMulti = (
   }
 
   // 扁平格式 / 简写格式：{ url } | { mcpServerUrl } | { name, url }
-  const url = String(obj.url || obj.mcpServerUrl || '').trim();
+  const url = String(obj.url || obj.mcpServerUrl || "").trim();
   if (!url) {
-    throw new Error('缺少 url 字段');
+    throw new Error("缺少 url 字段");
   }
-  const name = String(obj.name || '').trim();
+  const name = String(obj.name || "").trim();
   const headers =
-    obj.headers &&
-    typeof obj.headers === 'object' &&
-    !Array.isArray(obj.headers)
+    obj.headers && typeof obj.headers === "object" && !Array.isArray(obj.headers)
       ? (obj.headers as Record<string, string>)
       : {};
   configs.push({
     name,
     url,
     headers,
-    protocolVersion:
-      typeof obj.protocolVersion === 'string' ? obj.protocolVersion : undefined,
+    protocolVersion: typeof obj.protocolVersion === "string" ? obj.protocolVersion : undefined,
   });
 
   return { configs, stdioSkipped };

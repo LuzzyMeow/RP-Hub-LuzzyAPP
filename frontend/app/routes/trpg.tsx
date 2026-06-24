@@ -26,12 +26,20 @@ import {
   IconInfo,
   IconPlus,
   IconChevronRight,
+  IconDownload,
+  IconUpload,
+  IconRefresh,
+  IconSearch,
+  IconUser,
+  IconGlobe,
+  IconImage,
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -57,7 +65,9 @@ import { CharacterSheet } from "~/components/trpg/sheets/character-sheet";
 import { MapSheet } from "~/components/trpg/sheets/map-sheet";
 import { TrpgSettingsPanel } from "~/components/trpg/trpg-settings-panel";
 import { NarratorMessage } from "~/components/trpg/narrator-message";
+import { TrpgOnboarding } from "~/components/trpg/trpg-onboarding";
 import type { CombatState, GameNpc, TrpgCharacter } from "~/types/trpg";
+import type { DesignSession } from "~/types/trpg";
 
 export function meta(_: Route.MetaArgs) {
   return [{ title: "TRPG - LUZZY" }];
@@ -79,23 +89,40 @@ export default function TrpgPage() {
   const loadAllWorldCards = useAppStore((s) => s.loadAllWorldCards);
   const loadTrpgModel = useAppStore((s) => s.loadTrpgModel);
 
+  // v0.8.2: 设计模式状态
+  const trpgDesignSession = useAppStore((s) => s.trpgDesignSession);
+  const resetTrpgDesignSession = useAppStore((s) => s.resetTrpgDesignSession);
+  const saveDesignWorldCard = useAppStore((s) => s.saveDesignWorldCard);
+  const exportDesignWorldCard = useAppStore((s) => s.exportDesignWorldCard);
+  const importDesignWorldCard = useAppStore((s) => s.importDesignWorldCard);
+
   // ===== 本地状态 =====
   const [showInfo, setShowInfo] = React.useState(false);
+  // v0.8.3: TRPG 用户引导
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
   const messagesEndRef = React.useRef<HTMLDivElement>(null);
   const [displayCount, setDisplayCount] = React.useState(40);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
 
   // ===== 可见消息（分页加载） =====
-  const visibleMessages = React.useMemo(
-    () => trpgMessages.slice(-displayCount),
-    [trpgMessages, displayCount],
-  );
+  const visibleMessages = React.useMemo(() => {
+    const source = trpgMode === "design" ? (trpgDesignSession?.messages ?? []) : trpgMessages;
+    return source.slice(-displayCount);
+  }, [trpgMode, trpgDesignSession?.messages, trpgMessages, displayCount]);
 
   // ===== 初始化 =====
   React.useEffect(() => {
     loadTrpgModel();
     void loadAllSaves();
     void loadAllWorldCards();
+    // v0.8.3: 首次进入检测引导
+    try {
+      if (localStorage.getItem("trpg_onboarding_completed") !== "true") {
+        setShowOnboarding(true);
+      }
+    } catch {
+      // 忽略 localStorage 错误
+    }
     logger.info("trpg", "TRPG 页面初始化");
   }, [loadTrpgModel, loadAllSaves, loadAllWorldCards]);
 
@@ -108,12 +135,12 @@ export default function TrpgPage() {
   const handleSend = React.useCallback(async () => {
     const input = trpgInputDraft.trim();
     if (!input || trpgIsGenerating) return;
-    if (!trpgSave) {
+    if (trpgMode === "game" && !trpgSave) {
       setTrpgActiveSheet("save");
       return;
     }
     await sendTrpgMessage(input);
-  }, [trpgInputDraft, trpgIsGenerating, trpgSave, sendTrpgMessage, setTrpgActiveSheet]);
+  }, [trpgInputDraft, trpgIsGenerating, trpgMode, trpgSave, sendTrpgMessage, setTrpgActiveSheet]);
 
   // ===== 键盘事件 =====
   const handleKeyDown = React.useCallback(
@@ -180,7 +207,9 @@ export default function TrpgPage() {
           <div className="flex rounded-lg border border-border/30 bg-muted/30 p-0.5">
             <motion.button
               type="button"
-              onClick={() => setTrpgMode("game")}
+              onClick={() => {
+                setTrpgMode("game");
+              }}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                 trpgMode === "game"
                   ? "bg-primary/15 text-primary shadow-sm"
@@ -194,7 +223,12 @@ export default function TrpgPage() {
             </motion.button>
             <motion.button
               type="button"
-              onClick={() => setTrpgMode("design")}
+              onClick={() => {
+                if (trpgMode !== "design") {
+                  resetTrpgDesignSession();
+                  setTrpgMode("design");
+                }
+              }}
               className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                 trpgMode === "design"
                   ? "bg-primary/15 text-primary shadow-sm"
@@ -240,16 +274,42 @@ export default function TrpgPage() {
           </motion.button>
         </motion.div>
 
-        {/* ===== 战斗状态栏 ===== */}
-        {trpgSave?.gameState.phase === 'combat' && trpgSave?.gameState.combat && (
-          <CombatStatusBar combat={trpgSave.gameState.combat} npcs={trpgSave.gameState.npcs} character={trpgSave.character} />
+        {/* ===== 设计模式进度条 ===== */}
+        {trpgMode === "design" && trpgDesignSession && (
+          <DesignModeIndicator session={trpgDesignSession} />
         )}
+
+        {/* ===== 战斗状态栏 ===== */}
+        {trpgMode === "game" &&
+          trpgSave?.gameState.phase === "combat" &&
+          trpgSave?.gameState.combat && (
+            <CombatStatusBar
+              combat={trpgSave.gameState.combat}
+              npcs={trpgSave.gameState.npcs}
+              character={trpgSave.character}
+            />
+          )}
 
         {/* ===== 区域 2：中部剧情正文区 ===== */}
         <div className="relative flex-1 overflow-hidden">
           <div className="h-full overflow-y-auto px-4 py-3" onScroll={handleScroll}>
-            {trpgMessages.length === 0 ? (
-              <EmptyState onCreateSave={() => openSheet("save")} />
+            {(
+              trpgMode === "design"
+                ? (trpgDesignSession?.messages.length ?? 0) === 0
+                : trpgMessages.length === 0
+            ) ? (
+              trpgMode === "design" ? (
+                <DesignModeWelcome onSelectDirection={(text) => setTrpgInputDraft(text)} />
+              ) : (
+                <EmptyState
+                  onCreateSave={() => openSheet("save")}
+                  onStartDesign={() => {
+                    resetTrpgDesignSession();
+                    setTrpgMode("design");
+                  }}
+                  mode={trpgMode}
+                />
+              )
             ) : (
               <div className="mx-auto max-w-3xl space-y-4">
                 {isLoadingMore && (
@@ -322,15 +382,18 @@ export default function TrpgPage() {
               value={trpgInputDraft}
               onChange={(e) => setTrpgInputDraft(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={trpgSave ? "输入你的行动..." : "请先创建或加载存档..."}
+              placeholder={
+                trpgMode === "design"
+                  ? "描述你的想法，或回答助手的问题..."
+                  : trpgSave
+                    ? "输入你的行动..."
+                    : "请先创建或加载存档..."
+              }
               disabled={trpgIsGenerating}
               className="min-h-[40px] max-h-[120px] resize-none border-border/30 bg-muted/30 text-sm"
               rows={1}
             />
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <Button
                 size="icon"
                 onClick={handleSend}
@@ -353,33 +416,115 @@ export default function TrpgPage() {
             paddingBottom: "env(safe-area-inset-bottom)",
           }}
         >
-          <ToolbarButton
-            icon={<IconSave className="size-5" />}
-            label="存档"
-            onClick={() => openSheet("save")}
-            active={trpgActiveSheet === "save"}
-          />
-          <ToolbarButton
-            icon={<IconBackpack className="size-5" />}
-            label="背包"
-            onClick={() => openSheet("inventory")}
-            active={trpgActiveSheet === "inventory"}
-            disabled={!trpgSave}
-          />
-          <ToolbarButton
-            icon={<IconCharacter className="size-5" />}
-            label="角色"
-            onClick={() => openSheet("character")}
-            active={trpgActiveSheet === "character"}
-            disabled={!trpgSave}
-          />
-          <ToolbarButton
-            icon={<IconMap className="size-5" />}
-            label="地图"
-            onClick={() => openSheet("map")}
-            active={trpgActiveSheet === "map"}
-            disabled={!trpgSave}
-          />
+          {trpgMode === "design" ? (
+            <>
+              <ToolbarButton
+                icon={<IconDownload className="size-5" />}
+                label="导出"
+                onClick={() => {
+                  const json = exportDesignWorldCard();
+                  if (!json) {
+                    toast.error("没有可导出的世界卡");
+                    return;
+                  }
+                  const blob = new Blob([json], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `world_card_${Date.now()}.json`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("世界卡已导出");
+                }}
+              />
+              <ToolbarButton
+                icon={<IconRefresh className="size-5" />}
+                label="体检"
+                onClick={() => {
+                  const session = trpgDesignSession;
+                  if (!session) return;
+                  void import("~/services/trpg/designModeTools").then((m) => {
+                    const report = m.validateWorldCard(session.draft);
+                    const errorCount = report.checks.filter((c) => c.result === "error").length;
+                    const warningCount = report.checks.filter((c) => c.result === "warning").length;
+                    if (errorCount === 0 && warningCount === 0) {
+                      toast.success("世界卡体检通过");
+                    } else {
+                      toast.warning(`体检：${errorCount} 项错误，${warningCount} 项警告`);
+                    }
+                  });
+                }}
+              />
+              <ToolbarButton
+                icon={<IconSearch className="size-5" />}
+                label="预览"
+                onClick={() => {
+                  const session = trpgDesignSession;
+                  if (!session) return;
+                  const json = JSON.stringify(session.draft, null, 2);
+                  const blob = new Blob([json], { type: "application/json" });
+                  const url = URL.createObjectURL(blob);
+                  window.open(url, "_blank");
+                  URL.revokeObjectURL(url);
+                }}
+              />
+              <ToolbarButton
+                icon={<IconSave className="size-5" />}
+                label="保存"
+                onClick={() => void saveDesignWorldCard()}
+              />
+              <ToolbarButton
+                icon={<IconUpload className="size-5" />}
+                label="导入"
+                onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = ".json,application/json";
+                  input.onchange = (e) => {
+                    const file = (e.target as HTMLInputElement).files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      const text = String(reader.result);
+                      importDesignWorldCard(text);
+                    };
+                    reader.readAsText(file);
+                  };
+                  input.click();
+                }}
+              />
+            </>
+          ) : (
+            <>
+              <ToolbarButton
+                icon={<IconSave className="size-5" />}
+                label="存档"
+                onClick={() => openSheet("save")}
+                active={trpgActiveSheet === "save"}
+              />
+              <ToolbarButton
+                icon={<IconBackpack className="size-5" />}
+                label="背包"
+                onClick={() => openSheet("inventory")}
+                active={trpgActiveSheet === "inventory"}
+                disabled={!trpgSave}
+              />
+              <ToolbarButton
+                icon={<IconCharacter className="size-5" />}
+                label="角色"
+                onClick={() => openSheet("character")}
+                active={trpgActiveSheet === "character"}
+                disabled={!trpgSave}
+              />
+              <ToolbarButton
+                icon={<IconMap className="size-5" />}
+                label="地图"
+                onClick={() => openSheet("map")}
+                active={trpgActiveSheet === "map"}
+                disabled={!trpgSave}
+              />
+            </>
+          )}
         </motion.div>
       </div>
 
@@ -463,7 +608,8 @@ export default function TrpgPage() {
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="font-medium text-foreground">原生 TRPG 引擎</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                v0.8.0 版本已完全重写为原生 React TRPG 引擎，基于 D&D 5e SRD 5.2.1 规则，支持 d20 检定、战斗裁决、社交互动、探索系统等完整功能。
+                v0.8.0 版本已完全重写为原生 React TRPG 引擎，基于 D&D 5e SRD 5.2.1 规则，支持 d20
+                检定、战斗裁决、社交互动、探索系统等完整功能。
               </p>
             </div>
             <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
@@ -478,12 +624,19 @@ export default function TrpgPage() {
             <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
               <p className="font-medium text-amber-600 dark:text-amber-400">提示</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                TRPG 模式使用独立的模型配置，请在设置面板中选择专用模型。所有数值计算由本地引擎执行，不信任 LLM 的计算结果。
+                TRPG
+                模式使用独立的模型配置，请在设置面板中选择专用模型。所有数值计算由本地引擎执行，不信任
+                LLM 的计算结果。
               </p>
             </div>
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* v0.8.3: TRPG 用户引导 */}
+      <AnimatePresence>
+        {showOnboarding && <TrpgOnboarding onComplete={() => setShowOnboarding(false)} />}
+      </AnimatePresence>
     </LuzzyLayout>
   );
 }
@@ -492,8 +645,70 @@ export default function TrpgPage() {
 // 子组件
 // ============================================================================
 
+/** 设计模式进度指示器 */
+function DesignModeIndicator({ session }: { session: DesignSession }) {
+  const stageNames = ["方向选择", "五维框架", "骨架生成", "审查交付"];
+  const stage = session.currentStage;
+  const draft = session.draft;
+
+  const snap = draft.snapshot;
+  const entityCount = Object.keys(snap.world_setting.settings).length;
+  const moduleCount = Object.keys(snap.prompt_modules.modules).length;
+  const charCount = Object.keys(snap.character_database).filter((k) => k !== "_summary").length;
+  const eventCount = snap.world_timeline.events.length;
+
+  const progressItems = [
+    { label: "标题", done: draft.name && draft.name !== "未命名世界卡" },
+    { label: "地理实体", done: entityCount >= 3, count: entityCount },
+    { label: "Prompt模块", done: moduleCount >= 1, count: moduleCount },
+    { label: "角色", done: charCount >= 1, count: charCount },
+    { label: "时间线", done: eventCount >= 5, count: eventCount },
+    { label: "开场白", done: !!snap.opening_greeting },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springSnappy}
+      className="shrink-0 border-b border-border/20 bg-background/40 px-3 py-2 backdrop-blur-sm"
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-primary">设计模式</span>
+          <span className="text-xs text-muted-foreground">
+            Stage {stage} · {stageNames[stage]}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {progressItems.map((item) => (
+            <span
+              key={item.label}
+              className={`rounded px-1.5 py-0.5 text-[10px] ${
+                item.done ? "bg-primary/15 text-primary" : "bg-muted/30 text-muted-foreground"
+              }`}
+              title={item.label}
+            >
+              {item.label}
+              {item.count !== undefined ? ` ${item.count}` : ""}
+            </span>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 /** 空状态 */
-function EmptyState({ onCreateSave }: { onCreateSave: () => void }) {
+function EmptyState({
+  onCreateSave,
+  onStartDesign,
+  mode,
+}: {
+  onCreateSave: () => void;
+  onStartDesign: () => void;
+  mode: "game" | "design";
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
@@ -505,20 +720,116 @@ function EmptyState({ onCreateSave }: { onCreateSave: () => void }) {
         animate={{ rotate: [0, 10, -10, 0] }}
         transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
       >
-        <IconDice className="size-16 text-primary/40" />
+        {mode === "design" ? (
+          <IconBook className="size-16 text-primary/40" />
+        ) : (
+          <IconDice className="size-16 text-primary/40" />
+        )}
       </motion.div>
       <div>
-        <h2 className="text-lg font-semibold">开始你的冒险</h2>
+        <h2 className="text-lg font-semibold">
+          {mode === "design" ? "设计一张新世界卡" : "开始你的冒险"}
+        </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          创建一个新存档，开启 TRPG 之旅
+          {mode === "design"
+            ? "从方向选择开始，逐步构建可游玩的 TRPG 世界"
+            : "创建一个新存档，开启 TRPG 之旅"}
         </p>
       </div>
       <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-        <Button onClick={onCreateSave} className="gap-2">
+        <Button onClick={mode === "design" ? onStartDesign : onCreateSave} className="gap-2">
           <IconPlus className="size-4" />
-          创建存档
+          {mode === "design" ? "开始设计" : "创建存档"}
         </Button>
       </motion.div>
+    </motion.div>
+  );
+}
+
+/** 设计模式欢迎卡片 */
+function DesignModeWelcome({ onSelectDirection }: { onSelectDirection: (text: string) => void }) {
+  const directions = [
+    {
+      id: "PERSONA",
+      number: "01",
+      title: "扮演一个角色",
+      subtitle: "PERSONA",
+      icon: IconUser,
+      example: "修仙弟子、高考刚结束的少年、末日里的一只猫……",
+      prompt: "PERSONA：我想从扮演一个角色开始设计世界卡。",
+    },
+    {
+      id: "WORLD",
+      number: "02",
+      title: "构建一个世界",
+      subtitle: "WORLD",
+      icon: IconGlobe,
+      example: "修仙宇宙、雨夜的赛博朋克、停战翌日的边境小镇……",
+      prompt: "WORLD：我想从构建一个世界开始设计世界卡。",
+    },
+    {
+      id: "SCENE",
+      number: "03",
+      title: "我有一个画面",
+      subtitle: "SCENE",
+      icon: IconImage,
+      example: "「偷看师傅秘诀被师兄撞见」——直接写出来即可",
+      prompt: "SCENE：我有一个画面想作为世界卡起点。",
+    },
+    {
+      id: "IMPROV",
+      number: "04",
+      title: "随便来一个",
+      subtitle: "IMPROV",
+      icon: IconDice,
+      example: "暂无头绪？由引擎起头，边聊边定方向",
+      prompt: "IMPROV：随便来一个，由你起头。",
+    },
+  ] as const;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={springGentle}
+      className="flex h-full flex-col items-center justify-center px-4 py-6 text-center"
+    >
+      <div className="mb-6 space-y-2">
+        <h2 className="text-xl font-semibold">欢迎来到设计模式，你想从哪个角度出发？</h2>
+        <p className="text-sm text-muted-foreground">
+          在这里，你可以设计一张属于自己的世界卡。我会一步步引导你——先确立一个大方向，再围绕它逐层展开。
+        </p>
+      </div>
+
+      <div className="grid w-full max-w-3xl grid-cols-1 gap-4 sm:grid-cols-2">
+        {directions.map((dir) => {
+          const Icon = dir.icon;
+          return (
+            <motion.button
+              key={dir.id}
+              type="button"
+              onClick={() => onSelectDirection(dir.prompt)}
+              whileHover={{ scale: 1.02, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              className="group flex flex-col items-start rounded-xl border border-border/30 bg-muted/30 p-5 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
+            >
+              <div className="mb-3 flex w-full items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">{dir.number}</span>
+                <Icon className="size-8 text-primary/70 transition-colors group-hover:text-primary" />
+              </div>
+              <h3 className="text-base font-semibold">{dir.title}</h3>
+              <span className="mb-2 text-[10px] font-medium tracking-wider text-muted-foreground">
+                {dir.subtitle}
+              </span>
+              <p className="text-xs leading-relaxed text-muted-foreground">{dir.example}</p>
+            </motion.button>
+          );
+        })}
+      </div>
+
+      <p className="mt-6 text-xs text-muted-foreground">
+        或直接输入你的想法，粘贴已有设定、写出脑中画面，或随便聊聊
+      </p>
     </motion.div>
   );
 }
@@ -583,9 +894,7 @@ function CombatStatusBar({
 }) {
   const [expanded, setExpanded] = React.useState(true);
   const currentTurnId = combat.turnOrder[combat.currentTurnIndex];
-  const currentParticipant = currentTurnId
-    ? combat.participants[currentTurnId]
-    : undefined;
+  const currentParticipant = currentTurnId ? combat.participants[currentTurnId] : undefined;
 
   return (
     <motion.div
@@ -601,15 +910,10 @@ function CombatStatusBar({
         className="flex w-full items-center gap-3 px-4 py-1.5"
       >
         <IconDice className="size-3.5 shrink-0 text-red-500" />
-        <span className="text-xs font-medium text-foreground">
-          战斗 · 第 {combat.round} 轮
-        </span>
+        <span className="text-xs font-medium text-foreground">战斗 · 第 {combat.round} 轮</span>
         {currentParticipant && (
           <span className="text-xs text-muted-foreground">
-            当前回合:{" "}
-            <span className="font-medium text-foreground">
-              {currentParticipant.name}
-            </span>
+            当前回合: <span className="font-medium text-foreground">{currentParticipant.name}</span>
           </span>
         )}
         {character && (

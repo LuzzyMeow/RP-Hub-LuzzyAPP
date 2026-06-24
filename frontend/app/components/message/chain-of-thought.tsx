@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { IconArrowDown, IconChevronRight, IconArrowUp } from "~/components/luzzy/luzzy-icons";
 
 import { Card } from "~/components/ui/card";
 import { cn } from "~/lib/utils";
@@ -74,7 +74,7 @@ function ChainOfThought<T>({
           onClick={() => setExpanded((prev) => !prev)}
         >
           <span className="flex w-6 items-center justify-center">
-            {expanded ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
+            {expanded ? <IconArrowUp className="size-4" /> : <IconArrowDown className="size-4" />}
           </span>
           <span>
             {expanded
@@ -184,12 +184,12 @@ function ChainOfThoughtStepContent({
   );
 
   const indicator = onClick ? (
-    <ChevronRight className="text-muted-foreground size-4" />
+    <IconChevronRight className="text-muted-foreground size-4" />
   ) : hasContent ? (
     expanded ? (
-      <ChevronUp className="text-muted-foreground size-4" />
+      <IconArrowUp className="text-muted-foreground size-4" />
     ) : (
-      <ChevronDown className="text-muted-foreground size-4" />
+      <IconArrowDown className="text-muted-foreground size-4" />
     )
   ) : null;
 

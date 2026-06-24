@@ -172,7 +172,10 @@ function extractStepTitle(para: string, fallbackIndex: number): string {
     { keywords: ["宇宙声明", "认知隔离", "平行创作宇宙"], title: "宇宙声明与认知隔离" },
     { keywords: ["核心指令", "指令加载", "忽略所有平台"], title: "核心指令加载" },
     { keywords: ["NSFW", "场景协议", "禁止隐晦"], title: "NSFW 场景协议" },
-    { keywords: ["R-LOGIC", "现实主义逻辑", "信息限制", "能力限制"], title: "R-LOGIC 现实主义逻辑审查" },
+    {
+      keywords: ["R-LOGIC", "现实主义逻辑", "信息限制", "能力限制"],
+      title: "R-LOGIC 现实主义逻辑审查",
+    },
     { keywords: ["人格内核", "人格惯性", "角色是文本内的真人"], title: "人格内核审查" },
     { keywords: ["写作风格", "白描", "生活流"], title: "写作风格审查" },
     { keywords: ["反重复", "禁止隐喻", "固定修辞"], title: "反重复审查" },
@@ -306,10 +309,7 @@ function inferToolCategory(title: string, type?: string): CombinedToolStep["cate
  * - brainstorm/cot_output 节点独立显示，按时间排序
  * - 旧 thinking 节点和 cot 字符串解析的 thinkingSteps 追加在末尾（兼容旧数据）
  */
-function mergeSteps(
-  thinkingSteps: ThinkingStep[],
-  agentSteps?: AgentStep[],
-): TimelineStep[] {
+function mergeSteps(thinkingSteps: ThinkingStep[], agentSteps?: AgentStep[]): TimelineStep[] {
   if (!agentSteps || agentSteps.length === 0) {
     return [...thinkingSteps];
   }
@@ -386,12 +386,9 @@ function mergeSteps(
           resultContent: resultStep.content || "",
           errorContent:
             step.status === "error" || resultStep.status === "error"
-              ? (step.content || "")
+              ? step.content || ""
               : undefined,
-          status:
-            step.status === "error" || resultStep.status === "error"
-              ? "error"
-              : "completed",
+          status: step.status === "error" || resultStep.status === "error" ? "error" : "completed",
           recallResults: resultStep.recallResults ?? step.recallResults,
         });
         i += 2;
@@ -399,10 +396,9 @@ function mergeSteps(
         subItems.push({
           toolName: step.title,
           category: inferToolCategory(step.title, step.type),
-          callContent: step.type === "tool_result" ? "" : (step.content || ""),
-          resultContent:
-            step.type === "tool_result" ? (step.content || "") : undefined,
-          errorContent: step.status === "error" ? (step.content || "") : undefined,
+          callContent: step.type === "tool_result" ? "" : step.content || "",
+          resultContent: step.type === "tool_result" ? step.content || "" : undefined,
+          errorContent: step.status === "error" ? step.content || "" : undefined,
           status: step.status,
           recallResults: step.recallResults,
         });
@@ -531,7 +527,13 @@ interface ToolNodeProps {
   isLast: boolean;
 }
 
-function ThinkingNode({ step, isExpanded, onToggle, isLast, nodeType = "thinking" }: ThinkingNodeProps) {
+function ThinkingNode({
+  step,
+  isExpanded,
+  onToggle,
+  isLast,
+  nodeType = "thinking",
+}: ThinkingNodeProps) {
   const isRunning = step.status === "running";
   const contentRef = React.useRef<HTMLDivElement>(null);
   const userScrolledRef = React.useRef(false);
@@ -606,10 +608,9 @@ function ThinkingNode({ step, isExpanded, onToggle, isLast, nodeType = "thinking
         >
           <StatusIcon status={step.status} />
           {nodeIconConfig.icon}
-          <span className={cn(
-            "min-w-0 flex-1 truncate text-xs font-medium",
-            nodeIconConfig.titleClass,
-          )}>
+          <span
+            className={cn("min-w-0 flex-1 truncate text-xs font-medium", nodeIconConfig.titleClass)}
+          >
             {isRunning ? "思考中..." : step.title}
           </span>
           <motion.div
@@ -634,9 +635,14 @@ function ThinkingNode({ step, isExpanded, onToggle, isLast, nodeType = "thinking
               <div
                 ref={contentRef}
                 onScroll={handleScroll}
-                className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground">
+                className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground"
+              >
                 {step.content ? (
-                  <Markdown content={step.content} isAnimating={isRunning} />
+                  <Markdown
+                    content={step.content}
+                    isAnimating={isRunning}
+                    directRender={isRunning}
+                  />
                 ) : (
                   <span className="opacity-60">等待内容...</span>
                 )}
@@ -650,9 +656,7 @@ function ThinkingNode({ step, isExpanded, onToggle, isLast, nodeType = "thinking
       </motion.div>
 
       {/* 连接到底部的线（最后一个节点不绘制） */}
-      {!isLast && (
-        <div className="absolute left-3 top-full h-3 w-px bg-border/60" />
-      )}
+      {!isLast && <div className="absolute left-3 top-full h-3 w-px bg-border/60" />}
     </div>
   );
 }
@@ -670,18 +674,25 @@ interface RecallResultCardProps {
 
 function RecallResultCard({ recall, index, isExpanded, onToggle }: RecallResultCardProps) {
   const strategy = (recall as WorldInfoRecall).strategy;
-  const strategyLabel = strategy === 'constant' ? '总是激活'
-    : strategy === 'keyword' ? '关键词命中'
-    : strategy === 'semantic' ? '语义相似度'
-    : null;
+  const strategyLabel =
+    strategy === "constant"
+      ? "总是激活"
+      : strategy === "keyword"
+        ? "关键词命中"
+        : strategy === "semantic"
+          ? "语义相似度"
+          : null;
 
   const entryName = (recall as WorldInfoRecall).entryName;
   const displayName = entryName ?? recall.content.slice(0, 30);
 
   const inputParams = [
-    { label: '查询', value: recall.content.slice(0, 50) + (recall.content.length > 50 ? '...' : '') },
-    { label: '方法', value: strategyLabel ?? '语义相似度' },
-    { label: '相似度', value: recall.score.toFixed(3) },
+    {
+      label: "查询",
+      value: recall.content.slice(0, 50) + (recall.content.length > 50 ? "..." : ""),
+    },
+    { label: "方法", value: strategyLabel ?? "语义相似度" },
+    { label: "相似度", value: recall.score.toFixed(3) },
   ];
 
   return (
@@ -706,9 +717,7 @@ function RecallResultCard({ recall, index, isExpanded, onToggle }: RecallResultC
           <IconChevronRight className="size-3" />
         </motion.div>
         <span className="text-xs text-muted-foreground shrink-0">#{index + 1}</span>
-        <span className="text-xs font-medium truncate flex-1 text-left">
-          {displayName}
-        </span>
+        <span className="text-xs font-medium truncate flex-1 text-left">{displayName}</span>
         {strategyLabel && (
           <span className="text-[10px] px-1.5 py-0.5 rounded border border-border/30 bg-background/40 shrink-0">
             {strategyLabel}
@@ -730,7 +739,9 @@ function RecallResultCard({ recall, index, isExpanded, onToggle }: RecallResultC
           >
             <div className="px-3 py-2 space-y-2 border-t border-border/10">
               <div className="space-y-1">
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">输入参数</div>
+                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  输入参数
+                </div>
                 {inputParams.map((p, i) => (
                   <div key={i} className="flex gap-2 text-xs">
                     <span className="text-muted-foreground min-w-[60px]">{p.label}:</span>
@@ -739,7 +750,9 @@ function RecallResultCard({ recall, index, isExpanded, onToggle }: RecallResultC
                 ))}
               </div>
               <div className="space-y-1">
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">输出结果</div>
+                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  输出结果
+                </div>
                 <div className="max-h-40 overflow-y-auto text-xs break-words rounded bg-background/40 p-2">
                   {recall.content}
                 </div>
@@ -831,13 +844,20 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
           onClick={onToggle}
           className="flex w-full min-w-0 items-center gap-2.5 text-left"
         >
-          <div className={cn("flex size-6 items-center justify-center rounded-full ring-1", config.bgClass)}>
+          <div
+            className={cn(
+              "flex size-6 items-center justify-center rounded-full ring-1",
+              config.bgClass,
+            )}
+          >
             {config.icon}
           </div>
-          <span className={cn(
-            "min-w-0 flex-1 truncate text-xs font-medium",
-            isRunning ? "text-primary" : "text-muted-foreground",
-          )}>
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-xs font-medium",
+              isRunning ? "text-primary" : "text-muted-foreground",
+            )}
+          >
             {isRunning ? `${step.title}中...` : step.title}
           </span>
           <motion.div
@@ -863,7 +883,10 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
                 {step.subItems && step.subItems.length > 0 ? (
                   // v0.5.5-arch: 多工具聚合渲染
                   step.subItems.map((sub, idx) => (
-                    <div key={idx} className="space-y-2 rounded-md border border-border/40 bg-muted/20 p-2">
+                    <div
+                      key={idx}
+                      className="space-y-2 rounded-md border border-border/40 bg-muted/20 p-2"
+                    >
                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
                         <IconToolKit className="size-3" />
                         <span>{sub.toolName}</span>
@@ -988,9 +1011,7 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
         </AnimatePresence>
       </motion.div>
 
-      {!isLast && (
-        <div className="absolute left-3 top-full h-3 w-px bg-border/60" />
-      )}
+      {!isLast && <div className="absolute left-3 top-full h-3 w-px bg-border/60" />}
     </div>
   );
 }
@@ -999,9 +1020,19 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
 // 主组件
 // ============================================================================
 
-export function LuzzyThinkingTimeline({ cot, isGenerating, agentSteps }: LuzzyThinkingTimelineProps) {
-  const thinkingSteps = React.useMemo(() => parseThinkingSteps(cot, isGenerating), [cot, isGenerating]);
-  const allSteps = React.useMemo(() => mergeSteps(thinkingSteps, agentSteps), [thinkingSteps, agentSteps]);
+export function LuzzyThinkingTimeline({
+  cot,
+  isGenerating,
+  agentSteps,
+}: LuzzyThinkingTimelineProps) {
+  const thinkingSteps = React.useMemo(
+    () => parseThinkingSteps(cot, isGenerating),
+    [cot, isGenerating],
+  );
+  const allSteps = React.useMemo(
+    () => mergeSteps(thinkingSteps, agentSteps),
+    [thinkingSteps, agentSteps],
+  );
   const [expandedStep, setExpandedStep] = React.useState<number | null>(0);
   const prevStepsLengthRef = React.useRef(0);
 
@@ -1057,7 +1088,13 @@ export function LuzzyThinkingTimeline({ cot, isGenerating, agentSteps }: LuzzyTh
               isExpanded={isExpanded}
               onToggle={onToggle}
               isLast={idx === allSteps.length - 1}
-              nodeType={isBrainstormStep(step) ? "brainstorm" : isCotOutputStep(step) ? "cot_output" : "thinking"}
+              nodeType={
+                isBrainstormStep(step)
+                  ? "brainstorm"
+                  : isCotOutputStep(step)
+                    ? "cot_output"
+                    : "thinking"
+              }
             />
           );
         })}

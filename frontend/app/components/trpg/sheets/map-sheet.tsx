@@ -24,10 +24,7 @@ import {
 
 import { useAppStore } from "~/stores";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import {
-  listItemAnimation,
-  springSoft,
-} from "~/lib/motion-presets";
+import { listItemAnimation, springSoft } from "~/lib/motion-presets";
 import type { GameLocation, LocationStatus } from "~/types/trpg";
 
 // ============================================================================
@@ -65,8 +62,8 @@ export function MapSheet() {
       {/* ===== 当前位置 ===== */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springSoft}
+        animate={{ opacity: 1, y: 0 }}
+        transition={springSoft}
         className="p-4"
       >
         <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
@@ -101,28 +98,20 @@ export function MapSheet() {
             <IconMap className="size-4 text-primary" />
             <span>已知地标</span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {locations.length} 个地点
-          </span>
+          <span className="text-xs text-muted-foreground">{locations.length} 个地点</span>
         </div>
 
         {locations.length === 0 ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">
-            尚未发现任何地点
-          </div>
+          <div className="py-6 text-center text-xs text-muted-foreground">尚未发现任何地点</div>
         ) : (
           <AnimatePresence mode="popLayout">
             {/* 当前位置（排除已在上方显示的） */}
-            {groupedLocations.current
-              .filter((loc) => loc.name !== currentLocation)
-              .length > 0 && (
+            {groupedLocations.current.filter((loc) => loc.name !== currentLocation).length > 0 && (
               <LocationGroup
                 key="current"
                 icon={<IconCompass className="size-3.5 text-primary" />}
                 title="当前位置"
-                locations={groupedLocations.current.filter(
-                  (loc) => loc.name !== currentLocation,
-                )}
+                locations={groupedLocations.current.filter((loc) => loc.name !== currentLocation)}
                 variant="current"
               />
             )}
@@ -283,9 +272,7 @@ function LocationCard({
 
       {/* 归档原因 */}
       {location.archiveReason && (
-        <p className="mt-1 text-[10px] text-muted-foreground/70">
-          {location.archiveReason}
-        </p>
+        <p className="mt-1 text-[10px] text-muted-foreground/70">{location.archiveReason}</p>
       )}
     </motion.div>
   );
@@ -300,9 +287,7 @@ function EmptyMap() {
     <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-center">
       <IconMap className="size-10 text-muted-foreground/40" />
       <p className="text-sm text-muted-foreground">未加载存档</p>
-      <p className="text-xs text-muted-foreground/60">
-        请先创建或加载一个存档
-      </p>
+      <p className="text-xs text-muted-foreground/60">请先创建或加载一个存档</p>
     </div>
   );
 }

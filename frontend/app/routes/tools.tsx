@@ -75,22 +75,13 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  springEnter,
-  pressable,
-  pressableSubtle,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressable, pressableSubtle, fadeSlide } from "~/lib/motion-presets";
 import {
   parseSkillMd as parseSkillMdService,
   importSkillFromGithubFull,
   importSkillFromZip,
 } from "~/services/skillService";
-import {
-  initializeMcpServer,
-  listMcpTools,
-  parseMcpImportJsonMulti,
-} from "~/services/mcpService";
+import { initializeMcpServer, listMcpTools, parseMcpImportJsonMulti } from "~/services/mcpService";
 import { toast } from "sonner";
 
 export function meta(_: Route.MetaArgs) {
@@ -118,8 +109,7 @@ const BUILTIN_TOOL_LABELS: Record<BuiltinToolType, string> = {
 };
 
 const BUILTIN_TOOL_DESCRIPTIONS: Record<BuiltinToolType, string> = {
-  "vector-memory":
-    "使用嵌入模型在向量记忆分片中语义检索匹配内容，需配置嵌入模型。",
+  "vector-memory": "使用嵌入模型在向量记忆分片中语义检索匹配内容，需配置嵌入模型。",
   "keyword-search": "在聊天消息中按关键词搜索匹配的对话内容。",
   "memory-recall": "召回历史记忆，按相关度排序返回。",
   "world-recall": "使用嵌入模型在当前角色卡绑定的世界书中语义检索匹配内容，需配置嵌入模型。",
@@ -218,9 +208,7 @@ export default function ToolsPage() {
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
+                  isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                 }`}
                 {...pressableSubtle}
               >
@@ -241,11 +229,7 @@ export default function ToolsPage() {
         {/* Tab 内容 */}
         <div className="flex-1 overflow-hidden">
           <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              {...fadeSlide}
-              className="h-full"
-            >
+            <motion.div key={activeTab} {...fadeSlide} className="h-full">
               {activeTab === "skill" && <SkillTab />}
               {activeTab === "mcp" && <McpTab />}
               {activeTab === "builtin" && <BuiltinToolsTab />}
@@ -275,9 +259,7 @@ function SkillTab() {
   const [loaded, setLoaded] = React.useState(false);
   const [editing, setEditing] = React.useState<Skill | null>(null);
   const [isNew, setIsNew] = React.useState(false);
-  const [importMode, setImportMode] = React.useState<"manual" | "github" | "file">(
-    "manual",
-  );
+  const [importMode, setImportMode] = React.useState<"manual" | "github" | "file">("manual");
   const [githubUrl, setGithubUrl] = React.useState("");
   const [skillContent, setSkillContent] = React.useState("");
   const [skillTags, setSkillTags] = React.useState<string[]>([]);
@@ -387,7 +369,17 @@ function SkillTab() {
     } finally {
       setSaving(false);
     }
-  }, [editing, isNew, importMode, skillContent, githubUrl, skillTags, addSkill, updateSkill, persist]);
+  }, [
+    editing,
+    isNew,
+    importMode,
+    skillContent,
+    githubUrl,
+    skillTags,
+    addSkill,
+    updateSkill,
+    persist,
+  ]);
 
   /** 删除 SKILL */
   const handleDelete = React.useCallback(
@@ -428,8 +420,7 @@ function SkillTab() {
           const skillMdFile = files.find(
             (f) => f.name === "SKILL.md" || (f.path?.endsWith("/SKILL.md") ?? false),
           );
-          const skillMdContent =
-            (skillMdFile?.content) ?? "";
+          const skillMdContent = skillMdFile?.content ?? "";
           setSkillContent(skillMdContent);
           if (editing) {
             setEditing({
@@ -478,18 +469,13 @@ function SkillTab() {
     setTagInput("");
   }, [tagInput, skillTags]);
 
-  const updateField = React.useCallback(
-    <K extends keyof Skill>(key: K, value: Skill[K]) => {
-      setEditing((prev) => (prev ? { ...prev, [key]: value } : prev));
-    },
-    [],
-  );
+  const updateField = React.useCallback(<K extends keyof Skill>(key: K, value: Skill[K]) => {
+    setEditing((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }, []);
 
   if (!loaded) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        加载中...
-      </div>
+      <div className="flex h-full items-center justify-center text-muted-foreground">加载中...</div>
     );
   }
 
@@ -538,7 +524,11 @@ function SkillTab() {
                         <div className="flex items-center gap-2">
                           <h3 className="truncate font-medium">{s.name}</h3>
                           <Badge variant="secondary" className="shrink-0 text-xs">
-                            {s.source === "github" ? "GitHub" : s.source === "zip" ? "文件" : "手动"}
+                            {s.source === "github"
+                              ? "GitHub"
+                              : s.source === "zip"
+                                ? "文件"
+                                : "手动"}
                           </Badge>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
@@ -554,10 +544,7 @@ function SkillTab() {
                           </div>
                         )}
                       </div>
-                      <Switch
-                        checked={s.enabled}
-                        onCheckedChange={() => void handleToggle(s)}
-                      />
+                      <Switch checked={s.enabled} onCheckedChange={() => void handleToggle(s)} />
                     </div>
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -600,196 +587,181 @@ function SkillTab() {
           </DialogHeader>
           {editing && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
-            <div className="grid gap-4 py-2">
-              {isNew && (
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">导入方式</label>
-                  <Select
-                    value={importMode}
-                    onValueChange={(v) => setImportMode(v as typeof importMode)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="manual">手动编写</SelectItem>
-                      <SelectItem value="github">GitHub 仓库 URL</SelectItem>
-                      <SelectItem value="file">从文件导入</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {isNew && importMode === "github" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="grid gap-2"
-                >
-                  <label className="text-sm font-medium">GitHub 仓库 URL</label>
-                  <Input
-                    value={githubUrl}
-                    onChange={(e) => setGithubUrl(e.target.value)}
-                    placeholder="https://github.com/user/skill-repo"
-                    className="max-w-full break-all font-mono text-xs"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    输入仓库 URL，系统将自动拉取 SKILL.md 并解析名称与描述。
-                  </p>
-                </motion.div>
-              )}
-
-              {isNew && importMode === "file" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="grid gap-2"
-                >
-                  <label className="text-sm font-medium">导入 SKILL.md / ZIP 文件</label>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() =>
-                        document.getElementById("skill-file-input")?.click()
-                      }
+              <div className="grid gap-4 py-2">
+                {isNew && (
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">导入方式</label>
+                    <Select
+                      value={importMode}
+                      onValueChange={(v) => setImportMode(v as typeof importMode)}
                     >
-                      <IconFile className="mr-1.5 size-4" />
-                      选择文件
-                    </Button>
-                    <input
-                      id="skill-file-input"
-                      type="file"
-                      accept=".md,.txt,.markdown,.zip"
-                      className="hidden"
-                      onChange={handleFileImport}
-                    />
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="manual">手动编写</SelectItem>
+                        <SelectItem value="github">GitHub 仓库 URL</SelectItem>
+                        <SelectItem value="file">从文件导入</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  {skillContent && (
-                    <p className="text-xs text-green-600">已导入 {skillContent.length} 字符</p>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    支持 .md / .zip 文件，系统将自动解析 SKILL.md 中的名称与描述。
-                  </p>
-                </motion.div>
-              )}
+                )}
 
-              {isNew && importMode === "manual" && (
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">SKILL.md 内容</label>
-                  <Textarea
-                    value={skillContent}
-                    onChange={(e) => setSkillContent(e.target.value)}
-                    placeholder="# 技能名称&#10;> 技能描述&#10;&#10;技能内容..."
-                    rows={8}
-                    className="max-w-full font-mono text-xs"
-                  />
-                </div>
-              )}
-
-              {/* 手动模式或编辑已有技能时显示手动字段；GitHub/ZIP 导入自动解析，无需手动填写 */}
-              {(!isNew || importMode === "manual") && (
-                <>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">技能名称</label>
+                {isNew && importMode === "github" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="grid gap-2"
+                  >
+                    <label className="text-sm font-medium">GitHub 仓库 URL</label>
                     <Input
-                      value={editing.name}
-                      onChange={(e) => updateField("name", e.target.value)}
-                      placeholder="技能名称"
-                      className="max-w-full"
+                      value={githubUrl}
+                      onChange={(e) => setGithubUrl(e.target.value)}
+                      placeholder="https://github.com/user/skill-repo"
+                      className="max-w-full break-all font-mono text-xs"
                     />
-                  </div>
-                  <div className="grid gap-2">
-                    <label className="text-sm font-medium">描述</label>
-                    <Textarea
-                      value={editing.description}
-                      onChange={(e) => updateField("description", e.target.value)}
-                      placeholder="技能描述"
-                      rows={2}
-                      className="max-w-full"
-                    />
-                  </div>
+                    <p className="text-xs text-muted-foreground">
+                      输入仓库 URL，系统将自动拉取 SKILL.md 并解析名称与描述。
+                    </p>
+                  </motion.div>
+                )}
 
-                  {/* 标签 */}
+                {isNew && importMode === "file" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="grid gap-2"
+                  >
+                    <label className="text-sm font-medium">导入 SKILL.md / ZIP 文件</label>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => document.getElementById("skill-file-input")?.click()}
+                      >
+                        <IconFile className="mr-1.5 size-4" />
+                        选择文件
+                      </Button>
+                      <input
+                        id="skill-file-input"
+                        type="file"
+                        accept=".md,.txt,.markdown,.zip"
+                        className="hidden"
+                        onChange={handleFileImport}
+                      />
+                    </div>
+                    {skillContent && (
+                      <p className="text-xs text-green-600">已导入 {skillContent.length} 字符</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      支持 .md / .zip 文件，系统将自动解析 SKILL.md 中的名称与描述。
+                    </p>
+                  </motion.div>
+                )}
+
+                {isNew && importMode === "manual" && (
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">标签</label>
-                    <div className="flex min-w-0 items-center gap-2">
+                    <label className="text-sm font-medium">SKILL.md 内容</label>
+                    <Textarea
+                      value={skillContent}
+                      onChange={(e) => setSkillContent(e.target.value)}
+                      placeholder="# 技能名称&#10;> 技能描述&#10;&#10;技能内容..."
+                      rows={8}
+                      className="max-w-full font-mono text-xs"
+                    />
+                  </div>
+                )}
+
+                {/* 手动模式或编辑已有技能时显示手动字段；GitHub/ZIP 导入自动解析，无需手动填写 */}
+                {(!isNew || importMode === "manual") && (
+                  <>
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium">技能名称</label>
                       <Input
-                        value={tagInput}
-                        onChange={(e) => setTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleAddTag();
-                          }
-                        }}
-                        placeholder="输入标签后回车"
+                        value={editing.name}
+                        onChange={(e) => updateField("name", e.target.value)}
+                        placeholder="技能名称"
                         className="max-w-full"
                       />
-                      <Button size="sm" variant="outline" onClick={handleAddTag}>
-                        <IconTag className="size-4" />
-                      </Button>
                     </div>
-                    {skillTags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {skillTags.map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant="secondary"
-                            className="cursor-pointer gap-1"
-                            onClick={() =>
-                              setSkillTags(skillTags.filter((t) => t !== tag))
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium">描述</label>
+                      <Textarea
+                        value={editing.description}
+                        onChange={(e) => updateField("description", e.target.value)}
+                        placeholder="技能描述"
+                        rows={2}
+                        className="max-w-full"
+                      />
+                    </div>
+
+                    {/* 标签 */}
+                    <div className="grid gap-2">
+                      <label className="text-sm font-medium">标签</label>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Input
+                          value={tagInput}
+                          onChange={(e) => setTagInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddTag();
                             }
-                          >
-                            {tag}
-                            <IconClose className="size-3" />
-                          </Badge>
-                        ))}
+                          }}
+                          placeholder="输入标签后回车"
+                          className="max-w-full"
+                        />
+                        <Button size="sm" variant="outline" onClick={handleAddTag}>
+                          <IconTag className="size-4" />
+                        </Button>
+                      </div>
+                      {skillTags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {skillTags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="secondary"
+                              className="cursor-pointer gap-1"
+                              onClick={() => setSkillTags(skillTags.filter((t) => t !== tag))}
+                            >
+                              {tag}
+                              <IconClose className="size-3" />
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 角色卡绑定 */}
+                    {characters.length > 0 && (
+                      <div className="grid gap-2">
+                        <label className="text-sm font-medium">启用的角色卡</label>
+                        <div className="max-h-32 overflow-y-auto rounded-md border p-2">
+                          {characters.map((c) => {
+                            const checked = editing.enabledForCharacters?.includes(c.uuid) ?? false;
+                            return (
+                              <label key={c.uuid} className="flex items-center gap-2 py-1 text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const set = new Set(editing.enabledForCharacters ?? []);
+                                    if (e.target.checked) set.add(c.uuid);
+                                    else set.delete(c.uuid);
+                                    updateField("enabledForCharacters", Array.from(set));
+                                  }}
+                                />
+                                <span className="truncate">{c.name}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground">不选择则全局启用</p>
                       </div>
                     )}
-                  </div>
-
-                  {/* 角色卡绑定 */}
-                  {characters.length > 0 && (
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">启用的角色卡</label>
-                      <div className="max-h-32 overflow-y-auto rounded-md border p-2">
-                        {characters.map((c) => {
-                          const checked =
-                            editing.enabledForCharacters?.includes(c.uuid) ?? false;
-                          return (
-                            <label
-                              key={c.uuid}
-                              className="flex items-center gap-2 py-1 text-sm"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(e) => {
-                                  const set = new Set(
-                                    editing.enabledForCharacters ?? [],
-                                  );
-                                  if (e.target.checked) set.add(c.uuid);
-                                  else set.delete(c.uuid);
-                                  updateField(
-                                    "enabledForCharacters",
-                                    Array.from(set),
-                                  );
-                                }}
-                              />
-                              <span className="truncate">{c.name}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        不选择则全局启用
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+                  </>
+                )}
+              </div>
             </ScrollArea>
           )}
           <DialogFooter>
@@ -894,11 +866,7 @@ function McpTab() {
 
   const handleToggle = React.useCallback(
     async (t: ActiveTool) => {
-      await persist(
-        tools.map((x) =>
-          x.id === t.id ? { ...x, enabled: !x.enabled } : x,
-        ),
-      );
+      await persist(tools.map((x) => (x.id === t.id ? { ...x, enabled: !x.enabled } : x)));
     },
     [tools, persist],
   );
@@ -916,10 +884,7 @@ function McpTab() {
       // 1. 初始化连接
       const serverInfo = await initializeMcpServer(editing.mcpServerUrl);
       // 2. 获取工具列表
-      const mcpTools = await listMcpTools(
-        editing.mcpServerUrl,
-        serverInfo.sessionId,
-      );
+      const mcpTools = await listMcpTools(editing.mcpServerUrl, serverInfo.sessionId);
       setTestResult({
         success: true,
         message: `连接成功，发现 ${mcpTools.length} 个工具`,
@@ -1005,9 +970,7 @@ function McpTab() {
 
     // 部分为 stdio 格式时提示
     if (stdioSkipped.length > 0) {
-      toast.warning(
-        `暂不支持 stdio 格式的 MCP 服务器（已跳过：${stdioSkipped.join(", ")}）`,
-      );
+      toast.warning(`暂不支持 stdio 格式的 MCP 服务器（已跳过：${stdioSkipped.join(", ")}）`);
     }
 
     const names = newTools.map((t) => t.name).join(", ");
@@ -1020,10 +983,7 @@ function McpTab() {
       if (!newTool.mcpServerUrl?.trim()) continue;
       try {
         const serverInfo = await initializeMcpServer(newTool.mcpServerUrl);
-        const mcpTools = await listMcpTools(
-          newTool.mcpServerUrl,
-          serverInfo.sessionId,
-        );
+        const mcpTools = await listMcpTools(newTool.mcpServerUrl, serverInfo.sessionId);
         currentTools = currentTools.map((t) =>
           t.id === newTool.id
             ? {
@@ -1063,9 +1023,7 @@ function McpTab() {
 
   if (!loaded) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
-        加载中...
-      </div>
+      <div className="flex h-full items-center justify-center text-muted-foreground">加载中...</div>
     );
   }
 
@@ -1083,11 +1041,7 @@ function McpTab() {
             </EmptyHeader>
             <EmptyContent>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowJsonImport(true)}
-                  {...pressable}
-                >
+                <Button variant="outline" onClick={() => setShowJsonImport(true)} {...pressable}>
                   <IconImport className="mr-2 size-4" />
                   JSON 导入
                 </Button>
@@ -1098,11 +1052,7 @@ function McpTab() {
       ) : (
         <ScrollArea className="h-full w-full">
           <div className="mb-3 flex min-w-0 justify-end gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setShowJsonImport(true)}
-            >
+            <Button size="sm" variant="outline" onClick={() => setShowJsonImport(true)}>
               <IconImport className="mr-1.5 size-4" />
               JSON 导入
             </Button>
@@ -1125,7 +1075,10 @@ function McpTab() {
                           <h3 className="truncate font-medium">{t.name}</h3>
                           {/* v0.3.2: MCP 连接状态徽章 */}
                           {t.mcpConnectionStatus === "connected" && (
-                            <Badge variant="default" className="shrink-0 bg-green-500/10 text-green-600 dark:text-green-400 text-xs">
+                            <Badge
+                              variant="default"
+                              className="shrink-0 bg-green-500/10 text-green-600 dark:text-green-400 text-xs"
+                            >
                               已连接
                             </Badge>
                           )}
@@ -1147,10 +1100,7 @@ function McpTab() {
                           {t.mcpServerUrl || "未配置 URL"}
                         </p>
                       </div>
-                      <Switch
-                        checked={t.enabled}
-                        onCheckedChange={() => void handleToggle(t)}
-                      />
+                      <Switch checked={t.enabled} onCheckedChange={() => void handleToggle(t)} />
                     </div>
                     <div className="flex items-center justify-end gap-1">
                       <Button
@@ -1187,151 +1137,138 @@ function McpTab() {
           </DialogHeader>
           {editing && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
-            <div className="grid gap-4 py-2">
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">名称</label>
-                <Input
-                  value={editing.name}
-                  onChange={(e) => updateField("name", e.target.value)}
-                  placeholder="工具名称"
-                  className="max-w-full"
-                />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">MCP 服务器 URL</label>
-                <div className="flex min-w-0 gap-2">
+              <div className="grid gap-4 py-2">
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">名称</label>
                   <Input
-                    value={editing.mcpServerUrl ?? ""}
-                    onChange={(e) => updateField("mcpServerUrl", e.target.value)}
-                    placeholder="https://..."
-                    className="flex-1 max-w-full break-all font-mono text-xs"
+                    value={editing.name}
+                    onChange={(e) => updateField("name", e.target.value)}
+                    placeholder="工具名称"
+                    className="max-w-full"
                   />
-                  {/* v0.3.0 新增：测试连接按钮 */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void handleTestConnection()}
-                    disabled={testing}
-                    className="shrink-0"
-                  >
-                    {testing ? "测试中..." : "测试连接"}
-                  </Button>
                 </div>
-                {/* v0.3.0 新增：测试结果显示 */}
-                {testResult && (
-                  <div
-                    className={
-                      "rounded-md border p-2 text-xs " +
-                      (testResult.success
-                        ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400"
-                        : "border-destructive/30 bg-destructive/5 text-destructive")
-                    }
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">MCP 服务器 URL</label>
+                  <div className="flex min-w-0 gap-2">
+                    <Input
+                      value={editing.mcpServerUrl ?? ""}
+                      onChange={(e) => updateField("mcpServerUrl", e.target.value)}
+                      placeholder="https://..."
+                      className="flex-1 max-w-full break-all font-mono text-xs"
+                    />
+                    {/* v0.3.0 新增：测试连接按钮 */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleTestConnection()}
+                      disabled={testing}
+                      className="shrink-0"
+                    >
+                      {testing ? "测试中..." : "测试连接"}
+                    </Button>
+                  </div>
+                  {/* v0.3.0 新增：测试结果显示 */}
+                  {testResult && (
+                    <div
+                      className={
+                        "rounded-md border p-2 text-xs " +
+                        (testResult.success
+                          ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400"
+                          : "border-destructive/30 bg-destructive/5 text-destructive")
+                      }
+                    >
+                      <p className="font-medium">{testResult.message}</p>
+                      {testResult.tools && testResult.tools.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-muted-foreground">工具清单：</p>
+                          {testResult.tools.map((tool, i) => (
+                            <div
+                              key={i}
+                              className="rounded border border-border/50 bg-background/50 p-1.5"
+                            >
+                              <p className="font-mono text-xs font-medium">{tool.name}</p>
+                              {tool.description && (
+                                <p className="mt-0.5 text-xs text-muted-foreground">
+                                  {tool.description}
+                                </p>
+                              )}
+                              {tool.inputSchema && (
+                                <details className="mt-1">
+                                  <summary className="cursor-pointer text-xs text-muted-foreground">
+                                    参数 schema
+                                  </summary>
+                                  <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-1 text-xs">
+                                    {JSON.stringify(tool.inputSchema, null, 2)}
+                                  </pre>
+                                </details>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">服务器名称</label>
+                  <Input
+                    value={editing.mcpServerName ?? ""}
+                    onChange={(e) => updateField("mcpServerName", e.target.value)}
+                    placeholder="服务器标识"
+                    className="max-w-full"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">描述</label>
+                  <Textarea
+                    value={editing.description}
+                    onChange={(e) => updateField("description", e.target.value)}
+                    placeholder="工具描述（给 AI 看）"
+                    rows={2}
+                    className="max-w-full"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">启用模式</label>
+                  <Select
+                    value={editing.enableMode ?? "all"}
+                    onValueChange={(v) => updateField("enableMode", v as "all" | "whitelist")}
                   >
-                    <p className="font-medium">{testResult.message}</p>
-                    {testResult.tools && testResult.tools.length > 0 && (
-                      <div className="mt-2 space-y-1">
-                        <p className="text-muted-foreground">工具清单：</p>
-                        {testResult.tools.map((tool, i) => (
-                          <div
-                            key={i}
-                            className="rounded border border-border/50 bg-background/50 p-1.5"
-                          >
-                            <p className="font-mono text-xs font-medium">
-                              {tool.name}
-                            </p>
-                            {tool.description && (
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                {tool.description}
-                              </p>
-                            )}
-                            {tool.inputSchema && (
-                              <details className="mt-1">
-                                <summary className="cursor-pointer text-xs text-muted-foreground">
-                                  参数 schema
-                                </summary>
-                                <pre className="mt-1 overflow-x-auto rounded bg-muted/50 p-1 text-xs">
-                                  {JSON.stringify(tool.inputSchema, null, 2)}
-                                </pre>
-                              </details>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部角色卡</SelectItem>
+                      <SelectItem value="whitelist">白名单角色卡</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {editing.enableMode === "whitelist" && characters.length > 0 && (
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">允许的角色卡</label>
+                    <div className="max-h-32 overflow-y-auto rounded-md border p-2">
+                      {characters.map((c) => {
+                        const checked = editing.allowedCharacterUuids?.includes(c.uuid) ?? false;
+                        return (
+                          <label key={c.uuid} className="flex items-center gap-2 py-1 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const set = new Set(editing.allowedCharacterUuids ?? []);
+                                if (e.target.checked) set.add(c.uuid);
+                                else set.delete(c.uuid);
+                                updateField("allowedCharacterUuids", Array.from(set));
+                              }}
+                            />
+                            <span className="truncate">{c.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">服务器名称</label>
-                <Input
-                  value={editing.mcpServerName ?? ""}
-                  onChange={(e) => updateField("mcpServerName", e.target.value)}
-                  placeholder="服务器标识"
-                  className="max-w-full"
-                />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">描述</label>
-                <Textarea
-                  value={editing.description}
-                  onChange={(e) => updateField("description", e.target.value)}
-                  placeholder="工具描述（给 AI 看）"
-                  rows={2}
-                  className="max-w-full"
-                />
-              </div>
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">启用模式</label>
-                <Select
-                  value={editing.enableMode ?? "all"}
-                  onValueChange={(v) =>
-                    updateField("enableMode", v as "all" | "whitelist")
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">全部角色卡</SelectItem>
-                    <SelectItem value="whitelist">白名单角色卡</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {editing.enableMode === "whitelist" && characters.length > 0 && (
-                <div className="grid gap-2">
-                  <label className="text-sm font-medium">允许的角色卡</label>
-                  <div className="max-h-32 overflow-y-auto rounded-md border p-2">
-                    {characters.map((c) => {
-                      const checked =
-                        editing.allowedCharacterUuids?.includes(c.uuid) ?? false;
-                      return (
-                        <label
-                          key={c.uuid}
-                          className="flex items-center gap-2 py-1 text-sm"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={(e) => {
-                              const set = new Set(
-                                editing.allowedCharacterUuids ?? [],
-                              );
-                              if (e.target.checked) set.add(c.uuid);
-                              else set.delete(c.uuid);
-                              updateField(
-                                "allowedCharacterUuids",
-                                Array.from(set),
-                              );
-                            }}
-                          />
-                          <span className="truncate">{c.name}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
             </ScrollArea>
           )}
           <DialogFooter>
@@ -1349,7 +1286,8 @@ function McpTab() {
           <DialogHeader>
             <DialogTitle>JSON 导入 MCP 工具</DialogTitle>
             <DialogDescription>
-              支持以下格式：Claude Desktop/Cursor（mcpServers 嵌套）、扁平格式（name+url）、简写格式（mcpServerUrl）。stdio 格式暂不支持。
+              支持以下格式：Claude Desktop/Cursor（mcpServers
+              嵌套）、扁平格式（name+url）、简写格式（mcpServerUrl）。stdio 格式暂不支持。
             </DialogDescription>
           </DialogHeader>
           <Textarea
@@ -1377,9 +1315,7 @@ function McpTab() {
 
 function BuiltinToolsTab() {
   const builtinToolConfigs = useAppStore((s) => s.builtinToolConfigs);
-  const updateBuiltinToolConfig = useAppStore(
-    (s) => s.updateBuiltinToolConfig,
-  );
+  const updateBuiltinToolConfig = useAppStore((s) => s.updateBuiltinToolConfig);
   const toolGlobalSettings = useAppStore((s) => s.toolGlobalSettings);
   const setToolGlobalMode = useAppStore((s) => s.setToolGlobalMode);
   const setMaxAgentSteps = useAppStore((s) => s.setMaxAgentSteps);
@@ -1396,18 +1332,14 @@ function BuiltinToolsTab() {
       }
     })();
   }, []);
-  const [editingType, setEditingType] = React.useState<BuiltinToolType | null>(
-    null,
-  );
+  const [editingType, setEditingType] = React.useState<BuiltinToolType | null>(null);
 
   // v0.7.3-fix: 防御性过滤：只保留有效的工具类型，防止旧数据/无效type导致崩溃
   const validConfigs = React.useMemo(() => {
     return builtinToolConfigs.filter((c) => BUILTIN_TOOL_RANGES[c.type] != null);
   }, [builtinToolConfigs]);
 
-  const editingConfig = editingType
-    ? validConfigs.find((c) => c.type === editingType)
-    : null;
+  const editingConfig = editingType ? validConfigs.find((c) => c.type === editingType) : null;
 
   return (
     <div className="h-full p-4">
@@ -1428,7 +1360,8 @@ function BuiltinToolsTab() {
                 <div className="min-w-0 flex-1">
                   <h3 className="font-medium">Agentic 最大步数</h3>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    模型在单次回复中最多可进行的工具调用轮次。步数越多推理越深，但 token 消耗也越大。
+                    模型在单次回复中最多可进行的工具调用轮次。步数越多推理越深，但 token
+                    消耗也越大。
                   </p>
                 </div>
                 <span className="text-sm font-mono text-primary">
@@ -1478,23 +1411,12 @@ function BuiltinToolsTab() {
                         {toolType === "memory-recall" && (
                           <IconBook className="size-4 text-primary" />
                         )}
-                        {toolType === "world-recall" && (
-                          <IconMap className="size-4 text-primary" />
-                        )}
+                        {toolType === "world-recall" && <IconMap className="size-4 text-primary" />}
+                        {toolType === "anysearch" && <IconGlobe className="size-4 text-primary" />}
+                        <h3 className="font-medium">{label}</h3>
+                        {/* v0.3.0 新增：anysearch 官方文档链接 */}
                         {toolType === "anysearch" && (
-                          <IconGlobe className="size-4 text-primary" />
-                        )}
-                        <h3 className="font-medium">
-                          {label}
-                        </h3>
-                                              {/* v0.3.0 新增：anysearch 官方文档链接 */}
-                        {toolType === "anysearch" && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-8"
-                            asChild
-                          >
+                          <Button variant="ghost" size="icon" className="size-8" asChild>
                             <a
                               href="https://www.anysearch.com/docs"
                               target="_blank"
@@ -1507,15 +1429,11 @@ function BuiltinToolsTab() {
                           </Button>
                         )}
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {description}
-                      </p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
                     </div>
                     <Switch
                       checked={config.enabled}
-                      onCheckedChange={(v) =>
-                        updateBuiltinToolConfig(toolType, { enabled: v })
-                      }
+                      onCheckedChange={(v) => updateBuiltinToolConfig(toolType, { enabled: v })}
                     />
                   </div>
 
@@ -1529,18 +1447,21 @@ function BuiltinToolsTab() {
                       {/* v0.3.3: 向量记忆工具未配置嵌入模型时的提示 */}
                       {/* v0.3.4: memory-recall 工具同步添加提示 */}
                       {/* v0.4.3: world-recall 工具同步添加提示 */}
-                      {(toolType === "vector-memory" || toolType === "memory-recall" || toolType === "world-recall") && !hasEmbeddingModel && (
-                        <motion.div
-                          initial={{ opacity: 0, y: -4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400"
-                        >
-                          <IconInfo className="mt-0.5 size-3.5 shrink-0" />
-                          <span>
-                            此工具需要配置嵌入模型才能进行语义检索。请在「记忆」页面配置嵌入模型，否则将降级为关键词匹配。
-                          </span>
-                        </motion.div>
-                      )}
+                      {(toolType === "vector-memory" ||
+                        toolType === "memory-recall" ||
+                        toolType === "world-recall") &&
+                        !hasEmbeddingModel && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-600 dark:text-amber-400"
+                          >
+                            <IconInfo className="mt-0.5 size-3.5 shrink-0" />
+                            <span>
+                              此工具需要配置嵌入模型才能进行语义检索。请在「记忆」页面配置嵌入模型，否则将降级为关键词匹配。
+                            </span>
+                          </motion.div>
+                        )}
                       {/* 返回条数 */}
                       <div className="grid gap-2">
                         <div className="flex items-center justify-between">
@@ -1573,9 +1494,7 @@ function BuiltinToolsTab() {
                           animate={{ opacity: 1, y: 0 }}
                           className="grid gap-2"
                         >
-                          <label className="text-sm font-medium">
-                            API Token（可选）
-                          </label>
+                          <label className="text-sm font-medium">API Token（可选）</label>
                           <Input
                             type="password"
                             value={config.anysearchToken ?? ""}
@@ -1594,9 +1513,7 @@ function BuiltinToolsTab() {
 
                       {/* 角色卡绑定 */}
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium">
-                          角色卡绑定
-                        </label>
+                        <label className="text-sm font-medium">角色卡绑定</label>
                         <Button
                           variant="outline"
                           size="sm"
@@ -1617,26 +1534,19 @@ function BuiltinToolsTab() {
       </ScrollArea>
 
       {/* 角色卡绑定弹窗 */}
-      <Dialog
-        open={!!editingType}
-        onOpenChange={(o) => !o && setEditingType(null)}
-      >
+      <Dialog open={!!editingType} onOpenChange={(o) => !o && setEditingType(null)}>
         <DialogContent className="min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>
-              角色卡绑定 -{" "}
-              {editingType && (BUILTIN_TOOL_LABELS[editingType] ?? editingType)}
+              角色卡绑定 - {editingType && (BUILTIN_TOOL_LABELS[editingType] ?? editingType)}
             </DialogTitle>
-            <DialogDescription>
-              选择启用此工具的角色卡，不选则全局启用
-            </DialogDescription>
+            <DialogDescription>选择启用此工具的角色卡，不选则全局启用</DialogDescription>
           </DialogHeader>
           {editingConfig && characters.length > 0 ? (
             <ScrollArea className="flex-1 min-h-0">
               <div className="space-y-1 py-2">
                 {characters.map((c) => {
-                  const checked =
-                    editingConfig.enabledForCharacters.includes(c.uuid);
+                  const checked = editingConfig.enabledForCharacters.includes(c.uuid);
                   return (
                     <label
                       key={c.uuid}
@@ -1646,9 +1556,7 @@ function BuiltinToolsTab() {
                         type="checkbox"
                         checked={checked}
                         onChange={(e) => {
-                          const set = new Set(
-                            editingConfig.enabledForCharacters,
-                          );
+                          const set = new Set(editingConfig.enabledForCharacters);
                           if (e.target.checked) set.add(c.uuid);
                           else set.delete(c.uuid);
                           updateBuiltinToolConfig(editingConfig.type, {
@@ -1663,9 +1571,7 @@ function BuiltinToolsTab() {
               </div>
             </ScrollArea>
           ) : (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              暂无角色卡
-            </p>
+            <p className="py-4 text-center text-sm text-muted-foreground">暂无角色卡</p>
           )}
           <DialogFooter>
             <Button onClick={() => setEditingType(null)}>完成</Button>

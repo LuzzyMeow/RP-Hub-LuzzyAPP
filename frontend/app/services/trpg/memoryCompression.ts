@@ -13,13 +13,8 @@
  * - C 级：每50轮将5条B摘要压缩为1条C摘要
  */
 
-import type {
-  ASummaryEntry,
-  BSummaryEntry,
-  CSummaryEntry,
-  TrpgMessage,
-} from '~/types/trpg';
-import { v4 as uuidv4 } from 'uuid';
+import type { ASummaryEntry, BSummaryEntry, CSummaryEntry, TrpgMessage } from "~/types/trpg";
+import { v4 as uuidv4 } from "uuid";
 
 // ============================================================================
 // 常量
@@ -42,21 +37,16 @@ export const C_SUMMARY_INTERVAL = 50;
  * @param messages 本轮消息（user + assistant）
  * @returns A 级摘要条目
  */
-export function generateASummary(
-  round: number,
-  messages: TrpgMessage[],
-): ASummaryEntry {
+export function generateASummary(round: number, messages: TrpgMessage[]): ASummaryEntry {
   // 提取用户消息和助手消息
-  const userMsg = messages.find((m) => m.role === 'user');
-  const assistantMsg = messages.find((m) => m.role === 'assistant');
+  const userMsg = messages.find((m) => m.role === "user");
+  const assistantMsg = messages.find((m) => m.role === "assistant");
 
   // 场景锚点：用户行动的简短描述
-  const sceneAnchor = userMsg
-    ? userMsg.content.slice(0, 50)
-    : '(无用户输入)';
+  const sceneAnchor = userMsg ? userMsg.content.slice(0, 50) : "(无用户输入)";
 
   // 钩子：助手回复的关键信息
-  let hook = '';
+  let hook = "";
   if (assistantMsg) {
     if (assistantMsg.narratorSections) {
       // 优先使用判定汇总
@@ -106,14 +96,12 @@ export function generateBSummary(
   aSummaries: ASummaryEntry[],
 ): BSummaryEntry {
   // 过滤出本范围内的 A 摘要
-  const relevantSummaries = aSummaries.filter(
-    (a) => a.round >= startRound && a.round <= endRound,
-  );
+  const relevantSummaries = aSummaries.filter((a) => a.round >= startRound && a.round <= endRound);
 
   // 构建摘要文本
   const summaryText = relevantSummaries
     .map((a) => `[${a.round}] ${a.sceneAnchor} → ${a.hook}`)
-    .join('；');
+    .join("；");
 
   // 提取未决线索（简化处理：取最后一条 A 摘要的钩子）
   const lastSummary = relevantSummaries[relevantSummaries.length - 1];
@@ -127,7 +115,7 @@ export function generateBSummary(
     characterArcs: [],
     worldChanges: [],
     openThreads,
-    continuityHook: openThreads[0] ?? '',
+    continuityHook: openThreads[0] ?? "",
     summaryText: summaryText.slice(0, 400), // 限制 ~400 tokens
     createdAt: Date.now(),
   };
@@ -165,18 +153,14 @@ export function generateCSummary(
   );
 
   // 构建史诗弧线
-  const epicArc = relevantSummaries
-    .map((b) => b.summaryText.slice(0, 40))
-    .join(' → ');
+  const epicArc = relevantSummaries.map((b) => b.summaryText.slice(0, 40)).join(" → ");
 
   // 提取主线
   const mainPlot = relevantSummaries.map((b) => b.summaryText.slice(0, 80));
 
   // 衔接钩子
   const lastB = relevantSummaries[relevantSummaries.length - 1];
-  const continuityHook = lastB
-    ? lastB.openThreads[0] ?? ''
-    : '';
+  const continuityHook = lastB ? (lastB.openThreads[0] ?? "") : "";
 
   return {
     id: uuidv4(),

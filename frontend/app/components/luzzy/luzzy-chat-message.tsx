@@ -39,6 +39,7 @@ import { toast } from "sonner";
 import { Button } from "~/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { Badge } from "~/components/ui/badge";
+import { Tooltip, TooltipTrigger, TooltipContent } from "~/components/ui/tooltip";
 import {
   Dialog,
   DialogContent,
@@ -216,31 +217,28 @@ function CotCard({
   const handleToggle = () => setExpanded((prev) => !prev);
 
   // 步骤计数：优先取 agentSteps 中的非 thinking 步骤 + CoT 中的思考步骤
-  const toolStepCount = React.useMemo(
-    () => {
-      const toolLikeTypes = ["tool_call", "tool_result", "memory_inject", "knowledge_call"];
-      const toolCallSteps = agentSteps?.filter((s) => toolLikeTypes.includes(s.type)) ?? [];
-      const uniqueToolNames = new Set(
-        toolCallSteps.map((s) => s.title).filter(Boolean)
-      );
-      return uniqueToolNames.size;
-    },
-    [agentSteps],
-  );
+  const toolStepCount = React.useMemo(() => {
+    const toolLikeTypes = ["tool_call", "tool_result", "memory_inject", "knowledge_call"];
+    const toolCallSteps = agentSteps?.filter((s) => toolLikeTypes.includes(s.type)) ?? [];
+    const uniqueToolNames = new Set(toolCallSteps.map((s) => s.title).filter(Boolean));
+    return uniqueToolNames.size;
+  }, [agentSteps]);
   const thinkingStepCount = React.useMemo(
     () =>
-      agentSteps?.filter((s) =>
-        ["brainstorm", "cot_output", "thinking"].includes(s.type),
-      ).length ?? 0,
+      agentSteps?.filter((s) => ["brainstorm", "cot_output", "thinking"].includes(s.type)).length ??
+      0,
     [agentSteps],
   );
 
   // 收起时预览最后一条非空步骤标题
   const preview = React.useMemo(() => {
     // v0.5.5-arch: 预览包含 brainstorm/cot_output/thinking 类型
-    const nonToolAgentSteps = agentSteps?.filter(
-      (s) => (s.type === "thinking" || s.type === "brainstorm" || s.type === "cot_output") && s.content?.trim()
-    ) ?? [];
+    const nonToolAgentSteps =
+      agentSteps?.filter(
+        (s) =>
+          (s.type === "thinking" || s.type === "brainstorm" || s.type === "cot_output") &&
+          s.content?.trim(),
+      ) ?? [];
     const lastThinking = nonToolAgentSteps.at(-1);
     if (lastThinking?.content) {
       return lastThinking.content.slice(0, 60) + (lastThinking.content.length > 60 ? "..." : "");
@@ -254,9 +252,7 @@ function CotCard({
     <div
       className={cn(
         "w-full overflow-hidden rounded-xl border bg-card/50 text-sm shadow-sm backdrop-blur-md transition-colors",
-        isGenerating
-          ? "border-primary/25 bg-primary/[0.02]"
-          : "border-border/60 bg-muted/20",
+        isGenerating ? "border-primary/25 bg-primary/[0.02]" : "border-border/60 bg-muted/20",
       )}
     >
       <button
@@ -276,16 +272,11 @@ function CotCard({
           <div
             className={cn(
               "relative flex size-6 items-center justify-center rounded-full ring-1",
-              isGenerating
-                ? "bg-primary/15 ring-primary/30"
-                : "bg-muted ring-border",
+              isGenerating ? "bg-primary/15 ring-primary/30" : "bg-muted ring-border",
             )}
           >
             <IconLight
-              className={cn(
-                "size-3.5",
-                isGenerating ? "text-primary" : "text-muted-foreground",
-              )}
+              className={cn("size-3.5", isGenerating ? "text-primary" : "text-muted-foreground")}
             />
           </div>
         </div>
@@ -324,10 +315,7 @@ function CotCard({
         )}
 
         <span className="ml-auto shrink-0 text-muted-foreground/60">
-          <motion.div
-            animate={{ rotate: expanded ? 180 : 0 }}
-            transition={{ duration: 0.2 }}
-          >
+          <motion.div animate={{ rotate: expanded ? 180 : 0 }} transition={{ duration: 0.2 }}>
             <IconArrowDown className="size-3.5" />
           </motion.div>
         </span>
@@ -338,13 +326,19 @@ function CotCard({
           <motion.div
             key="cot-content"
             initial={isGenerating ? false : { height: 0, opacity: 0 }}
-            animate={isGenerating
-              ? { opacity: 1 }
-              : { height: "auto", opacity: 1, transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] } }
+            animate={
+              isGenerating
+                ? { opacity: 1 }
+                : {
+                    height: "auto",
+                    opacity: 1,
+                    transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
+                  }
             }
-            exit={isGenerating
-              ? { opacity: 0 }
-              : { height: 0, opacity: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
+            exit={
+              isGenerating
+                ? { opacity: 0 }
+                : { height: 0, opacity: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
             }
             transition={isGenerating ? { duration: 0 } : undefined}
             className="overflow-hidden"
@@ -378,20 +372,27 @@ function ActionButton({
   spinning?: boolean;
 }) {
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      {...pressableSubtle}
-      className={cn(
-        "flex size-7 items-center justify-center rounded-md text-muted-foreground",
-        "transition-colors hover:bg-accent hover:text-accent-foreground",
-        "disabled:cursor-not-allowed disabled:opacity-40",
-      )}
-    >
-      <Icon className={cn("size-4", spinning && "animate-spin text-blue-500")} />
-    </motion.button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <motion.button
+          type="button"
+          onClick={onClick}
+          disabled={disabled}
+          aria-label={label}
+          {...pressableSubtle}
+          className={cn(
+            "flex size-7 items-center justify-center rounded-md text-muted-foreground",
+            "transition-colors hover:bg-accent hover:text-accent-foreground",
+            "disabled:cursor-not-allowed disabled:opacity-40",
+          )}
+        >
+          <Icon className={cn("size-4", spinning && "animate-spin text-blue-500")} />
+        </motion.button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={4}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -526,7 +527,10 @@ function TranslationCard({
             className="overflow-hidden border-t border-primary/20"
           >
             <div
-              className={cn("px-3 py-2", highlightEnabled ? "luzzy-translation-highlight" : "text-foreground")}
+              className={cn(
+                "px-3 py-2",
+                highlightEnabled ? "luzzy-translation-highlight" : "text-foreground",
+              )}
               style={
                 highlightEnabled
                   ? ({
@@ -539,7 +543,11 @@ function TranslationCard({
               }
             >
               <Markdown content={displayedContent || (isTyping ? "" : translatedContent)} />
-              {isTyping && <span className="inline-block w-[1px] animate-pulse bg-current align-middle ml-0.5">&nbsp;</span>}
+              {isTyping && (
+                <span className="inline-block w-[1px] animate-pulse bg-current align-middle ml-0.5">
+                  &nbsp;
+                </span>
+              )}
             </div>
           </motion.div>
         )}
@@ -632,28 +640,18 @@ function LuzzyChatMessageImpl({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: "spring", stiffness: 260, damping: 24 }}
-      className={cn(
-        "flex w-full gap-3 px-4 py-2",
-        isUser ? "flex-row-reverse" : "flex-row",
-      )}
+      className={cn("flex w-full gap-3 px-4 py-2", isUser ? "flex-row-reverse" : "flex-row")}
     >
       {/* 头像 */}
       {!isUser && (
         <Avatar className="size-8 shrink-0">
           <AvatarImage src={avatarUrl} alt={avatarName} />
-          <AvatarFallback className="text-xs">
-            {avatarName?.charAt(0) || "AI"}
-          </AvatarFallback>
+          <AvatarFallback className="text-xs">{avatarName?.charAt(0) || "AI"}</AvatarFallback>
         </Avatar>
       )}
 
       {/* 消息内容 */}
-      <div
-        className={cn(
-          "flex max-w-[80%] flex-col gap-2",
-          isUser ? "items-end" : "items-start",
-        )}
-      >
+      <div className={cn("flex max-w-[80%] flex-col gap-2", isUser ? "items-end" : "items-start")}>
         {/* 思考链 + 工具节点统一卡片(v0.4.4: 修复两个思考卡片并存 bug) */}
         {/* v0.5.5-arch: 即使 cot 为空(force 预执行阶段)也渲染 CotCard,让工具节点始终落在卡内 */}
         {/* v0.5.5-arch: 不再过滤 thinking 类型，brainstorm/cot_output 节点由 agentSteps 直接渲染 */}
@@ -689,9 +687,9 @@ function LuzzyChatMessageImpl({
             {
               // v0.5.4: 流式生成期间禁用文本选择，避免内容追加导致选区错乱
               // 借鉴 rikkahub 的 SelectionContainer 禁用模式
-              userSelect: message.loading ? 'none' : 'text',
+              userSelect: message.loading ? "none" : "text",
               ...(highlightSettings.enabled && !isUser
-                ? { "--luzzy-highlight-color": highlightSettings.color } as React.CSSProperties
+                ? ({ "--luzzy-highlight-color": highlightSettings.color } as React.CSSProperties)
                 : {}),
             } as React.CSSProperties
           }
@@ -748,11 +746,7 @@ function LuzzyChatMessageImpl({
           )}
         >
           {/* 附着操作按钮组：复制/重试/翻译/继续剧情/更多 */}
-          <ActionButton
-            icon={IconCopyEdit}
-            label="复制"
-            onClick={handleCopy}
-          />
+          <ActionButton icon={IconCopyEdit} label="复制" onClick={handleCopy} />
           <ActionButton
             icon={IconRefresh}
             label="重试"
@@ -775,19 +769,12 @@ function LuzzyChatMessageImpl({
               disabled={isGenerating}
             />
           )}
-          <ActionButton
-            icon={IconMenu}
-            label="更多"
-            onClick={handleMore}
-          />
+          <ActionButton icon={IconMenu} label="更多" onClick={handleMore} />
         </div>
 
         {/* Token 使用统计行（v0.3.0 新增，仅 Agent 消息显示） */}
         {!isUser && message.tokenUsage && (
-          <LuzzyTokenUsageBar
-            usage={message.tokenUsage}
-            isGenerating={!!message.loading}
-          />
+          <LuzzyTokenUsageBar usage={message.tokenUsage} isGenerating={!!message.loading} />
         )}
       </div>
 
@@ -887,7 +874,11 @@ function LuzzyChatMessageImpl({
             </pre>
           </div>
           <div className="mt-2 flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setRawCopyDialogOpen(false)}>
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setRawCopyDialogOpen(false)}
+            >
               关闭
             </Button>
             <Button className="flex-1" onClick={handleCopyRaw}>
@@ -906,36 +897,33 @@ function LuzzyChatMessageImpl({
  * 自定义比较函数：仅当消息内容、生成状态、是否最后一条变化时才重渲染
  * 避免流式更新时整个消息列表全量重渲染
  */
-export const LuzzyChatMessage = React.memo(
-  LuzzyChatMessageImpl,
-  (prev, next) => {
-    // 消息 ID 不同则必须重渲染
-    if (prev.message.id !== next.message.id) return false;
-    // 消息内容变化则重渲染
-    if (prev.message.content !== next.message.content) return false;
-    if (prev.message.cot !== next.message.cot) return false;
-    if (prev.message.loading !== next.message.loading) return false;
-    if (prev.message.error !== next.message.error) return false;
-    // agentSteps 引用变化则重渲染（流式更新时每次新建数组）
-    if (prev.message.agentSteps !== next.message.agentSteps) return false;
-    // v0.5.4: 补充遗漏字段，避免 UI 不更新
-    if (prev.message.translatedContent !== next.message.translatedContent) return false;
-    if (prev.message.translationLanguage !== next.message.translationLanguage) return false;
-    if (prev.message.memoryRecalls !== next.message.memoryRecalls) return false;
-    // v0.7.0: 世界书召回结果引用变化则重渲染
-    if (prev.message.worldInfoRecalls !== next.message.worldInfoRecalls) return false;
-    if (prev.message.tokenUsage !== next.message.tokenUsage) return false;
-    if (prev.message.role !== next.message.role) return false;
-    // 生成状态变化则重渲染
-    if (prev.isGenerating !== next.isGenerating) return false;
-    if (prev.isLast !== next.isLast) return false;
-    // 头像变化则重渲染
-    if (prev.avatarUrl !== next.avatarUrl) return false;
-    if (prev.avatarName !== next.avatarName) return false;
-    // 重试版本变化则重渲染
-    if (prev.retryVersionCount !== next.retryVersionCount) return false;
-    if (prev.retryCurrentIndex !== next.retryCurrentIndex) return false;
-    // 其余情况跳过重渲染
-    return true;
-  }
-);
+export const LuzzyChatMessage = React.memo(LuzzyChatMessageImpl, (prev, next) => {
+  // 消息 ID 不同则必须重渲染
+  if (prev.message.id !== next.message.id) return false;
+  // 消息内容变化则重渲染
+  if (prev.message.content !== next.message.content) return false;
+  if (prev.message.cot !== next.message.cot) return false;
+  if (prev.message.loading !== next.message.loading) return false;
+  if (prev.message.error !== next.message.error) return false;
+  // agentSteps 引用变化则重渲染（流式更新时每次新建数组）
+  if (prev.message.agentSteps !== next.message.agentSteps) return false;
+  // v0.5.4: 补充遗漏字段，避免 UI 不更新
+  if (prev.message.translatedContent !== next.message.translatedContent) return false;
+  if (prev.message.translationLanguage !== next.message.translationLanguage) return false;
+  if (prev.message.memoryRecalls !== next.message.memoryRecalls) return false;
+  // v0.7.0: 世界书召回结果引用变化则重渲染
+  if (prev.message.worldInfoRecalls !== next.message.worldInfoRecalls) return false;
+  if (prev.message.tokenUsage !== next.message.tokenUsage) return false;
+  if (prev.message.role !== next.message.role) return false;
+  // 生成状态变化则重渲染
+  if (prev.isGenerating !== next.isGenerating) return false;
+  if (prev.isLast !== next.isLast) return false;
+  // 头像变化则重渲染
+  if (prev.avatarUrl !== next.avatarUrl) return false;
+  if (prev.avatarName !== next.avatarName) return false;
+  // 重试版本变化则重渲染
+  if (prev.retryVersionCount !== next.retryVersionCount) return false;
+  if (prev.retryCurrentIndex !== next.retryCurrentIndex) return false;
+  // 其余情况跳过重渲染
+  return true;
+});

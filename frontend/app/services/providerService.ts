@@ -7,7 +7,7 @@
  * 从旧 Vue 3 app.js 迁移，改为纯函数风格。
  */
 
-import type { ApiProvider } from '~/types/luzzy';
+import type { ApiProvider } from "~/types/luzzy";
 
 // ============================================================================
 // 模型名解析
@@ -27,18 +27,18 @@ export const parseModelName = (
   modelWithProvider: string,
   providers: ApiProvider[] = [],
 ): { providerId: string; modelName: string } => {
-  if (!modelWithProvider) return { providerId: '', modelName: '' };
-  const idx = modelWithProvider.indexOf('_');
-  if (idx === -1) return { providerId: '', modelName: modelWithProvider };
+  if (!modelWithProvider) return { providerId: "", modelName: "" };
+  const idx = modelWithProvider.indexOf("_");
+  if (idx === -1) return { providerId: "", modelName: modelWithProvider };
   const providerId = modelWithProvider.substring(0, idx);
   // 如果提供了供应商列表，验证 providerId 是否存在于已注册供应商
   if (providers.length > 0) {
     const exists = providers.some((p) => p.id === providerId);
-    if (!exists) return { providerId: '', modelName: modelWithProvider };
+    if (!exists) return { providerId: "", modelName: modelWithProvider };
   }
   const modelName = modelWithProvider.substring(idx + 1);
   // 防御：末尾下划线导致空 modelName 时，回退为完整字符串
-  if (!modelName) return { providerId: '', modelName: modelWithProvider };
+  if (!modelName) return { providerId: "", modelName: modelWithProvider };
 
   // 调试日志：打印模型名解析结果
   console.log("[ProviderService] parseModelName:", {
@@ -99,7 +99,7 @@ export const getApiKeyForModel = (
 ): string => {
   const { providerId } = parseModelName(model, providers);
   if (providerId) {
-    const key = providerKeys[providerId] ?? '';
+    const key = providerKeys[providerId] ?? "";
     console.log("[ProviderService] getApiKeyForModel: 命中供应商", {
       model,
       providerId,
@@ -143,7 +143,7 @@ export const addProviderPrefixToModel = (
   providerId: string,
   providers?: ApiProvider[],
 ): string => {
-  if (!modelName) return '';
+  if (!modelName) return "";
   const { providerId: existing } = parseModelName(modelName, providers);
   if (existing) return modelName; // 已有有效前缀
   return `${providerId}_${modelName}`;
@@ -162,7 +162,7 @@ export const addProviderPrefixToModel = (
  * @returns 标准化后的 URL
  */
 export const normalizeApiProviderUrl = (url: string): string => {
-  return (url ?? '').trim().replace(/\/+$/, '');
+  return (url ?? "").trim().replace(/\/+$/, "");
 };
 
 /**
@@ -175,11 +175,25 @@ export const normalizeApiProviderUrl = (url: string): string => {
  * @param endpoint - 端点路径（如 "chat/completions"、"models"）
  * @returns 完整的 API 端点 URL
  */
-export const getOpenAICompatUrl = (
-  baseUrl: string,
-  endpoint: string,
-): string => {
+export const getOpenAICompatUrl = (baseUrl: string, endpoint: string): string => {
   const clean = normalizeApiProviderUrl(baseUrl);
   const apiUrl = /\/v\d+$/.test(clean) ? clean : `${clean}/v1`;
-  return `${apiUrl}/${endpoint.replace(/^\/+/, '')}`;
+  return `${apiUrl}/${endpoint.replace(/^\/+/, "")}`;
+};
+
+/**
+ * 确保 API URL 以 /chat/completions 结尾
+ * 若已包含则直接返回，否则自动拼接 /v1/chat/completions
+ *
+ * v0.8.2: 从 chat-slice.ts 提取为公共函数，供 TRPG 模式复用
+ *
+ * @param apiUrl - API 地址（可能为基础地址或完整端点）
+ * @returns 完整的 chat/completions 端点 URL
+ */
+export const getChatCompletionsUrl = (apiUrl: string): string => {
+  const clean = apiUrl.trim().replace(/\/+$/, "");
+  if (clean.endsWith("chat/completions")) {
+    return clean;
+  }
+  return getOpenAICompatUrl(clean, "chat/completions");
 };

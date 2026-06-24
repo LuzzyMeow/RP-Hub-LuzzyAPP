@@ -9,18 +9,18 @@
  * - vectorMemories：复用现有 memoryService
  */
 
-import type { SaveSlot, WorldCard, TrpgCharacter } from '~/types/trpg';
+import type { SaveSlot, WorldCard, TrpgCharacter } from "~/types/trpg";
 
 // ============================================================================
 // 数据库配置
 // ============================================================================
 
-const TRPG_DB_NAME = 'luzzy_trpg';
+const TRPG_DB_NAME = "luzzy_trpg";
 const TRPG_DB_VERSION = 2;
 
-const STORE_SAVES = 'saves';
-const STORE_WORLD_CARDS = 'worldCards';
-const STORE_CHARACTERS = 'characters';
+const STORE_SAVES = "saves";
+const STORE_WORLD_CARDS = "worldCards";
+const STORE_CHARACTERS = "characters";
 
 // ============================================================================
 // 数据库打开/创建
@@ -48,32 +48,32 @@ export function openTrpgDb(): Promise<IDBDatabase> {
 
       // saves store
       if (!db.objectStoreNames.contains(STORE_SAVES)) {
-        const store = db.createObjectStore(STORE_SAVES, { keyPath: 'saveId' });
-        store.createIndex('byUpdatedAt', 'updatedAt', { unique: false });
-        store.createIndex('byTitle', 'title', { unique: false });
-        store.createIndex('byWorldCardId', 'worldCardId', { unique: false });
+        const store = db.createObjectStore(STORE_SAVES, { keyPath: "saveId" });
+        store.createIndex("byUpdatedAt", "updatedAt", { unique: false });
+        store.createIndex("byTitle", "title", { unique: false });
+        store.createIndex("byWorldCardId", "worldCardId", { unique: false });
       } else {
         // v2 迁移：重命名 byContentRating → byWorldCardId
         const store = upgradeTx.objectStore(STORE_SAVES);
-        if (store.indexNames.contains('byContentRating')) {
-          store.deleteIndex('byContentRating');
+        if (store.indexNames.contains("byContentRating")) {
+          store.deleteIndex("byContentRating");
         }
-        if (!store.indexNames.contains('byWorldCardId')) {
-          store.createIndex('byWorldCardId', 'worldCardId', { unique: false });
+        if (!store.indexNames.contains("byWorldCardId")) {
+          store.createIndex("byWorldCardId", "worldCardId", { unique: false });
         }
       }
 
       // worldCards store
       if (!db.objectStoreNames.contains(STORE_WORLD_CARDS)) {
-        const store = db.createObjectStore(STORE_WORLD_CARDS, { keyPath: 'metadata.cardId' });
-        store.createIndex('byUpdatedAt', 'metadata.updatedAt', { unique: false });
-        store.createIndex('byTitle', 'metadata.title', { unique: false });
-        store.createIndex('byContentRating', 'metadata.contentRating', { unique: false });
+        const store = db.createObjectStore(STORE_WORLD_CARDS, { keyPath: "metadata.cardId" });
+        store.createIndex("byUpdatedAt", "metadata.updatedAt", { unique: false });
+        store.createIndex("byTitle", "metadata.title", { unique: false });
+        store.createIndex("byContentRating", "metadata.contentRating", { unique: false });
       }
 
       // characters store
       if (!db.objectStoreNames.contains(STORE_CHARACTERS)) {
-        db.createObjectStore(STORE_CHARACTERS, { keyPath: 'charId' });
+        db.createObjectStore(STORE_CHARACTERS, { keyPath: "charId" });
       }
     };
 
@@ -103,13 +103,10 @@ export function openTrpgDb(): Promise<IDBDatabase> {
 // 通用 CRUD 封装
 // ============================================================================
 
-async function dbGet<T>(
-  storeName: string,
-  key: string,
-): Promise<T | undefined> {
+async function dbGet<T>(storeName: string, key: string): Promise<T | undefined> {
   const db = await openTrpgDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readonly');
+    const tx = db.transaction(storeName, "readonly");
     const req = tx.objectStore(storeName).get(key);
     req.onsuccess = () => resolve(req.result as T | undefined);
     req.onerror = () => reject(req.error);
@@ -119,20 +116,17 @@ async function dbGet<T>(
 async function dbGetAll<T>(storeName: string): Promise<T[]> {
   const db = await openTrpgDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readonly');
+    const tx = db.transaction(storeName, "readonly");
     const req = tx.objectStore(storeName).getAll();
     req.onsuccess = () => resolve(req.result as T[]);
     req.onerror = () => reject(req.error);
   });
 }
 
-async function dbPut<T>(
-  storeName: string,
-  value: T,
-): Promise<void> {
+async function dbPut<T>(storeName: string, value: T): Promise<void> {
   const db = await openTrpgDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
+    const tx = db.transaction(storeName, "readwrite");
     tx.objectStore(storeName).put(value);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -142,7 +136,7 @@ async function dbPut<T>(
 async function dbDelete(storeName: string, key: string): Promise<void> {
   const db = await openTrpgDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(storeName, 'readwrite');
+    const tx = db.transaction(storeName, "readwrite");
     tx.objectStore(storeName).delete(key);
     tx.oncomplete = () => resolve();
     tx.onerror = () => reject(tx.error);
@@ -176,7 +170,7 @@ export async function putSave(save: SaveSlot): Promise<void> {
   const backupKey = `${save.saveId}_bak`;
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_SAVES, 'readwrite');
+    const tx = db.transaction(STORE_SAVES, "readwrite");
     const store = tx.objectStore(STORE_SAVES);
 
     // 1. 读取当前版本作为备份
@@ -193,7 +187,7 @@ export async function putSave(save: SaveSlot): Promise<void> {
 
     tx.oncomplete = () => {
       // 4. 成功后删除备份（使用 backupKey 作为主键）
-      const deleteTx = db.transaction(STORE_SAVES, 'readwrite');
+      const deleteTx = db.transaction(STORE_SAVES, "readwrite");
       deleteTx.objectStore(STORE_SAVES).delete(backupKey);
       deleteTx.oncomplete = () => resolve();
       deleteTx.onerror = () => resolve(); // 备份删除失败不阻塞主流程

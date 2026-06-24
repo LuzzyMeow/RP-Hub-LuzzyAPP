@@ -6,11 +6,7 @@
  * 供 ui-template.tsx、regex.tsx、world-info.tsx 复用,实现"从角色卡导入"功能。
  */
 
-import type {
-  RegexScriptGroup,
-  UiTemplate,
-  WorldInfoEntry,
-} from "~/types/luzzy";
+import type { RegexScriptGroup, UiTemplate, WorldInfoEntry } from "~/types/luzzy";
 
 // ============================================================================
 // Base64 / PNG 解析
@@ -71,17 +67,29 @@ export async function parsePngCharacterCard(file: File): Promise<unknown> {
       // iTXt: keyword\0compressionFlag\0compressionMethod\0languageTag\0translatedKeyword\0text
       const chunkData = bytes.subarray(offset, offset + len);
       const nul1 = chunkData.indexOf(0);
-      if (nul1 < 0) { offset += len + 4; continue; }
+      if (nul1 < 0) {
+        offset += len + 4;
+        continue;
+      }
       const keyword = new TextDecoder().decode(chunkData.subarray(0, nul1));
-      if (!SUPPORTED_KEYWORDS.includes(keyword)) { offset += len + 4; continue; }
+      if (!SUPPORTED_KEYWORDS.includes(keyword)) {
+        offset += len + 4;
+        continue;
+      }
       const compressionFlag = chunkData[nul1 + 1];
       // 跳过 compressionMethod(1字节)、languageTag(\0)、translatedKeyword(\0)
       let pos = nul1 + 3;
       const nul2 = chunkData.indexOf(0, pos);
-      if (nul2 < 0) { offset += len + 4; continue; }
+      if (nul2 < 0) {
+        offset += len + 4;
+        continue;
+      }
       pos = nul2 + 1;
       const nul3 = chunkData.indexOf(0, pos);
-      if (nul3 < 0) { offset += len + 4; continue; }
+      if (nul3 < 0) {
+        offset += len + 4;
+        continue;
+      }
       const textData = chunkData.subarray(nul3 + 1);
       try {
         let text: string;
@@ -179,9 +187,7 @@ export function extractWorldInfoFromCard(
     : rawEntries && typeof rawEntries === "object"
       ? Object.values(rawEntries as Record<string, unknown>)
       : [];
-  const defaultBookName = characterName
-    ? `${characterName}的世界书`
-    : "角色卡世界书";
+  const defaultBookName = characterName ? `${characterName}的世界书` : "角色卡世界书";
   return entryList.map((entry, idx) => {
     const rawKeys = entry.keys ?? entry.key;
     const rawSecondary = entry.secondary_keys ?? entry.keysecondary;
@@ -273,10 +279,7 @@ export function extractRegexScriptsFromCard(
  * - data.extensions.prompt_template (字符串,作为单个模板)
  * - data.extensions.ui_template (字符串,作为单个模板)
  */
-export function extractUiTemplatesFromCard(
-  cardData: unknown,
-  characterUuid: string,
-): UiTemplate[] {
+export function extractUiTemplatesFromCard(cardData: unknown, characterUuid: string): UiTemplate[] {
   const data = extractCardData(cardData);
   const extensions = data.extensions as Record<string, unknown> | undefined;
   if (!extensions) return [];
@@ -291,11 +294,13 @@ export function extractUiTemplatesFromCard(
       const content = String(tpl.content ?? tpl.template ?? "");
       if (!content.trim()) return;
       const name = String(tpl.name ?? `角色卡模板 ${idx + 1}`);
-      const injectionType = (String(tpl.type ?? "markdown").toLowerCase() === "html"
-        ? "html"
-        : String(tpl.type ?? "markdown").toLowerCase() === "css"
-          ? "css"
-          : "markdown") as UiTemplate["injectionType"];
+      const injectionType = (
+        String(tpl.type ?? "markdown").toLowerCase() === "html"
+          ? "html"
+          : String(tpl.type ?? "markdown").toLowerCase() === "css"
+            ? "css"
+            : "markdown"
+      ) as UiTemplate["injectionType"];
       templates.push({
         id: `${characterUuid}-uitpl-${idx}-${now}`,
         name,

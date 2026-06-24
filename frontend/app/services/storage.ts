@@ -10,25 +10,25 @@
  */
 
 /** 数据库配置 */
-const DB_NAME = 'RPHubDB';
+const DB_NAME = "RPHubDB";
 const DB_VERSION = 2;
 
 /** 所有支持的 object store 名称 */
 const STORE_NAMES = [
-  'characters',
-  'chatHistory',
-  'settings',
-  'memory',
-  'presets',
-  'worldInfo',
-  'regexScripts',
-  'activeTools',
-  'uiTemplates',
+  "characters",
+  "chatHistory",
+  "settings",
+  "memory",
+  "presets",
+  "worldInfo",
+  "regexScripts",
+  "activeTools",
+  "uiTemplates",
   // v0.2.0 新增
-  'sessions',
-  'knowledgeBases',
-  'skills',
-  'longTermMemory',
+  "sessions",
+  "knowledgeBases",
+  "skills",
+  "longTermMemory",
 ] as const;
 
 /** object store 名称类型 */
@@ -50,7 +50,7 @@ export const openDB = (): Promise<IDBDatabase> => {
   return new Promise<IDBDatabase>((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onerror = (): void => {
-      reject(request.error ?? new Error('数据库打开失败'));
+      reject(request.error ?? new Error("数据库打开失败"));
     };
     request.onsuccess = (): void => {
       const db = request.result;
@@ -80,7 +80,7 @@ export const openDB = (): Promise<IDBDatabase> => {
       // v2 迁移：oldVersion < 2 时创建新增的 sessions, knowledgeBases, skills, longTermMemory
       // （上方循环已通过 contains 检查保证幂等，此处显式标注版本迁移逻辑）
       if (oldVersion < 2) {
-        const v2Stores = ['sessions', 'knowledgeBases', 'skills', 'longTermMemory'];
+        const v2Stores = ["sessions", "knowledgeBases", "skills", "longTermMemory"];
         for (const name of v2Stores) {
           if (!db.objectStoreNames.contains(name)) {
             db.createObjectStore(name);
@@ -114,9 +114,7 @@ const getDB = async (): Promise<IDBDatabase> => {
  * @returns 是否为数据库关闭错误
  */
 const isDatabaseClosingError = (error: unknown): boolean => {
-  const message = String(
-    (error as { message?: unknown })?.message ?? error ?? '',
-  );
+  const message = String((error as { message?: unknown })?.message ?? error ?? "");
   return /connection is closing|database is closing|close pending/i.test(message);
 };
 
@@ -141,7 +139,7 @@ const reopenDB = async (): Promise<IDBDatabase> => {
  * @returns 克隆后的值
  */
 const cloneForStorage = <T>(value: T): T => {
-  if (typeof structuredClone === 'function') {
+  if (typeof structuredClone === "function") {
     try {
       return structuredClone(value);
     } catch {
@@ -167,7 +165,7 @@ export const getItem = async <T = unknown>(
   const db = await getDB();
   try {
     return await new Promise<T | undefined>((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly');
+      const tx = db.transaction(storeName, "readonly");
       const store = tx.objectStore(storeName);
       const request = store.get(key);
       request.onsuccess = (): void => {
@@ -202,7 +200,7 @@ export const setItem = async <T = unknown>(
   const cloned = cloneForStorage(value);
   try {
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite');
+      const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       store.put(cloned, key);
       tx.oncomplete = (): void => {
@@ -237,7 +235,7 @@ export const removeItem = async (
   const db = await getDB();
   try {
     await new Promise<void>((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readwrite');
+      const tx = db.transaction(storeName, "readwrite");
       const store = tx.objectStore(storeName);
       store.delete(key);
       tx.oncomplete = (): void => {
@@ -271,7 +269,7 @@ export const getAllKeys = async (
   const db = await getDB();
   try {
     return await new Promise<IDBValidKey[]>((resolve, reject) => {
-      const tx = db.transaction(storeName, 'readonly');
+      const tx = db.transaction(storeName, "readonly");
       const store = tx.objectStore(storeName);
       const request = store.getAllKeys();
       request.onsuccess = (): void => {

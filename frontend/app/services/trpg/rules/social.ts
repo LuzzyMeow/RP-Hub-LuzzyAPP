@@ -3,10 +3,10 @@
  * v0.8.0: D&D 5e 社交裁决（说服/欺瞒/威吓）
  */
 
-import type { TrpgCharacter, TrpgGameState, NpcAttitude, DiceResult } from '~/types/trpg';
-import { d20Check } from '../dice';
-import { skillBonus } from '../skillBonus';
-import type { StateOperation } from '../trpgTools';
+import type { TrpgCharacter, TrpgGameState, NpcAttitude, DiceResult } from "~/types/trpg";
+import { d20Check } from "../dice";
+import { skillBonus } from "../skillBonus";
+import type { StateOperation } from "../trpgTools";
 
 /** 社交裁决参数 */
 export interface SocialResolveParams {
@@ -22,7 +22,7 @@ export interface SocialResolveResult {
   log: string;
 }
 
-const ATTITUDE_ORDER: NpcAttitude[] = ['hostile', 'unfriendly', 'neutral', 'friendly', 'helpful'];
+const ATTITUDE_ORDER: NpcAttitude[] = ["hostile", "unfriendly", "neutral", "friendly", "helpful"];
 
 /** 解析社交行动 */
 export function resolveSocial(
@@ -36,18 +36,18 @@ export function resolveSocial(
   if (!npc) {
     return {
       result: {
-        check: { roll: 0, bonus: 0, total: 0, dc: 0, success: false, critical: 'none' },
+        check: { roll: 0, bonus: 0, total: 0, dc: 0, success: false, critical: "none" },
         attitudeShift: 0,
-        newAttitude: 'neutral',
+        newAttitude: "neutral",
         log: `NPC ${args.npc_id} 不在场`,
       },
       stateOps,
     };
   }
 
-  let skill: 'persuasion' | 'deception' | 'intimidation' = 'persuasion';
-  if (args.action_type === 'deceive') skill = 'deception';
-  else if (args.action_type === 'intimidate') skill = 'intimidation';
+  let skill: "persuasion" | "deception" | "intimidation" = "persuasion";
+  if (args.action_type === "deceive") skill = "deception";
+  else if (args.action_type === "intimidate") skill = "intimidation";
 
   const bonus = skillBonus(character, skill);
 
@@ -64,15 +64,15 @@ export function resolveSocial(
 
   let attitudeShift = Math.floor((check.total - dc) / 5);
   attitudeShift = Math.max(-2, Math.min(2, attitudeShift));
-  if (check.critical === 'success') attitudeShift = Math.max(attitudeShift, 2);
-  else if (check.critical === 'failure') attitudeShift = Math.min(attitudeShift, -2);
+  if (check.critical === "success") attitudeShift = Math.max(attitudeShift, 2);
+  else if (check.critical === "failure") attitudeShift = Math.min(attitudeShift, -2);
 
   const currentIdx = ATTITUDE_ORDER.indexOf(npc.attitude);
   const newIdx = Math.max(0, Math.min(ATTITUDE_ORDER.length - 1, currentIdx + attitudeShift));
   const newAttitude = ATTITUDE_ORDER[newIdx];
 
   stateOps.push({
-    type: 'npc_update',
+    type: "npc_update",
     npcId: npc.npcId,
     changes: { attitude: newAttitude },
   });
@@ -82,7 +82,7 @@ export function resolveSocial(
       check,
       attitudeShift,
       newAttitude,
-      log: `${skill}检定: d20=${check.roll}+${bonus}=${check.total} (DC ${dc}, ${npc.attitude}修正${ATTITUDE_DC_MOD[npc.attitude] ?? 0}) ${check.success ? '成功' : '失败'}，态度从${npc.attitude}变为${newAttitude}（变化${attitudeShift > 0 ? '+' : ''}${attitudeShift}）`,
+      log: `${skill}检定: d20=${check.roll}+${bonus}=${check.total} (DC ${dc}, ${npc.attitude}修正${ATTITUDE_DC_MOD[npc.attitude] ?? 0}) ${check.success ? "成功" : "失败"}，态度从${npc.attitude}变为${newAttitude}（变化${attitudeShift > 0 ? "+" : ""}${attitudeShift}）`,
     },
     stateOps,
   };

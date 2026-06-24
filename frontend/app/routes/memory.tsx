@@ -53,12 +53,7 @@ import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Badge } from "~/components/ui/badge";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-} from "~/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "~/components/ui/card";
 import { Slider } from "~/components/ui/slider";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -152,9 +147,7 @@ export default function MemoryPage() {
   const [activeTab, setActiveTab] = React.useState<TabKey>("session");
 
   // 记忆设置
-  const [settings, setSettings] = React.useState<MemorySettings>(
-    DEFAULT_MEMORY_SETTINGS,
-  );
+  const [settings, setSettings] = React.useState<MemorySettings>(DEFAULT_MEMORY_SETTINGS);
 
   // store 数据
   const getAllProviders = useAppStore((s) => s.getAllProviders);
@@ -174,10 +167,7 @@ export default function MemoryPage() {
   React.useEffect(() => {
     void (async () => {
       try {
-        const data = await getItem<MemorySettings>(
-          "memory",
-          MEMORY_SETTINGS_KEY,
-        );
+        const data = await getItem<MemorySettings>("memory", MEMORY_SETTINGS_KEY);
         if (data) setSettings({ ...DEFAULT_MEMORY_SETTINGS, ...data });
       } catch (e) {
         toast.error("加载记忆设置失败：" + (e as Error).message);
@@ -235,9 +225,7 @@ export default function MemoryPage() {
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
                   className={`relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                    isActive
-                      ? "text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                    isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
                   }`}
                   {...pressableSubtle}
                 >
@@ -260,10 +248,7 @@ export default function MemoryPage() {
             <AnimatePresence mode="wait">
               <motion.div key={activeTab} {...fadeSlide}>
                 {activeTab === "session" && (
-                  <SessionMemoryTab
-                    settings={settings}
-                    onScrollToSettings={scrollToSettings}
-                  />
+                  <SessionMemoryTab settings={settings} onScrollToSettings={scrollToSettings} />
                 )}
                 {activeTab === "long-term" && (
                   <LongTermMemoryTab
@@ -288,19 +273,11 @@ export default function MemoryPage() {
 interface MemorySettingsCardProps {
   settings: MemorySettings;
   providers: ApiProvider[];
-  onUpdate: <K extends keyof MemorySettings>(
-    key: K,
-    value: MemorySettings[K],
-  ) => void;
+  onUpdate: <K extends keyof MemorySettings>(key: K, value: MemorySettings[K]) => void;
   onSave: () => void | Promise<void>;
 }
 
-function MemorySettingsCard({
-  settings,
-  providers,
-  onUpdate,
-  onSave,
-}: MemorySettingsCardProps) {
+function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySettingsCardProps) {
   // v0.4.6: 记忆设置卡片默认展开,用户首次进入页面即可看到所有设置项
   const [expanded, setExpanded] = React.useState(true);
   // v0.3.3: 保存按钮加载状态动画
@@ -326,7 +303,9 @@ function MemorySettingsCard({
     if (saving) return;
     // v0.3.3: 未配置嵌入模型时文字提示
     if (!hasEmbeddingModel) {
-      toast.warning("未配置嵌入模型，向量记忆将降级为关键词匹配。如需语义检索，请填写嵌入模型名称。");
+      toast.warning(
+        "未配置嵌入模型，向量记忆将降级为关键词匹配。如需语义检索，请填写嵌入模型名称。",
+      );
     }
     setSaving(true);
     try {
@@ -351,9 +330,7 @@ function MemorySettingsCard({
               {hasEmbeddingModel ? "已启用" : "未启用"}
             </Badge>
           </CardTitle>
-          <span className="text-xs text-muted-foreground">
-            {expanded ? "收起" : "展开"}
-          </span>
+          <span className="text-xs text-muted-foreground">{expanded ? "收起" : "展开"}</span>
         </button>
       </CardHeader>
       <AnimatePresence initial={false}>
@@ -430,11 +407,22 @@ function MemorySettingsCard({
                   const currentModel = settings.embeddingModel || "";
                   const actualModelName = getActualModelName(currentModel, providers);
                   // v0.6.5-fix: 检查当前值是否为已知的带前缀模型值
-                  const isKnownPrefixed = embeddingModels.some((m) => m.prefixedValue === currentModel);
+                  const isKnownPrefixed = embeddingModels.some(
+                    (m) => m.prefixedValue === currentModel,
+                  );
                   // v0.6.5-fix: 检查当前值（去前缀后）是否为已知模型名
-                  const isKnownUnprefixed = embeddingModels.some((m) => m.modelName === actualModelName);
+                  const isKnownUnprefixed = embeddingModels.some(
+                    (m) => m.modelName === actualModelName,
+                  );
                   const isManual = currentModel && !isKnownPrefixed && !isKnownUnprefixed;
-                  const selectValue = isManual ? MANUAL_VALUE : (isKnownPrefixed ? currentModel : (isKnownUnprefixed ? embeddingModels.find(m => m.modelName === actualModelName)?.prefixedValue || "" : ""));
+                  const selectValue = isManual
+                    ? MANUAL_VALUE
+                    : isKnownPrefixed
+                      ? currentModel
+                      : isKnownUnprefixed
+                        ? embeddingModels.find((m) => m.modelName === actualModelName)
+                            ?.prefixedValue || ""
+                        : "";
 
                   return (
                     <>
@@ -443,8 +431,17 @@ function MemorySettingsCard({
                         onValueChange={(v) => {
                           if (v === MANUAL_VALUE) {
                             // 切换到手动输入模式，保留当前实际模型名（去前缀）或清空
-                            onUpdate("embeddingModel", isManual ? currentModel : actualModelName || "");
+                            // v0.8.2: 保留 embeddingApiProviderId，使 Level 1 解析仍然有效
+                            onUpdate(
+                              "embeddingModel",
+                              isManual ? currentModel : actualModelName || "",
+                            );
                           } else {
+                            // v0.8.2: 下拉选择时同步写入 embeddingApiProviderId，激活 Level 1 解析
+                            const selected = embeddingModels.find((m) => m.prefixedValue === v);
+                            if (selected) {
+                              onUpdate("embeddingApiProviderId", selected.providerId);
+                            }
                             onUpdate("embeddingModel", v);
                           }
                         }}
@@ -471,9 +468,7 @@ function MemorySettingsCard({
                         <Input
                           className="w-full min-w-0"
                           value={currentModel}
-                          onChange={(e) =>
-                            onUpdate("embeddingModel", e.target.value)
-                          }
+                          onChange={(e) => onUpdate("embeddingModel", e.target.value)}
                           placeholder="例如：text-embedding-3-small"
                         />
                       )}
@@ -503,9 +498,7 @@ function MemorySettingsCard({
                 </label>
                 <Slider
                   value={[settings.similarityThreshold]}
-                  onValueChange={([v]) =>
-                    onUpdate("similarityThreshold", v)
-                  }
+                  onValueChange={([v]) => onUpdate("similarityThreshold", v)}
                   min={0}
                   max={1}
                   step={0.01}
@@ -547,10 +540,7 @@ interface SessionMemoryTabProps {
   onScrollToSettings?: () => void;
 }
 
-function SessionMemoryTab({
-  settings,
-  onScrollToSettings,
-}: SessionMemoryTabProps) {
+function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProps) {
   const characters = useAppStore((s) => s.characters);
   const sessions = useAppStore((s) => s.sessions);
   const currentCharacterUuid = useAppStore((s) => s.currentCharacterUuid);
@@ -567,9 +557,7 @@ function SessionMemoryTab({
 
   const hasEmbeddingModel = Boolean(settings.embeddingModel?.trim());
 
-  const [selectedUuid, setSelectedUuid] = React.useState<string>(
-    currentCharacterUuid ?? "",
-  );
+  const [selectedUuid, setSelectedUuid] = React.useState<string>(currentCharacterUuid ?? "");
   const [selectedSessionId, setSelectedSessionId] = React.useState<string>("");
   const [shards, setShards] = React.useState<VectorMemoryShard[]>([]);
   const [loaded, setLoaded] = React.useState(false);
@@ -582,9 +570,7 @@ function SessionMemoryTab({
   const [worldShards, setWorldShards] = React.useState<VectorMemoryShard[]>([]);
   const [worldLoaded, setWorldLoaded] = React.useState(false);
   /** 当前激活的数据源：session | world（最近操作的选择器优先显示） */
-  const [activeSource, setActiveSource] = React.useState<"session" | "world">(
-    "session",
-  );
+  const [activeSource, setActiveSource] = React.useState<"session" | "world">("session");
 
   // v0.6.0: 分片详情 Dialog 状态 + 删除确认
   const [selectedShard, setSelectedShard] = React.useState<VectorMemoryShard | null>(null);
@@ -704,7 +690,9 @@ function SessionMemoryTab({
       }
 
       if (totalShards === 0) {
-        toast.warning("重新生成完成，但没有产生新的记忆分片（可能需要至少一轮完整的用户+助手对话）");
+        toast.warning(
+          "重新生成完成，但没有产生新的记忆分片（可能需要至少一轮完整的用户+助手对话）",
+        );
       } else {
         toast.success(`会话向量记忆已重新生成，共 ${totalShards} 个分片`);
       }
@@ -713,7 +701,23 @@ function SessionMemoryTab({
     } finally {
       setRegenerating(false);
     }
-  }, [hasEmbeddingModel, selectedUuid, selectedSessionId, characters, sessions, getSessionMessages, settings, providers, apiProviderKeys, apiUrl, apiKey, modelName, customRequestBody, confirm, onScrollToSettings]);
+  }, [
+    hasEmbeddingModel,
+    selectedUuid,
+    selectedSessionId,
+    characters,
+    sessions,
+    getSessionMessages,
+    settings,
+    providers,
+    apiProviderKeys,
+    apiUrl,
+    apiKey,
+    modelName,
+    customRequestBody,
+    confirm,
+    onScrollToSettings,
+  ]);
 
   /** v0.6.5: 全量重新生成所有世界书的嵌入向量 */
   const handleRegenerateWorld = React.useCallback(async () => {
@@ -724,7 +728,8 @@ function SessionMemoryTab({
     }
     const ok = await confirm({
       title: "重新生成世界书嵌入",
-      description: "将清空所有世界书条目的嵌入向量并重新生成，此操作不可撤销。世界书条目较多时可能需要较长时间。",
+      description:
+        "将清空所有世界书条目的嵌入向量并重新生成，此操作不可撤销。世界书条目较多时可能需要较长时间。",
       destructive: true,
     });
     if (!ok) return;
@@ -748,7 +753,9 @@ function SessionMemoryTab({
       if (result.total === 0) {
         toast.warning("没有世界书条目，无需重新生成");
       } else if (result.failed > 0) {
-        toast.warning(`重新生成完成：成功 ${result.success} 条，失败 ${result.failed} 条（共 ${result.total} 条）`);
+        toast.warning(
+          `重新生成完成：成功 ${result.success} 条，失败 ${result.failed} 条（共 ${result.total} 条）`,
+        );
       } else if (result.success === 0) {
         toast.warning("没有需要生成嵌入的世界书条目（条目可能为空或已被过滤）");
       } else {
@@ -765,17 +772,38 @@ function SessionMemoryTab({
           const bid = entry.bookId?.trim();
           if (!bid) continue;
           const existing = bookMap.get(bid);
-          if (existing) { existing.count += 1; }
-          else { bookMap.set(bid, { bookName: entry.bookName?.trim() || bid, count: 1 }); }
+          if (existing) {
+            existing.count += 1;
+          } else {
+            bookMap.set(bid, { bookName: entry.bookName?.trim() || bid, count: 1 });
+          }
         }
-        setWorldBooks(Array.from(bookMap.entries()).map(([bookId, info]) => ({ bookId, bookName: info.bookName, count: info.count })));
+        setWorldBooks(
+          Array.from(bookMap.entries()).map(([bookId, info]) => ({
+            bookId,
+            bookName: info.bookName,
+            count: info.count,
+          })),
+        );
       }
     } catch (e) {
       toast.error(`重新生成失败：${(e as Error).message}`);
     } finally {
       setRegenerating(false);
     }
-  }, [hasEmbeddingModel, settings, providers, apiProviderKeys, apiUrl, apiKey, modelName, customRequestBody, selectedBookId, confirm, onScrollToSettings]);
+  }, [
+    hasEmbeddingModel,
+    settings,
+    providers,
+    apiProviderKeys,
+    apiUrl,
+    apiKey,
+    modelName,
+    customRequestBody,
+    selectedBookId,
+    confirm,
+    onScrollToSettings,
+  ]);
 
   /** 当前角色的会话列表（按最近更新排序） */
   const characterSessions = React.useMemo(() => {
@@ -819,10 +847,7 @@ function SessionMemoryTab({
     setLoaded(false);
     void (async () => {
       try {
-        const list = await loadVectorMemoryShards(
-          selectedUuid,
-          selectedSessionId || undefined,
-        );
+        const list = await loadVectorMemoryShards(selectedUuid, selectedSessionId || undefined);
         setShards(list);
       } catch (e) {
         toast.error("加载向量记忆失败：" + (e as Error).message);
@@ -837,10 +862,7 @@ function SessionMemoryTab({
   React.useEffect(() => {
     void (async () => {
       try {
-        const allEntries = await getItem<WorldInfoEntry[]>(
-          "worldInfo",
-          "worldInfo",
-        );
+        const allEntries = await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo");
         if (!allEntries || allEntries.length === 0) {
           setWorldBooks([]);
           return;
@@ -867,10 +889,7 @@ function SessionMemoryTab({
         }));
         setWorldBooks(books);
       } catch (e) {
-        logger.warn(
-          "memory",
-          "加载世界书列表失败：" + (e as Error).message,
-        );
+        logger.warn("memory", "加载世界书列表失败：" + (e as Error).message);
         setWorldBooks([]);
       }
     })();
@@ -898,10 +917,8 @@ function SessionMemoryTab({
   }, [selectedBookId]);
 
   /** 当前显示的分片列表和状态（根据 activeSource 切换） */
-  const displayShards =
-    activeSource === "world" ? worldShards : shards;
-  const displayLoaded =
-    activeSource === "world" ? worldLoaded : loaded;
+  const displayShards = activeSource === "world" ? worldShards : shards;
+  const displayLoaded = activeSource === "world" ? worldLoaded : loaded;
 
   // v0.6.3-fix: 移除 isProcessing 假动画 useEffect
   // 原 3 秒定时器与真实异步流程（extractMemory / generateWorldInfoEmbeddings）解耦，
@@ -929,12 +946,20 @@ function SessionMemoryTab({
                   >
                     <motion.div
                       animate={regenerating ? { rotate: 360 } : { rotate: 0 }}
-                      transition={{ duration: 1, repeat: regenerating ? Infinity : 0, ease: "linear" }}
+                      transition={{
+                        duration: 1,
+                        repeat: regenerating ? Infinity : 0,
+                        ease: "linear",
+                      }}
                       className="mr-1.5"
                     >
                       <IconRefresh className="size-3.5" />
                     </motion.div>
-                    {regenerating === "session" ? "会话生成中..." : regenerating === "world" ? "世界书生成中..." : "手动重试"}
+                    {regenerating === "session"
+                      ? "会话生成中..."
+                      : regenerating === "world"
+                        ? "世界书生成中..."
+                        : "手动重试"}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
@@ -995,9 +1020,7 @@ function SessionMemoryTab({
             {/* v0.6.1: 会话选择（二级缩进，与世界书互斥） */}
             {selectedUuid && characterSessions.length > 0 && (
               <div className="ml-4 grid gap-2 border-l border-border/40 pl-3">
-                <label className="text-xs font-medium text-muted-foreground">
-                  选择会话
-                </label>
+                <label className="text-xs font-medium text-muted-foreground">选择会话</label>
                 <Select
                   value={selectedSessionId}
                   onValueChange={(v) => {
@@ -1024,9 +1047,7 @@ function SessionMemoryTab({
             {/* v0.6.1: 世界书选择（二级缩进，与会话互斥） */}
             {selectedUuid && worldBooks.length > 0 && (
               <div className="ml-4 grid gap-2 border-l border-border/40 pl-3">
-                <label className="text-xs font-medium text-muted-foreground">
-                  选择世界书
-                </label>
+                <label className="text-xs font-medium text-muted-foreground">选择世界书</label>
                 <Select
                   value={selectedBookId}
                   onValueChange={(v) => {
@@ -1044,10 +1065,7 @@ function SessionMemoryTab({
                       <SelectItem key={b.bookId} value={b.bookId}>
                         <span className="flex items-center gap-2">
                           <span className="truncate">{b.bookName}</span>
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] leading-none"
-                          >
+                          <Badge variant="outline" className="text-[10px] leading-none">
                             {b.count}
                           </Badge>
                         </span>
@@ -1067,7 +1085,10 @@ function SessionMemoryTab({
                 <Skeleton key={i} className="h-16 w-full rounded-md" />
               ))}
             </div>
-          ) : !hasEmbeddingModel && (activeSource === "session" ? !selectedUuid || (displayLoaded && displayShards.length === 0) : !selectedBookId || (displayLoaded && displayShards.length === 0)) ? (
+          ) : !hasEmbeddingModel &&
+            (activeSource === "session"
+              ? !selectedUuid || (displayLoaded && displayShards.length === 0)
+              : !selectedBookId || (displayLoaded && displayShards.length === 0)) ? (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1202,11 +1223,7 @@ function SessionMemoryTab({
             <Button variant="outline" onClick={() => setSelectedShard(null)}>
               关闭
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteShard}
-              disabled={deleting}
-            >
+            <Button variant="destructive" onClick={handleDeleteShard} disabled={deleting}>
               <IconTrash className="size-4" />
               {deleting ? "删除中..." : "删除"}
             </Button>
@@ -1224,10 +1241,7 @@ function SessionMemoryTab({
 interface LongTermMemoryTabProps {
   settings: MemorySettings;
   characters: Character[];
-  onUpdate: <K extends keyof MemorySettings>(
-    key: K,
-    value: MemorySettings[K],
-  ) => void;
+  onUpdate: <K extends keyof MemorySettings>(key: K, value: MemorySettings[K]) => void;
 }
 
 function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTabProps) {

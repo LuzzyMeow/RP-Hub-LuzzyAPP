@@ -10,28 +10,25 @@
  * - 基于嵌入向量的语义搜索（无嵌入模型时回退到关键词搜索）
  */
 
-import type { Session, ChatMessage, ApiSettings } from '~/types/luzzy';
-import { getItem, setItem } from '~/services/storage';
-import {
-  sendRequest,
-  buildApiRequestBody,
-} from '~/services/apiClient';
+import type { Session, ChatMessage, ApiSettings } from "~/types/luzzy";
+import { getItem, setItem } from "~/services/storage";
+import { sendRequest, buildApiRequestBody } from "~/services/apiClient";
 import {
   getActualModelName,
   getOpenAICompatUrl,
   normalizeApiProviderUrl,
-} from '~/services/providerService';
-import { cosineSimilarity, getCachedEmbedding, setCachedEmbedding } from '~/services/memoryService';
+} from "~/services/providerService";
+import { cosineSimilarity, getCachedEmbedding, setCachedEmbedding } from "~/services/memoryService";
 
 /** 会话列表在 IndexedDB 中的存储键 */
-const SESSIONS_STORAGE_KEY = 'all_sessions';
+const SESSIONS_STORAGE_KEY = "all_sessions";
 
 /** 嵌入 API 默认版本路径(仅当 baseUrl 不含版本时回退使用) */
-const EMBEDDING_API_DEFAULT_VERSION = 'v1';
+const EMBEDDING_API_DEFAULT_VERSION = "v1";
 
 /** 标题生成提示词 */
 const TITLE_GENERATION_PROMPT =
-  '请用3-6个字概括以下对话的主题，只返回标题，不要加引号或其他标点：\n\n';
+  "请用3-6个字概括以下对话的主题，只返回标题，不要加引号或其他标点：\n\n";
 
 /** 非流式 chat completion 响应结构 */
 interface ChatCompletionResponse {
@@ -55,7 +52,7 @@ interface EmbeddingResponse {
  * @returns 会话列表，不存在则返回空数组
  */
 export const loadSessions = async (): Promise<Session[]> => {
-  const data = await getItem<Session[]>('sessions', SESSIONS_STORAGE_KEY);
+  const data = await getItem<Session[]>("sessions", SESSIONS_STORAGE_KEY);
   return data ?? [];
 };
 
@@ -65,7 +62,7 @@ export const loadSessions = async (): Promise<Session[]> => {
  * @param sessions - 会话列表
  */
 export const saveSessions = async (sessions: Session[]): Promise<void> => {
-  await setItem('sessions', SESSIONS_STORAGE_KEY, sessions);
+  await setItem("sessions", SESSIONS_STORAGE_KEY, sessions);
 };
 
 // ============================================================================
@@ -86,24 +83,24 @@ export const generateSessionTitle = async (
   messages: ChatMessage[],
   apiSettings: ApiSettings,
 ): Promise<string> => {
-  if (!messages || messages.length === 0) return '';
+  if (!messages || messages.length === 0) return "";
 
   // 取前 4 条非 system 消息拼接作为输入
   const recentMessages = messages
-    .filter((m) => m.role !== 'system')
+    .filter((m) => m.role !== "system")
     .slice(0, 4)
-    .map((m) => `${m.role === 'user' ? '用户' : '角色'}: ${m.content}`)
-    .join('\n');
+    .map((m) => `${m.role === "user" ? "用户" : "角色"}: ${m.content}`)
+    .join("\n");
 
-  if (!recentMessages.trim()) return '';
+  if (!recentMessages.trim()) return "";
 
   const prompt = TITLE_GENERATION_PROMPT + recentMessages;
-  const url = getOpenAICompatUrl(apiSettings.apiUrl, 'chat/completions');
+  const url = getOpenAICompatUrl(apiSettings.apiUrl, "chat/completions");
   const actualModel = getActualModelName(apiSettings.modelName);
   const body = buildApiRequestBody(
     {
       model: actualModel,
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: "user", content: prompt }],
       stream: false,
     },
     {
@@ -119,11 +116,11 @@ export const generateSessionTitle = async (
       body,
     });
     const data = (await response.json()) as ChatCompletionResponse;
-    const title = (data.choices?.[0]?.message?.content ?? '').trim();
+    const title = (data.choices?.[0]?.message?.content ?? "").trim();
     // 清理可能的多余引号和换行
-    return title.replace(/^["'""\n]+|["'""\n]+$/g, '').trim();
+    return title.replace(/^["'""\n]+|["'""\n]+$/g, "").trim();
   } catch {
-    return '';
+    return "";
   }
 };
 
@@ -140,15 +137,10 @@ export const generateSessionTitle = async (
  * @param query - 搜索关键词
  * @returns 匹配的会话列表
  */
-export const searchSessionsKeyword = (
-  sessions: Session[],
-  query: string,
-): Session[] => {
+export const searchSessionsKeyword = (sessions: Session[], query: string): Session[] => {
   const q = query.trim().toLowerCase();
   if (!q) return sessions;
-  return sessions.filter((s) =>
-    s.title.toLowerCase().includes(q),
-  );
+  return sessions.filter((s) => s.title.toLowerCase().includes(q));
 };
 
 /**
@@ -182,7 +174,7 @@ const normalizeEmbedding = (embedding: unknown): number[] => {
     arr = embedding;
   } else if (ArrayBuffer.isView(embedding)) {
     arr = Array.from(embedding as unknown as ArrayLike<unknown>);
-  } else if (embedding && typeof embedding === 'object') {
+  } else if (embedding && typeof embedding === "object") {
     const obj = embedding as { values?: unknown };
     if (Array.isArray(obj.values)) {
       arr = obj.values;
@@ -219,9 +211,9 @@ const getEmbeddingSimple = async (
   const actualModel = getActualModelName(embeddingModel);
   const url = buildEmbeddingUrl(apiSettings.apiUrl);
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${apiSettings.apiKey}`,
     },
     body: JSON.stringify({
@@ -283,7 +275,7 @@ export const searchSessionsSemantic = async (
       sessions.map(async (session) => {
         try {
           const titleVector = await getEmbeddingSimple(
-            session.title || session.characterName || '未命名会话',
+            session.title || session.characterName || "未命名会话",
             embeddingModel,
             apiSettings,
           );

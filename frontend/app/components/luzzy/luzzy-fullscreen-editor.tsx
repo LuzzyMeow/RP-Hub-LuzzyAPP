@@ -11,23 +11,18 @@
 
 import * as React from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { Underline, Strikethrough, List, ListOrdered, ListChecks, Quote } from "lucide-react";
 import {
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  List,
-  ListOrdered,
-  ListChecks,
-  Quote,
-  Sigma,
-  Code,
-  CodeXml,
-  Eye,
-  EyeOff,
-  Send,
-  X,
-} from "lucide-react";
+  IconBold,
+  IconItalic,
+  IconPi,
+  IconCode,
+  IconTerminal,
+  IconVisible,
+  IconInvisible,
+  IconSend,
+  IconClose,
+} from "~/components/luzzy/luzzy-icons";
 
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
@@ -60,7 +55,7 @@ interface LuzzyFullscreenEditorProps {
 function normalizeNewlines(text: string): string {
   return text.replace(/\n{3,}/g, (match) => {
     const extraBreaks = match.length - 2;
-    return '\n\n' + '<br>\n'.repeat(extraBreaks);
+    return "\n\n" + "<br>\n".repeat(extraBreaks);
   });
 }
 
@@ -69,11 +64,19 @@ interface ToolbarTool {
   id: string;
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  action: (text: string, textarea: HTMLTextAreaElement) => { text: string; selectionStart: number; selectionEnd: number };
+  action: (
+    text: string,
+    textarea: HTMLTextAreaElement,
+  ) => { text: string; selectionStart: number; selectionEnd: number };
 }
 
 /** 在选中文本前后包裹标记 */
-function wrapSelection(text: string, textarea: HTMLTextAreaElement, prefix: string, suffix: string = prefix): { text: string; selectionStart: number; selectionEnd: number } {
+function wrapSelection(
+  text: string,
+  textarea: HTMLTextAreaElement,
+  prefix: string,
+  suffix: string = prefix,
+): { text: string; selectionStart: number; selectionEnd: number } {
   const { selectionStart, selectionEnd } = textarea;
   const selected = text.slice(selectionStart, selectionEnd);
   const before = text.slice(0, selectionStart);
@@ -85,7 +88,11 @@ function wrapSelection(text: string, textarea: HTMLTextAreaElement, prefix: stri
 }
 
 /** 在行首添加标记 */
-function prependLines(text: string, textarea: HTMLTextAreaElement, marker: string): { text: string; selectionStart: number; selectionEnd: number } {
+function prependLines(
+  text: string,
+  textarea: HTMLTextAreaElement,
+  marker: string,
+): { text: string; selectionStart: number; selectionEnd: number } {
   const { selectionStart, selectionEnd } = textarea;
   const selected = text.slice(selectionStart, selectionEnd) || "列表项";
   const before = text.slice(0, selectionStart);
@@ -132,13 +139,13 @@ const TOOLBAR_TOOLS: ToolbarTool[] = [
   },
   {
     id: "bold",
-    icon: Bold,
+    icon: IconBold,
     title: "加粗",
     action: (text, ta) => wrapSelection(text, ta, "**"),
   },
   {
     id: "italic",
-    icon: Italic,
+    icon: IconItalic,
     title: "斜体",
     action: (text, ta) => wrapSelection(text, ta, "*"),
   },
@@ -193,19 +200,19 @@ const TOOLBAR_TOOLS: ToolbarTool[] = [
   },
   {
     id: "tex-formula",
-    icon: Sigma,
+    icon: IconPi,
     title: "TeX 公式",
     action: (text, ta) => wrapSelection(text, ta, "$$", "$$"),
   },
   {
     id: "inline-code",
-    icon: Code,
+    icon: IconCode,
     title: "行内代码",
     action: (text, ta) => wrapSelection(text, ta, "`"),
   },
   {
     id: "code-block",
-    icon: CodeXml,
+    icon: IconTerminal,
     title: "代码块",
     action: (text, ta) => wrapSelection(text, ta, "```\n", "\n```"),
   },
@@ -302,7 +309,9 @@ export function LuzzyFullscreenEditor({
           initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: "100%" }}
           animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: "100%" }}
-          transition={reduceMotion ? { duration: 0.2 } : { type: "spring", stiffness: 300, damping: 30 }}
+          transition={
+            reduceMotion ? { duration: 0.2 } : { type: "spring", stiffness: 300, damping: 30 }
+          }
           style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
         >
           {/* 顶部工具栏（长而窄） */}
@@ -316,7 +325,11 @@ export function LuzzyFullscreenEditor({
               title={enablePreview ? "关闭实时渲染" : "开启实时渲染"}
               {...pressableSubtle}
             >
-              {enablePreview ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+              {enablePreview ? (
+                <IconVisible className="size-4" />
+              ) : (
+                <IconInvisible className="size-4" />
+              )}
               <span className="text-xs">渲染</span>
             </Button>
 
@@ -355,7 +368,7 @@ export function LuzzyFullscreenEditor({
               title="关闭"
               {...pressableSubtle}
             >
-              <X className="size-4" />
+              <IconClose className="size-4" />
             </Button>
           </div>
 
@@ -363,7 +376,12 @@ export function LuzzyFullscreenEditor({
           <div className="flex flex-1 flex-col overflow-hidden">
             {/* 编辑区（上） */}
             {/* v0.4.0: 使用 flex-1 替代 h-1/2 确保在 flex 容器中正确分配高度 */}
-            <div className={cn("flex flex-col", enablePreview ? "flex-1 border-b border-border/20" : "h-full")}>
+            <div
+              className={cn(
+                "flex flex-col",
+                enablePreview ? "flex-1 border-b border-border/20" : "h-full",
+              )}
+            >
               <Textarea
                 ref={textareaRef}
                 value={value}
@@ -410,7 +428,7 @@ export function LuzzyFullscreenEditor({
               className="gap-1.5"
               {...pressable}
             >
-              <Send className="size-4" />
+              <IconSend className="size-4" />
               发送
             </Button>
           </div>

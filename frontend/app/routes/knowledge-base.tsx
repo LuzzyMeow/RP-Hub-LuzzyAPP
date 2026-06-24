@@ -59,12 +59,7 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  springEnter,
-  pressable,
-  pressableSubtle,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressable, pressableSubtle, fadeSlide } from "~/lib/motion-presets";
 import { toast } from "sonner";
 
 export function meta(_: Route.MetaArgs) {
@@ -131,14 +126,10 @@ export default function KnowledgeBasePage() {
   // 编辑状态
   const [editingKb, setEditingKb] = React.useState<KnowledgeBase | null>(null);
   const [isNewKb, setIsNewKb] = React.useState(false);
-  const [showCharDialog, setShowCharDialog] = React.useState<KnowledgeBase | null>(
-    null,
-  );
+  const [showCharDialog, setShowCharDialog] = React.useState<KnowledgeBase | null>(null);
 
   // 文件预览
-  const [previewFile, setPreviewFile] = React.useState<KnowledgeBaseFile | null>(
-    null,
-  );
+  const [previewFile, setPreviewFile] = React.useState<KnowledgeBaseFile | null>(null);
 
   // 新建 md 文件
   const [newFileDialog, setNewFileDialog] = React.useState<{
@@ -161,9 +152,7 @@ export default function KnowledgeBasePage() {
           embeddingModel?: string;
           enabled?: boolean;
         }>("memory", MEMORY_SETTINGS_KEY);
-        setHasEmbeddingModel(
-          !!memSettings?.embeddingModel?.trim() && !!memSettings?.enabled,
-        );
+        setHasEmbeddingModel(!!memSettings?.embeddingModel?.trim() && !!memSettings?.enabled);
       } catch {
         setHasEmbeddingModel(false);
       }
@@ -191,14 +180,11 @@ export default function KnowledgeBasePage() {
       const q = searchQuery.toLowerCase();
       list = list.filter(
         (kb) =>
-          kb.name.toLowerCase().includes(q) ||
-          kb.tags.some((t) => t.toLowerCase().includes(q)),
+          kb.name.toLowerCase().includes(q) || kb.tags.some((t) => t.toLowerCase().includes(q)),
       );
     }
     if (selectedTags.length > 0) {
-      list = list.filter((kb) =>
-        selectedTags.every((t) => kb.tags.includes(t)),
-      );
+      list = list.filter((kb) => selectedTags.every((t) => kb.tags.includes(t)));
     }
     return list;
   }, [knowledgeBases, searchQuery, selectedTags]);
@@ -240,13 +226,7 @@ export default function KnowledgeBasePage() {
     }
     await saveKnowledgeBases();
     setEditingKb(null);
-  }, [
-    editingKb,
-    isNewKb,
-    addKnowledgeBase,
-    updateKnowledgeBase,
-    saveKnowledgeBases,
-  ]);
+  }, [editingKb, isNewKb, addKnowledgeBase, updateKnowledgeBase, saveKnowledgeBases]);
 
   /** 删除知识库 */
   const handleDelete = React.useCallback(
@@ -424,11 +404,7 @@ export default function KnowledgeBasePage() {
             >
               <IconPlus className="size-4" />
             </Button>
-            <Button
-              size="icon"
-              onClick={() => handleUploadClick(currentKb.id)}
-              {...pressable}
-            >
+            <Button size="icon" onClick={() => handleUploadClick(currentKb.id)} {...pressable}>
               <IconUpload className="size-4" />
             </Button>
             <input
@@ -485,10 +461,7 @@ export default function KnowledgeBasePage() {
                   </EmptyDescription>
                 </EmptyHeader>
                 <EmptyContent>
-                  <Button
-                    onClick={() => handleUploadClick(currentKb.id)}
-                    {...pressable}
-                  >
+                  <Button onClick={() => handleUploadClick(currentKb.id)} {...pressable}>
                     <IconUpload className="mr-2 size-4" />
                     上传文件
                   </Button>
@@ -500,26 +473,17 @@ export default function KnowledgeBasePage() {
               <div className="mx-auto max-w-3xl space-y-2 pb-4">
                 <AnimatePresence mode="popLayout">
                   {currentKb.files.map((file, i) => (
-                    <motion.div
-                      key={file.id}
-                      layout
-                      {...springEnter}
-                      custom={i}
-                    >
+                    <motion.div key={file.id} layout {...springEnter} custom={i}>
                       <Card className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/30">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted/50">
                           <FileTypeIcon type={file.type} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h4 className="truncate text-sm font-medium">
-                            {file.name}
-                          </h4>
+                          <h4 className="truncate text-sm font-medium">{file.name}</h4>
                           <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
                             <span>{formatSize(file.size)}</span>
                             <span>·</span>
-                            <span>
-                              {new Date(file.uploadedAt).toLocaleString("zh-CN")}
-                            </span>
+                            <span>{new Date(file.uploadedAt).toLocaleString("zh-CN")}</span>
                           </div>
                         </div>
                         <div className="flex shrink-0 gap-1">
@@ -552,18 +516,11 @@ export default function KnowledgeBasePage() {
         </div>
 
         {/* 文件预览弹窗 */}
-        <Dialog
-          open={!!previewFile}
-          onOpenChange={(o) => !o && setPreviewFile(null)}
-        >
+        <Dialog open={!!previewFile} onOpenChange={(o) => !o && setPreviewFile(null)}>
           <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-2xl">
             <DialogHeader>
-              <DialogTitle className="truncate">
-                {previewFile?.name}
-              </DialogTitle>
-              <DialogDescription>
-                {previewFile && formatSize(previewFile.size)}
-              </DialogDescription>
+              <DialogTitle className="truncate">{previewFile?.name}</DialogTitle>
+              <DialogDescription>{previewFile && formatSize(previewFile.size)}</DialogDescription>
             </DialogHeader>
             {previewFile && (
               <ScrollArea className="flex-1 min-h-0">
@@ -591,10 +548,7 @@ export default function KnowledgeBasePage() {
         </Dialog>
 
         {/* 新建 md 文件弹窗 */}
-        <Dialog
-          open={!!newFileDialog}
-          onOpenChange={(o) => !o && setNewFileDialog(null)}
-        >
+        <Dialog open={!!newFileDialog} onOpenChange={(o) => !o && setNewFileDialog(null)}>
           <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-2xl">
             <DialogHeader>
               <DialogTitle>新建 Markdown 文件</DialogTitle>
@@ -624,9 +578,7 @@ export default function KnowledgeBasePage() {
                       value={newFileDialog.content}
                       onChange={(e) =>
                         setNewFileDialog((prev) =>
-                          prev
-                            ? { ...prev, content: e.target.value }
-                            : prev,
+                          prev ? { ...prev, content: e.target.value } : prev,
                         )
                       }
                       placeholder="支持 Markdown 格式，例如：&#10;# 标题&#10;&#10;正文内容..."
@@ -768,16 +720,9 @@ export default function KnowledgeBasePage() {
             <div className="mx-auto max-w-3xl space-y-3 pb-4">
               <AnimatePresence mode="popLayout">
                 {filteredKbs.map((kb, i) => {
-                  const isGlobal =
-                    !kb.enabledForCharacters ||
-                    kb.enabledForCharacters.length === 0;
+                  const isGlobal = !kb.enabledForCharacters || kb.enabledForCharacters.length === 0;
                   return (
-                    <motion.div
-                      key={kb.id}
-                      layout
-                      {...springEnter}
-                      custom={i}
-                    >
+                    <motion.div key={kb.id} layout {...springEnter} custom={i}>
                       <Card className="gap-2 p-4 transition-all hover:shadow-md">
                         <div
                           className="flex cursor-pointer items-start gap-3"
@@ -883,16 +828,11 @@ export default function KnowledgeBasePage() {
       />
 
       {/* 知识库新建/编辑弹窗 */}
-      <Dialog
-        open={!!editingKb}
-        onOpenChange={(o) => !o && setEditingKb(null)}
-      >
+      <Dialog open={!!editingKb} onOpenChange={(o) => !o && setEditingKb(null)}>
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>{isNewKb ? "新建知识库" : "编辑知识库"}</DialogTitle>
-            <DialogDescription>
-              知识库作为文件夹，可上传图片、Markdown、文本文件
-            </DialogDescription>
+            <DialogDescription>知识库作为文件夹，可上传图片、Markdown、文本文件</DialogDescription>
           </DialogHeader>
           {editingKb && (
             <div className="grid gap-4 py-2">
@@ -900,17 +840,13 @@ export default function KnowledgeBasePage() {
                 <label className="text-sm font-medium">名称</label>
                 <Input
                   value={editingKb.name}
-                  onChange={(e) =>
-                    setEditingKb({ ...editingKb, name: e.target.value })
-                  }
+                  onChange={(e) => setEditingKb({ ...editingKb, name: e.target.value })}
                   placeholder="例如：魔法世界资料库"
                   autoFocus
                 />
               </div>
               <div className="grid gap-2">
-                <label className="text-sm font-medium">
-                  标签（中英文逗号分隔）
-                </label>
+                <label className="text-sm font-medium">标签（中英文逗号分隔）</label>
                 <Input
                   value={editingKb.tags.join(", ")}
                   onChange={(e) =>
@@ -940,16 +876,11 @@ export default function KnowledgeBasePage() {
       </Dialog>
 
       {/* 角色卡绑定弹窗 */}
-      <Dialog
-        open={!!showCharDialog}
-        onOpenChange={(o) => !o && setShowCharDialog(null)}
-      >
+      <Dialog open={!!showCharDialog} onOpenChange={(o) => !o && setShowCharDialog(null)}>
         <DialogContent className="max-h-[80vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>角色卡绑定</DialogTitle>
-            <DialogDescription>
-              选择启用此知识库的角色卡（不选则全局启用）
-            </DialogDescription>
+            <DialogDescription>选择启用此知识库的角色卡（不选则全局启用）</DialogDescription>
           </DialogHeader>
           {showCharDialog && (
             <CharBindingContent
@@ -976,12 +907,7 @@ interface CharBindingContentProps {
   onCancel: () => void;
 }
 
-function CharBindingContent({
-  kb,
-  characters,
-  onSave,
-  onCancel,
-}: CharBindingContentProps) {
+function CharBindingContent({ kb, characters, onSave, onCancel }: CharBindingContentProps) {
   const [selected, setSelected] = React.useState<Set<string>>(
     new Set(kb.enabledForCharacters ?? []),
   );
@@ -1003,9 +929,7 @@ function CharBindingContent({
       <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="grid gap-2 py-2">
           {characters.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">
-              暂无角色卡
-            </div>
+            <div className="py-4 text-center text-xs text-muted-foreground">暂无角色卡</div>
           ) : (
             characters.map((c) => (
               <label
@@ -1025,18 +949,13 @@ function CharBindingContent({
       <DialogFooter>
         <div className="flex w-full items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            {selected.size === 0
-              ? "全局启用（所有角色）"
-              : `已选 ${selected.size} 个角色`}
+            {selected.size === 0 ? "全局启用（所有角色）" : `已选 ${selected.size} 个角色`}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onCancel}>
               取消
             </Button>
-            <Button
-              onClick={() => onSave(kb, Array.from(selected))}
-              {...pressable}
-            >
+            <Button onClick={() => onSave(kb, Array.from(selected))} {...pressable}>
               <IconCheck className="mr-2 size-4" />
               确定
             </Button>

@@ -18,7 +18,7 @@
 
 > **每次对话，都像一本有你的小说。**
 
-[![Version](https://img.shields.io/badge/version-v0.8.2-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.4-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)
@@ -126,6 +126,14 @@ RP-Hub/
 ---
 
 ## 最新动态
+
+### v0.8.4
+
+TRPG 两阶段 Agentic 闭环：游戏模式和设计模式均升级为真正的 ReAct 闭环——第一阶段模型只输出思考+工具调用，本地执行 d20 检定/状态变更后，第二阶段将真实结果回传 LLM 生成最终叙事。新增设计模式方向卡片入口（PERSONA/WORLD/SCENE/IMPROV）。世界卡 Schema 破坏性升级，完全对标标准世界卡结构（嵌套 settings/character_database/world_timeline/panel_fields/laws/mods/artifacts）。
+
+### v0.8.3
+
+修复 []内容消失（Streamdown 流式结束后 linkReference 丢弃）、Agentic 空响应误判、TRPG URL端点缺失、嵌入供应商解析错误。优化流式掉帧（requestAnimationFrame）、首字延迟（world-recall 异步非阻塞）、思考节点渲染。重构 TRPG 存档/世界卡绑定关系（世界卡绑定存档），新增 TRPG 用户引导。
 
 ### v0.8.2
 

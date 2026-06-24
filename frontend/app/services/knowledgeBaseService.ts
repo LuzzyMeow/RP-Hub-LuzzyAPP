@@ -9,24 +9,17 @@
  * - 基于关键词匹配或嵌入向量相似度检索知识库内容
  */
 
-import type {
-  KnowledgeBase,
-  KnowledgeBaseFile,
-  ApiSettings,
-} from '~/types/luzzy';
-import { v4 as uuidv4 } from 'uuid';
-import { getItem, setItem } from '~/services/storage';
-import {
-  getActualModelName,
-  normalizeApiProviderUrl,
-} from '~/services/providerService';
-import { cosineSimilarity, getCachedEmbedding, setCachedEmbedding } from '~/services/memoryService';
+import type { KnowledgeBase, KnowledgeBaseFile, ApiSettings } from "~/types/luzzy";
+import { v4 as uuidv4 } from "uuid";
+import { getItem, setItem } from "~/services/storage";
+import { getActualModelName, normalizeApiProviderUrl } from "~/services/providerService";
+import { cosineSimilarity, getCachedEmbedding, setCachedEmbedding } from "~/services/memoryService";
 
 /** 知识库列表在 IndexedDB 中的存储键 */
-const KB_STORAGE_KEY = 'all_knowledge_bases';
+const KB_STORAGE_KEY = "all_knowledge_bases";
 
 /** 嵌入 API 默认版本路径(仅当 baseUrl 不含版本时回退使用) */
-const EMBEDDING_API_DEFAULT_VERSION = 'v1';
+const EMBEDDING_API_DEFAULT_VERSION = "v1";
 
 /** embeddings 响应结构 */
 interface EmbeddingResponse {
@@ -53,7 +46,7 @@ export interface KnowledgeBaseSearchResult {
  * @returns 知识库列表，不存在则返回空数组
  */
 export const loadKnowledgeBases = async (): Promise<KnowledgeBase[]> => {
-  const data = await getItem<KnowledgeBase[]>('knowledgeBases', KB_STORAGE_KEY);
+  const data = await getItem<KnowledgeBase[]>("knowledgeBases", KB_STORAGE_KEY);
   return data ?? [];
 };
 
@@ -62,10 +55,8 @@ export const loadKnowledgeBases = async (): Promise<KnowledgeBase[]> => {
  *
  * @param kbs - 知识库列表
  */
-export const saveKnowledgeBases = async (
-  kbs: KnowledgeBase[],
-): Promise<void> => {
-  await setItem('knowledgeBases', KB_STORAGE_KEY, kbs);
+export const saveKnowledgeBases = async (kbs: KnowledgeBase[]): Promise<void> => {
+  await setItem("knowledgeBases", KB_STORAGE_KEY, kbs);
 };
 
 // ============================================================================
@@ -78,16 +69,16 @@ export const saveKnowledgeBases = async (
  * @param file - File 对象
  * @returns 文件类型：'image' | 'md' | 'txt'
  */
-const detectFileType = (file: File): KnowledgeBaseFile['type'] => {
+const detectFileType = (file: File): KnowledgeBaseFile["type"] => {
   const name = file.name.toLowerCase();
-  const mime = (file.type || '').toLowerCase();
-  if (mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)) {
-    return 'image';
+  const mime = (file.type || "").toLowerCase();
+  if (mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)) {
+    return "image";
   }
-  if (name.endsWith('.md') || name.endsWith('.markdown')) {
-    return 'md';
+  if (name.endsWith(".md") || name.endsWith(".markdown")) {
+    return "md";
   }
-  return 'txt';
+  return "txt";
 };
 
 /**
@@ -100,7 +91,7 @@ const readFileAsDataURL = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (): void => resolve(reader.result as string);
-    reader.onerror = (): void => reject(reader.error ?? new Error('文件读取失败'));
+    reader.onerror = (): void => reject(reader.error ?? new Error("文件读取失败"));
     reader.readAsDataURL(file);
   });
 };
@@ -115,7 +106,7 @@ const readFileAsText = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (): void => resolve(reader.result as string);
-    reader.onerror = (): void => reject(reader.error ?? new Error('文件读取失败'));
+    reader.onerror = (): void => reject(reader.error ?? new Error("文件读取失败"));
     reader.readAsText(file);
   });
 };
@@ -130,13 +121,11 @@ const readFileAsText = (file: File): Promise<string> => {
  * @param file - File 对象
  * @returns 知识库文件对象
  */
-export const importKnowledgeBaseFile = async (
-  file: File,
-): Promise<KnowledgeBaseFile> => {
+export const importKnowledgeBaseFile = async (file: File): Promise<KnowledgeBaseFile> => {
   const type = detectFileType(file);
   let content: string;
 
-  if (type === 'image') {
+  if (type === "image") {
     content = await readFileAsDataURL(file);
   } else {
     content = await readFileAsText(file);
@@ -185,7 +174,7 @@ const normalizeEmbedding = (embedding: unknown): number[] => {
     arr = embedding;
   } else if (ArrayBuffer.isView(embedding)) {
     arr = Array.from(embedding as unknown as ArrayLike<unknown>);
-  } else if (embedding && typeof embedding === 'object') {
+  } else if (embedding && typeof embedding === "object") {
     const obj = embedding as { values?: unknown };
     if (Array.isArray(obj.values)) {
       arr = obj.values;
@@ -222,9 +211,9 @@ const getEmbeddingSimple = async (
   const actualModel = getActualModelName(embeddingModel);
   const url = buildEmbeddingUrl(apiSettings.apiUrl);
   const response = await fetch(url, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${apiSettings.apiKey}`,
     },
     body: JSON.stringify({
@@ -257,12 +246,12 @@ const getEmbeddingSimple = async (
 const chunkText = (text: string, maxChunkSize = 500): string[] => {
   const paragraphs = text.split(/\n\s*\n/);
   const chunks: string[] = [];
-  let current = '';
+  let current = "";
 
   for (const para of paragraphs) {
     const trimmed = para.trim();
     if (!trimmed) continue;
-    if ((current + '\n\n' + trimmed).length > maxChunkSize && current) {
+    if ((current + "\n\n" + trimmed).length > maxChunkSize && current) {
       chunks.push(current);
       current = trimmed;
     } else {
@@ -302,7 +291,7 @@ export const processKnowledgeBase = async (
   // 收集所有文本文件的分块
   const chunks: Array<{ file: KnowledgeBaseFile; snippet: string }> = [];
   for (const file of kb.files) {
-    if (file.type === 'image') continue;
+    if (file.type === "image") continue;
     const textChunks = chunkText(file.content);
     for (const snippet of textChunks) {
       chunks.push({ file, snippet });
@@ -348,11 +337,7 @@ export const processKnowledgeBase = async (
     const scored = await Promise.all(
       chunks.map(async ({ file, snippet }) => {
         try {
-          const chunkVector = await getEmbeddingSimple(
-            snippet,
-            embeddingModel,
-            apiSettings,
-          );
+          const chunkVector = await getEmbeddingSimple(snippet, embeddingModel, apiSettings);
           return { file, snippet, score: cosineSimilarity(queryVector, chunkVector) };
         } catch {
           return { file, snippet, score: -1 };

@@ -58,12 +58,7 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "~/components/ui/empty";
-import {
-  springEnter,
-  pressable,
-  pressableSubtle,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressable, pressableSubtle, fadeSlide } from "~/lib/motion-presets";
 import { toast } from "sonner";
 // v0.4.6: 添加原生平台分享支持
 import { isNativePlatform, writeFile, mkdir, shareFile } from "~/services/nativeBridge";
@@ -230,7 +225,7 @@ export default function ProfilePage() {
       if (isNativePlatform()) {
         const arrayBuffer = await blob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
-        let binary = '';
+        let binary = "";
         for (let i = 0; i < uint8Array.length; i++) {
           binary += String.fromCharCode(uint8Array[i]);
         }
@@ -333,7 +328,9 @@ export default function ProfilePage() {
           <div>
             <p className="font-medium text-foreground">用户档案注入说明</p>
             <p className="mt-1">
-              名称和描述会自动注入到聊天系统提示词的 <code className="rounded bg-muted px-1">[User Info]</code> 区块中，让 AI 了解你的身份与偏好。
+              名称和描述会自动注入到聊天系统提示词的{" "}
+              <code className="rounded bg-muted px-1">[User Info]</code> 区块中，让 AI
+              了解你的身份与偏好。
             </p>
           </div>
         </motion.div>
@@ -391,9 +388,7 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-medium">
             全部档案
-            <span className="ml-2 text-xs text-muted-foreground">
-              ({userProfiles.length})
-            </span>
+            <span className="ml-2 text-xs text-muted-foreground">({userProfiles.length})</span>
           </h3>
         </div>
 
@@ -447,10 +442,7 @@ export default function ProfilePage() {
                           }`}
                         >
                           <Avatar className="size-10 shrink-0 rounded-lg">
-                            <AvatarImage
-                              src={profile.avatar}
-                              alt={profile.name}
-                            />
+                            <AvatarImage src={profile.avatar} alt={profile.name} />
                             <AvatarFallback className="rounded-lg">
                               <IconUser className="size-4" />
                             </AvatarFallback>
@@ -466,9 +458,7 @@ export default function ProfilePage() {
                                 {/* v0.4.1: 默认用户名为空时显示占位符 */}
                                 {profile.name || "未设置"}
                               </span>
-                              {isActive && (
-                                <IconCheck className="size-3 shrink-0 text-primary" />
-                              )}
+                              {isActive && <IconCheck className="size-3 shrink-0 text-primary" />}
                             </div>
                             <p className="truncate text-xs text-muted-foreground">
                               {profile.description || "暂无描述"}
@@ -490,7 +480,10 @@ export default function ProfilePage() {
 
       {/* 编辑弹窗 */}
       {/* v0.3.7: 全屏编辑器打开时关闭 Dialog，避免 z-index/focus 冲突导致崩溃 */}
-      <Dialog open={!!editing && !descFullscreenOpen} onOpenChange={(open) => !open && handleCancel()}>
+      <Dialog
+        open={!!editing && !descFullscreenOpen}
+        onOpenChange={(open) => !open && handleCancel()}
+      >
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建档案" : "编辑档案"}</DialogTitle>
@@ -507,10 +500,7 @@ export default function ProfilePage() {
                   <label className="text-sm font-medium">头像</label>
                   <div className="flex min-w-0 items-center gap-3">
                     <Avatar className="size-16 shrink-0 rounded-lg">
-                      <AvatarImage
-                        src={editing.avatar}
-                        alt={editing.name}
-                      />
+                      <AvatarImage src={editing.avatar} alt={editing.name} />
                       <AvatarFallback className="rounded-lg">
                         <IconUser className="size-6" />
                       </AvatarFallback>
@@ -603,9 +593,7 @@ export default function ProfilePage() {
                   </div>
                   <Textarea
                     value={editing.description}
-                    onChange={(e) =>
-                      updateField("description", e.target.value)
-                    }
+                    onChange={(e) => updateField("description", e.target.value)}
                     placeholder="你的自我介绍、偏好、设定等（将注入到聊天中）"
                     rows={12}
                     className="max-w-full min-h-[200px]"

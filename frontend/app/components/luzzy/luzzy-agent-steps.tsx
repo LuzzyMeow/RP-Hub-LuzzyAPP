@@ -69,9 +69,7 @@ const StepLabel: React.FC<{ type: AgentStep["type"] }> = ({ type }) => {
 };
 
 /** 状态指示器 */
-const StatusIndicator: React.FC<{ status: AgentStep["status"] }> = ({
-  status,
-}) => {
+const StatusIndicator: React.FC<{ status: AgentStep["status"] }> = ({ status }) => {
   if (status === "running") {
     return (
       <motion.span
@@ -113,9 +111,7 @@ const StepCard: React.FC<{ step: AgentStep }> = ({ step }) => {
         <StepIcon type={step.type} />
         <StepLabel type={step.type} />
         {step.title && step.title !== step.type && (
-          <span className="ml-1 truncate text-[11px] opacity-60">
-            {step.title}
-          </span>
+          <span className="ml-1 truncate text-[11px] opacity-60">{step.title}</span>
         )}
         {!expanded && hasContent && (
           <span className="ml-1 truncate text-[11px] opacity-50">{preview}</span>

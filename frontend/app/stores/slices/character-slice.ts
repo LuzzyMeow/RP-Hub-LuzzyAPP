@@ -101,15 +101,10 @@ const mapCardDataToCharacter = (cardData: unknown): Character => {
     scenario: toSafeString(data.scenario),
     firstMessage: toSafeString(data.first_mes ?? data.firstMessage),
     mesExample: toSafeString(data.mes_example ?? data.mesExample),
-    alternateGreetings: toSafeStringArray(
-      data.alternate_greetings ?? data.alternateGreetings,
-    ),
+    alternateGreetings: toSafeStringArray(data.alternate_greetings ?? data.alternateGreetings),
     tags: toSafeStringArray(data.tags),
     creator: toSafeString(data.creator),
-    characterVersion: toSafeString(
-      data.character_version ?? data.characterVersion,
-      "1.0",
-    ),
+    characterVersion: toSafeString(data.character_version ?? data.characterVersion, "1.0"),
     createdAt: now,
     updatedAt: now,
     favorite: false,
@@ -120,12 +115,10 @@ const mapCardDataToCharacter = (cardData: unknown): Character => {
 // Slice 实现
 // ============================================================================
 
-export const createCharacterSlice: StateCreator<
-  AppStoreState,
-  [],
-  [],
-  CharacterSlice
-> = (set, get) => ({
+export const createCharacterSlice: StateCreator<AppStoreState, [], [], CharacterSlice> = (
+  set,
+  get,
+) => ({
   // ===== 状态初始值 =====
   characters: [],
   currentCharacterUuid: null,
@@ -135,15 +128,11 @@ export const createCharacterSlice: StateCreator<
   // ===== Actions：持久化 =====
   loadCharacters: async () => {
     try {
-      const data = await getItem<Character[]>(
-        "characters",
-        CHARACTERS_STORAGE_KEY,
-      );
+      const data = await getItem<Character[]>("characters", CHARACTERS_STORAGE_KEY);
       const characters = data ?? [];
       const { currentCharacterUuid } = get();
       const uuidValid =
-        currentCharacterUuid !== null &&
-        characters.some((c) => c.uuid === currentCharacterUuid);
+        currentCharacterUuid !== null && characters.some((c) => c.uuid === currentCharacterUuid);
       set({
         characters,
         currentCharacterUuid: uuidValid ? currentCharacterUuid : null,
@@ -183,9 +172,7 @@ export const createCharacterSlice: StateCreator<
   updateCharacter: async (uuid, partial) => {
     set((state) => ({
       characters: state.characters.map((c) =>
-        c.uuid === uuid
-          ? { ...c, ...partial, uuid, updatedAt: Date.now() }
-          : c,
+        c.uuid === uuid ? { ...c, ...partial, uuid, updatedAt: Date.now() } : c,
       ),
     }));
     await get().saveCharacters();
@@ -194,13 +181,10 @@ export const createCharacterSlice: StateCreator<
   deleteCharacter: async (uuid, options) => {
     set((state) => ({
       characters: state.characters.filter((c) => c.uuid !== uuid),
-      currentCharacterUuid:
-        state.currentCharacterUuid === uuid ? null : state.currentCharacterUuid,
+      currentCharacterUuid: state.currentCharacterUuid === uuid ? null : state.currentCharacterUuid,
       // v0.7.3-fix: 同步清除 currentCharacter 和 messages，避免聊天页仍显示已删除角色的会话
-      currentCharacter:
-        state.currentCharacter?.uuid === uuid ? null : state.currentCharacter,
-      messages:
-        state.currentCharacter?.uuid === uuid ? [] : state.messages,
+      currentCharacter: state.currentCharacter?.uuid === uuid ? null : state.currentCharacter,
+      messages: state.currentCharacter?.uuid === uuid ? [] : state.messages,
     }));
     await get().saveCharacters();
     // 清理关联的聊天记录
@@ -218,10 +202,9 @@ export const createCharacterSlice: StateCreator<
       if (charSessions.length > 0) {
         set((state) => ({
           sessions: state.sessions.filter((s) => s.characterId !== uuid),
-          currentSessionId:
-            charSessions.some((s) => s.id === state.currentSessionId)
-              ? null
-              : state.currentSessionId,
+          currentSessionId: charSessions.some((s) => s.id === state.currentSessionId)
+            ? null
+            : state.currentSessionId,
         }));
         await get().saveSessions?.();
       }
@@ -278,8 +261,10 @@ export const createCharacterSlice: StateCreator<
             ...g,
             enabledForCharacters: (g.enabledForCharacters ?? []).filter((id) => id !== uuid),
           }));
-        if (filtered.length !== allRegexGroups.length ||
-            allRegexGroups.some((g) => (g.enabledForCharacters ?? []).includes(uuid))) {
+        if (
+          filtered.length !== allRegexGroups.length ||
+          allRegexGroups.some((g) => (g.enabledForCharacters ?? []).includes(uuid))
+        ) {
           await setItem("regexScripts", "regexGroups", filtered);
         }
       }
@@ -318,7 +303,10 @@ export const createCharacterSlice: StateCreator<
       }
       // v0.7.1: UI 模板
       const allUiTemplates = await getItem<UiTemplate[]>("uiTemplates", "uiTemplates");
-      if (allUiTemplates && allUiTemplates.some((t) => (t.enabledForCharacters ?? []).includes(uuid))) {
+      if (
+        allUiTemplates &&
+        allUiTemplates.some((t) => (t.enabledForCharacters ?? []).includes(uuid))
+      ) {
         const updated = allUiTemplates.map((t) => ({
           ...t,
           enabledForCharacters: (t.enabledForCharacters ?? []).filter((id) => id !== uuid),
@@ -335,9 +323,7 @@ export const createCharacterSlice: StateCreator<
   toggleFavorite: async (uuid) => {
     set((state) => ({
       characters: state.characters.map((c) =>
-        c.uuid === uuid
-          ? { ...c, favorite: !c.favorite, updatedAt: Date.now() }
-          : c,
+        c.uuid === uuid ? { ...c, favorite: !c.favorite, updatedAt: Date.now() } : c,
       ),
     }));
     await get().saveCharacters();
@@ -388,11 +374,7 @@ export const createCharacterSlice: StateCreator<
         const name = c.name.toLowerCase();
         const description = c.description.toLowerCase();
         const tags = c.tags.map((t) => t.toLowerCase());
-        return (
-          name.includes(q) ||
-          description.includes(q) ||
-          tags.some((t) => t.includes(q))
-        );
+        return name.includes(q) || description.includes(q) || tags.some((t) => t.includes(q));
       });
     }
 

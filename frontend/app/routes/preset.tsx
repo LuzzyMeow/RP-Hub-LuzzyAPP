@@ -58,12 +58,7 @@ import {
   EmptyContent,
 } from "~/components/ui/empty";
 import Markdown from "~/components/markdown/markdown";
-import {
-  springEnter,
-  pressable,
-  pressableSubtle,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressable, pressableSubtle, fadeSlide } from "~/lib/motion-presets";
 import { toast } from "sonner";
 
 export function meta(_: Route.MetaArgs) {
@@ -84,17 +79,13 @@ export default function PresetPage() {
   const characters = useAppStore((s) => s.characters);
 
   const [customPresets, setCustomPresets] = React.useState<Preset[]>([]);
-  const [builtinOverrides, setBuiltinOverrides] = React.useState<
-    Record<string, Preset>
-  >({});
+  const [builtinOverrides, setBuiltinOverrides] = React.useState<Record<string, Preset>>({});
   const [loaded, setLoaded] = React.useState(false);
   const [editing, setEditing] = React.useState<Preset | null>(null);
   const [isNew, setIsNew] = React.useState(false);
   const [viewing, setViewing] = React.useState<Preset | null>(null);
   const [viewMode, setViewMode] = React.useState<ViewMode>("rendered");
-  const [showCharDialog, setShowCharDialog] = React.useState<Preset | null>(
-    null,
-  );
+  const [showCharDialog, setShowCharDialog] = React.useState<Preset | null>(null);
   const confirm = useConfirm();
 
   /** 加载自定义预设与内置预设覆盖 */
@@ -126,17 +117,14 @@ export default function PresetPage() {
   }, []);
 
   /** 持久化内置预设覆盖 */
-  const persistOverrides = React.useCallback(
-    async (next: Record<string, Preset>) => {
-      setBuiltinOverrides(next);
-      try {
-        await setItem("presets", "builtinOverrides", next);
-      } catch (e) {
-        toast.error("保存失败：" + (e as Error).message);
-      }
-    },
-    [],
-  );
+  const persistOverrides = React.useCallback(async (next: Record<string, Preset>) => {
+    setBuiltinOverrides(next);
+    try {
+      await setItem("presets", "builtinOverrides", next);
+    } catch (e) {
+      toast.error("保存失败：" + (e as Error).message);
+    }
+  }, []);
 
   /** 获取内置预设（合并用户覆盖） */
   const getBuiltinPreset = React.useCallback(
@@ -181,13 +169,10 @@ export default function PresetPage() {
   }, []);
 
   /** 编辑预设（内置或自定义） */
-  const handleEdit = React.useCallback(
-    (p: Preset) => {
-      setEditing({ ...p });
-      setIsNew(false);
-    },
-    [],
-  );
+  const handleEdit = React.useCallback((p: Preset) => {
+    setEditing({ ...p });
+    setIsNew(false);
+  }, []);
 
   /** 查看预设内容 */
   const handleView = React.useCallback((p: Preset) => {
@@ -229,21 +214,12 @@ export default function PresetPage() {
     }
     const exists = customPresets.some((p) => p.id === editing.id);
     const next = exists
-      ? customPresets.map((p) =>
-          p.id === editing.id ? { ...editing, updatedAt: Date.now() } : p,
-        )
+      ? customPresets.map((p) => (p.id === editing.id ? { ...editing, updatedAt: Date.now() } : p))
       : [...customPresets, editing];
     await persistCustom(next);
     setEditing(null);
     toast.success(isNew ? "预设已创建" : "预设已更新");
-  }, [
-    editing,
-    customPresets,
-    isNew,
-    persistCustom,
-    builtinOverrides,
-    persistOverrides,
-  ]);
+  }, [editing, customPresets, isNew, persistCustom, builtinOverrides, persistOverrides]);
 
   /** 切换启用状态 */
   const handleToggleEnabled = React.useCallback(
@@ -325,9 +301,7 @@ export default function PresetPage() {
           },
         });
       } else {
-        await persistCustom(
-          customPresets.map((x) => (x.id === preset.id ? updated : x)),
-        );
+        await persistCustom(customPresets.map((x) => (x.id === preset.id ? updated : x)));
       }
       setShowCharDialog(null);
       toast.success("角色卡绑定已更新");
@@ -338,15 +312,9 @@ export default function PresetPage() {
   /** 渲染预设卡片 */
   const renderPresetCard = React.useCallback(
     (preset: Preset, index: number) => {
-      const isGlobal =
-        !preset.enabledForCharacters || preset.enabledForCharacters.length === 0;
+      const isGlobal = !preset.enabledForCharacters || preset.enabledForCharacters.length === 0;
       return (
-        <motion.div
-          key={preset.id}
-          layout
-          {...springEnter}
-          custom={index}
-        >
+        <motion.div key={preset.id} layout {...springEnter} custom={index}>
           <Card className="gap-2 p-4 transition-all hover:shadow-md">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -471,9 +439,7 @@ export default function PresetPage() {
 
               {/* 自定义预设 */}
               <section>
-                <h2 className="mb-2 text-sm font-semibold text-muted-foreground">
-                  自定义预设
-                </h2>
+                <h2 className="mb-2 text-sm font-semibold text-muted-foreground">自定义预设</h2>
                 {customPresets.length === 0 ? (
                   <Card className="p-4">
                     <Empty>
@@ -482,9 +448,7 @@ export default function PresetPage() {
                           <IconFile className="size-6" />
                         </EmptyMedia>
                         <EmptyTitle>还没有自定义预设</EmptyTitle>
-                        <EmptyDescription>
-                          新建一个预设来自定义系统提示
-                        </EmptyDescription>
+                        <EmptyDescription>新建一个预设来自定义系统提示</EmptyDescription>
                       </EmptyHeader>
                       <EmptyContent>
                         <Button onClick={handleNew} {...pressable}>
@@ -497,7 +461,9 @@ export default function PresetPage() {
                 ) : (
                   <div className="grid gap-3">
                     <AnimatePresence mode="popLayout">
-                      {customPresets.filter(p => p.name !== LUZZY_PRESET_NAME).map((p, i) => renderPresetCard(p, i))}
+                      {customPresets
+                        .filter((p) => p.name !== LUZZY_PRESET_NAME)
+                        .map((p, i) => renderPresetCard(p, i))}
                     </AnimatePresence>
                   </div>
                 )}
@@ -528,9 +494,7 @@ export default function PresetPage() {
                     <label className="text-sm font-medium">名称</label>
                     <Input
                       value={editing.name}
-                      onChange={(e) =>
-                        setEditing({ ...editing, name: e.target.value })
-                      }
+                      onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                       placeholder="预设名称"
                       className="max-w-full"
                     />
@@ -540,9 +504,7 @@ export default function PresetPage() {
                   <label className="text-sm font-medium">内容</label>
                   <Textarea
                     value={editing.content}
-                    onChange={(e) =>
-                      setEditing({ ...editing, content: e.target.value })
-                    }
+                    onChange={(e) => setEditing({ ...editing, content: e.target.value })}
                     placeholder="预设内容（系统提示）"
                     rows={16}
                     className="max-w-full font-mono text-xs"
@@ -574,9 +536,7 @@ export default function PresetPage() {
                 </Badge>
               )}
             </DialogTitle>
-            <DialogDescription>
-              预设内容预览（支持 Markdown 渲染）
-            </DialogDescription>
+            <DialogDescription>预设内容预览（支持 Markdown 渲染）</DialogDescription>
           </DialogHeader>
           {viewing && (
             <>
@@ -628,11 +588,7 @@ export default function PresetPage() {
               </div>
               <ScrollArea className="flex-1 min-h-0">
                 <AnimatePresence mode="wait">
-                  <motion.div
-                    key={viewMode}
-                    {...fadeSlide}
-                    className="min-w-0 p-1"
-                  >
+                  <motion.div key={viewMode} {...fadeSlide} className="min-w-0 p-1">
                     {viewMode === "rendered" ? (
                       <Markdown content={viewing.content} />
                     ) : (
@@ -654,16 +610,11 @@ export default function PresetPage() {
       </Dialog>
 
       {/* 角色卡绑定弹窗 */}
-      <Dialog
-        open={!!showCharDialog}
-        onOpenChange={(o) => !o && setShowCharDialog(null)}
-      >
+      <Dialog open={!!showCharDialog} onOpenChange={(o) => !o && setShowCharDialog(null)}>
         <DialogContent className="max-h-[80vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>角色卡绑定</DialogTitle>
-            <DialogDescription>
-              选择启用此预设的角色卡（不选则全局启用）
-            </DialogDescription>
+            <DialogDescription>选择启用此预设的角色卡（不选则全局启用）</DialogDescription>
           </DialogHeader>
           {showCharDialog && (
             <CharBindingContent
@@ -690,12 +641,7 @@ interface CharBindingContentProps {
   onCancel: () => void;
 }
 
-function CharBindingContent({
-  preset,
-  characters,
-  onSave,
-  onCancel,
-}: CharBindingContentProps) {
+function CharBindingContent({ preset, characters, onSave, onCancel }: CharBindingContentProps) {
   const [selected, setSelected] = React.useState<Set<string>>(
     new Set(preset.enabledForCharacters ?? []),
   );
@@ -717,9 +663,7 @@ function CharBindingContent({
       <ScrollArea className="flex-1 min-h-0 pr-2">
         <div className="grid gap-2 py-2">
           {characters.length === 0 ? (
-            <div className="py-4 text-center text-xs text-muted-foreground">
-              暂无角色卡
-            </div>
+            <div className="py-4 text-center text-xs text-muted-foreground">暂无角色卡</div>
           ) : (
             characters.map((c) => (
               <label
@@ -739,18 +683,13 @@ function CharBindingContent({
       <DialogFooter>
         <div className="flex w-full items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            {selected.size === 0
-              ? "全局启用（所有角色）"
-              : `已选 ${selected.size} 个角色`}
+            {selected.size === 0 ? "全局启用（所有角色）" : `已选 ${selected.size} 个角色`}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onCancel}>
               取消
             </Button>
-            <Button
-              onClick={() => onSave(preset, Array.from(selected))}
-              {...pressable}
-            >
+            <Button onClick={() => onSave(preset, Array.from(selected))} {...pressable}>
               <IconCheck className="mr-2 size-4" />
               确定
             </Button>

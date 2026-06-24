@@ -7,7 +7,13 @@
 
 import * as React from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { IconSearch, IconUser, IconArrowDown, IconArrowUp, IconInfo } from "~/components/luzzy/luzzy-icons";
+import {
+  IconSearch,
+  IconUser,
+  IconArrowDown,
+  IconArrowUp,
+  IconInfo,
+} from "~/components/luzzy/luzzy-icons";
 
 import type { Character } from "~/types/luzzy";
 import { cn } from "~/lib/utils";
@@ -15,12 +21,7 @@ import { Input } from "~/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { Badge } from "~/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "~/components/ui/dialog";
 import Markdown from "~/components/markdown/markdown";
 
 interface CharacterPickerProps {
@@ -72,16 +73,12 @@ export function CharacterPicker({
   const filtered = React.useMemo(() => {
     let result = characters;
     if (selectedTags.length > 0) {
-      result = result.filter((c) =>
-        selectedTags.every((t) => c.tags?.includes(t)),
-      );
+      result = result.filter((c) => selectedTags.every((t) => c.tags?.includes(t)));
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
-        (c) =>
-          c.name.toLowerCase().includes(q) ||
-          c.tags.some((t) => t.toLowerCase().includes(q)),
+        (c) => c.name.toLowerCase().includes(q) || c.tags.some((t) => t.toLowerCase().includes(q)),
       );
     }
     return result;
@@ -165,16 +162,12 @@ export function CharacterPicker({
                 className={cn(
                   "flex items-center gap-2 rounded-lg p-2 text-left text-sm transition-all",
                   "hover:bg-accent active:scale-[0.98]",
-                  currentUuid === char.uuid
-                    ? "bg-primary/10 ring-1 ring-primary"
-                    : "",
+                  currentUuid === char.uuid ? "bg-primary/10 ring-1 ring-primary" : "",
                 )}
               >
                 <Avatar className="size-8 shrink-0">
                   <AvatarImage src={char.avatar} alt={char.name} />
-                  <AvatarFallback className="text-xs">
-                    {char.name.charAt(0) || "?"}
-                  </AvatarFallback>
+                  <AvatarFallback className="text-xs">{char.name.charAt(0) || "?"}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{char.name}</div>
@@ -247,9 +240,7 @@ export function CharacterPicker({
             <div className="flex flex-col items-center gap-2 py-8 text-center text-muted-foreground">
               <IconUser className="size-8" />
               <p className="text-xs">
-                {searchQuery || selectedTags.length > 0
-                  ? "未找到匹配的角色卡"
-                  : "暂无角色卡"}
+                {searchQuery || selectedTags.length > 0 ? "未找到匹配的角色卡" : "暂无角色卡"}
               </p>
             </div>
           )}
@@ -258,18 +249,13 @@ export function CharacterPicker({
 
       {/* v0.3.6: 角色卡详情弹窗 */}
       {/* v0.4.1-fix: 限制弹窗高度,内容在容器内滚动,支持长提示词 */}
-      <Dialog
-        open={!!detailCharacter}
-        onOpenChange={(o) => !o && setDetailCharacter(null)}
-      >
+      <Dialog open={!!detailCharacter} onOpenChange={(o) => !o && setDetailCharacter(null)}>
         <DialogContent className="max-h-[80vh] min-w-0 overflow-hidden max-w-2xl flex flex-col gap-0">
           <DialogHeader className="shrink-0">
             <DialogTitle>{detailCharacter?.name}</DialogTitle>
           </DialogHeader>
           <ScrollArea className="flex-1 min-h-0 max-h-[70vh] pr-2">
-            {detailCharacter?.description && (
-              <Markdown content={detailCharacter.description} />
-            )}
+            {detailCharacter?.description && <Markdown content={detailCharacter.description} />}
             {detailCharacter?.tags && detailCharacter.tags.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-1">
                 {detailCharacter.tags.map((tag) => (

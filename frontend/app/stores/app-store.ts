@@ -108,8 +108,7 @@ export const useAppStore = create<AppStoreState>()(
       },
       // 自定义合并逻辑：合并持久化数据并规范化关键字段
       merge: (persisted, current) => {
-        const p =
-          (persisted as Partial<AppStoreState> | undefined) ?? {};
+        const p = (persisted as Partial<AppStoreState> | undefined) ?? {};
         // 过滤 undefined 字段，避免覆盖默认值
         const cleanP = Object.fromEntries(
           Object.entries(p).filter(([, v]) => v !== undefined),
@@ -126,8 +125,7 @@ export const useAppStore = create<AppStoreState>()(
       },
       // 版本迁移：v2 → v3（v0.2.0 新增字段，旧数据无新字段时使用默认值）
       migrate: (persisted, version) => {
-        const p =
-          (persisted as Partial<AppStoreState> | undefined) ?? {};
+        const p = (persisted as Partial<AppStoreState> | undefined) ?? {};
         // version < 3 表示旧版本数据，新字段未持久化，
         // 直接返回原数据，缺失字段由各 slice 初始值 + merge 填充
         if (version < 3) {

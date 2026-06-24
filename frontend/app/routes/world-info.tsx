@@ -36,7 +36,13 @@ import {
 import { useConfirm } from "~/components/luzzy/luzzy-confirm";
 import { useBindingDeleteConfirm } from "~/components/luzzy/luzzy-binding-delete-dialog";
 
-import type { WorldInfoEntry, Character, MemorySettings, ApiSettings, ApiProvider } from "~/types/luzzy";
+import type {
+  WorldInfoEntry,
+  Character,
+  MemorySettings,
+  ApiSettings,
+  ApiProvider,
+} from "~/types/luzzy";
 import { useAppStore } from "~/stores";
 import { BUILTIN_PROVIDERS } from "~/stores/slices/settings-slice";
 import { getItem, setItem } from "~/services/storage";
@@ -74,12 +80,7 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  springEnter,
-  pressable,
-  pressableSubtle,
-  fadeSlide,
-} from "~/lib/motion-presets";
+import { springEnter, pressable, pressableSubtle, fadeSlide } from "~/lib/motion-presets";
 import { toast } from "sonner";
 // v0.4.5: 方案 D - 使用 NativeBridge 替代 Capacitor Filesystem/Share
 import { isNativePlatform, writeFile, shareFile, mkdir } from "~/services/nativeBridge";
@@ -239,14 +240,10 @@ export default function WorldInfoPage() {
   const [entries, setEntries] = React.useState<WorldInfoEntry[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [expandedBooks, setExpandedBooks] = React.useState<Set<string>>(
-    new Set(),
-  );
+  const [expandedBooks, setExpandedBooks] = React.useState<Set<string>>(new Set());
 
   // 编辑状态
-  const [editingEntry, setEditingEntry] = React.useState<WorldInfoEntry | null>(
-    null,
-  );
+  const [editingEntry, setEditingEntry] = React.useState<WorldInfoEntry | null>(null);
   const [isNewEntry, setIsNewEntry] = React.useState(false);
   const [editingBook, setEditingBook] = React.useState<{
     bookId: string;
@@ -277,19 +274,13 @@ export default function WorldInfoPage() {
       void (async () => {
         try {
           // 读取记忆设置
-          const memorySettings = await getItem<MemorySettings>(
-            "memory",
-            "memorySettings",
-          );
+          const memorySettings = await getItem<MemorySettings>("memory", "memorySettings");
           if (!memorySettings || !memorySettings.embeddingModel?.trim()) {
             logger.debug("world", "嵌入模型未配置，跳过预生成");
             return;
           }
           // 构建 ApiSettings
-          const allProviders: ApiProvider[] = [
-            ...BUILTIN_PROVIDERS,
-            ...customApiProviders,
-          ];
+          const allProviders: ApiProvider[] = [...BUILTIN_PROVIDERS, ...customApiProviders];
           const apiSettings: ApiSettings = {
             apiUrl,
             apiKey,
@@ -388,9 +379,7 @@ export default function WorldInfoPage() {
   /** 切换条目启用状态 */
   const handleToggleEnabled = React.useCallback(
     (id: string, enabled: boolean) => {
-      updateEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, enabled } : e)),
-      );
+      updateEntries((prev) => prev.map((e) => (e.id === id ? { ...e, enabled } : e)));
     },
     [updateEntries],
   );
@@ -402,13 +391,10 @@ export default function WorldInfoPage() {
   }, []);
 
   /** 编辑世界书名称 */
-  const handleEditBook = React.useCallback(
-    (bookId: string, bookName: string) => {
-      setEditingBook({ bookId, bookName });
-      setIsNewBook(false);
-    },
-    [],
-  );
+  const handleEditBook = React.useCallback((bookId: string, bookName: string) => {
+    setEditingBook({ bookId, bookName });
+    setIsNewBook(false);
+  }, []);
 
   /** 保存世界书 */
   const handleSaveBook = React.useCallback(() => {
@@ -430,9 +416,7 @@ export default function WorldInfoPage() {
     } else {
       updateEntries((prev) =>
         prev.map((e) =>
-          e.bookId === editingBook.bookId
-            ? { ...e, bookName: editingBook.bookName.trim() }
-            : e,
+          e.bookId === editingBook.bookId ? { ...e, bookName: editingBook.bookName.trim() } : e,
         ),
       );
       toast.success("世界书已重命名");
@@ -504,13 +488,10 @@ export default function WorldInfoPage() {
   );
 
   /** 新建条目（指定世界书） */
-  const handleNewEntry = React.useCallback(
-    (bookId: string, bookName: string) => {
-      setEditingEntry(createEmptyEntry(bookId, bookName));
-      setIsNewEntry(true);
-    },
-    [],
-  );
+  const handleNewEntry = React.useCallback((bookId: string, bookName: string) => {
+    setEditingEntry(createEmptyEntry(bookId, bookName));
+    setIsNewEntry(true);
+  }, []);
 
   /** 编辑条目 */
   const handleEditEntry = React.useCallback((e: WorldInfoEntry) => {
@@ -539,9 +520,7 @@ export default function WorldInfoPage() {
       updateEntries((prev) => [...prev, entryToSave]);
       toast.success("条目已创建");
     } else {
-      updateEntries((prev) =>
-        prev.map((e) => (e.id === saved.id ? entryToSave : e)),
-      );
+      updateEntries((prev) => prev.map((e) => (e.id === saved.id ? entryToSave : e)));
       toast.success("条目已更新");
     }
     setEditingEntry(null);
@@ -610,75 +589,72 @@ export default function WorldInfoPage() {
   );
 
   /** 导出世界书为 SillyTavern 兼容 JSON */
-  const handleExportBook = React.useCallback(
-    async (group: WorldBookGroup) => {
-      const entriesObj: Record<string, unknown> = {};
-      group.entries.forEach((e, i) => {
-        entriesObj[String(i)] = {
-          uid: i,
-          key: e.keys,
-          keysecondary: e.secondaryKeys ?? [],
-          content: e.content,
-          constant: e.constant,
-          order: e.order,
-          position: e.position,
-          disable: !e.enabled,
-          probability: e.probability,
-          useProbability: true,
-          depth: e.depth,
-          selectiveLogic: e.selective ? 0 : 2,
-          comment: e.name ?? "",
-          addMemo: true,
-          displayIndex: i,
-        };
-      });
-      const exportData = {
-        entries: entriesObj,
-        name: group.bookName,
-        originalData: null,
+  const handleExportBook = React.useCallback(async (group: WorldBookGroup) => {
+    const entriesObj: Record<string, unknown> = {};
+    group.entries.forEach((e, i) => {
+      entriesObj[String(i)] = {
+        uid: i,
+        key: e.keys,
+        keysecondary: e.secondaryKeys ?? [],
+        content: e.content,
+        constant: e.constant,
+        order: e.order,
+        position: e.position,
+        disable: !e.enabled,
+        probability: e.probability,
+        useProbability: true,
+        depth: e.depth,
+        selectiveLogic: e.selective ? 0 : 2,
+        comment: e.name ?? "",
+        addMemo: true,
+        displayIndex: i,
       };
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], {
-        type: "application/json",
-      });
-      const fileName = `${group.bookName || "worldbook"}.json`;
+    });
+    const exportData = {
+      entries: entriesObj,
+      name: group.bookName,
+      originalData: null,
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/json",
+    });
+    const fileName = `${group.bookName || "worldbook"}.json`;
 
-      // v0.4.5: 方案 D - 原生平台使用 NativeBridge 写入临时文件后唤起系统分享面板
-      if (isNativePlatform()) {
-        try {
-          const arrayBuffer = await blob.arrayBuffer();
-          const uint8Array = new Uint8Array(arrayBuffer);
-          let binary = '';
-          for (let i = 0; i < uint8Array.length; i++) {
-            binary += String.fromCharCode(uint8Array[i]);
-          }
-          const base64Data = btoa(binary);
-          // 确保 LUZZY 目录存在
-          await mkdir("EXTERNAL", "LUZZY", true).catch(() => {});
-          const { uri } = await writeFile("EXTERNAL", `LUZZY/${fileName}`, base64Data, true);
-          if (uri) {
-            await shareFile(uri, group.bookName || '世界书', '导出世界书');
-            toast.success('已唤起分享');
-          }
-          return;
-        } catch (err) {
-          console.error("[WorldInfo] 原生导出失败,降级到 Web 下载:", err);
-          // fall through 到 Web 下载
+    // v0.4.5: 方案 D - 原生平台使用 NativeBridge 写入临时文件后唤起系统分享面板
+    if (isNativePlatform()) {
+      try {
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = "";
+        for (let i = 0; i < uint8Array.length; i++) {
+          binary += String.fromCharCode(uint8Array[i]);
         }
+        const base64Data = btoa(binary);
+        // 确保 LUZZY 目录存在
+        await mkdir("EXTERNAL", "LUZZY", true).catch(() => {});
+        const { uri } = await writeFile("EXTERNAL", `LUZZY/${fileName}`, base64Data, true);
+        if (uri) {
+          await shareFile(uri, group.bookName || "世界书", "导出世界书");
+          toast.success("已唤起分享");
+        }
+        return;
+      } catch (err) {
+        console.error("[WorldInfo] 原生导出失败,降级到 Web 下载:", err);
+        // fall through 到 Web 下载
       }
+    }
 
-      // Web 平台或原生降级:浏览器下载
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success(`已导出：${fileName}`);
-    },
-    [],
-  );
+    // Web 平台或原生降级:浏览器下载
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`已导出：${fileName}`);
+  }, []);
 
   /** 按搜索词过滤 */
   const filteredGroups = React.useMemo(() => {
@@ -696,10 +672,7 @@ export default function WorldInfoPage() {
             e.secondaryKeys?.some((k) => k.toLowerCase().includes(q)),
         ),
       }))
-      .filter(
-        (g) =>
-          g.bookName.toLowerCase().includes(q) || g.entries.length > 0,
-      );
+      .filter((g) => g.bookName.toLowerCase().includes(q) || g.entries.length > 0);
   }, [entries, searchQuery]);
 
   return (
@@ -707,12 +680,7 @@ export default function WorldInfoPage() {
       title="世界书"
       actions={
         <>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={handleImportClick}
-            {...pressableSubtle}
-          >
+          <Button size="icon" variant="ghost" onClick={handleImportClick} {...pressableSubtle}>
             <IconImport className="size-4" />
           </Button>
           <Button size="icon" onClick={handleNewBook} {...pressable}>
@@ -783,8 +751,7 @@ export default function WorldInfoPage() {
                 </EmptyMedia>
                 <EmptyTitle>还没有世界书</EmptyTitle>
                 <EmptyDescription>
-                  世界书用于在对话中按关键词注入背景设定。可新建或导入
-                  SillyTavern 格式世界书。
+                  世界书用于在对话中按关键词注入背景设定。可新建或导入 SillyTavern 格式世界书。
                 </EmptyDescription>
               </EmptyHeader>
               <EmptyContent>
@@ -793,11 +760,7 @@ export default function WorldInfoPage() {
                     <IconPlus className="mr-2 size-4" />
                     新建世界书
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={handleImportClick}
-                    {...pressable}
-                  >
+                  <Button variant="outline" onClick={handleImportClick} {...pressable}>
                     <IconImport className="mr-2 size-4" />
                     导入
                   </Button>
@@ -818,16 +781,9 @@ export default function WorldInfoPage() {
               <AnimatePresence mode="popLayout">
                 {filteredGroups.map((group, gi) => {
                   const expanded = expandedBooks.has(group.bookId);
-                  const enabledCount = group.entries.filter(
-                    (e) => e.enabled,
-                  ).length;
+                  const enabledCount = group.entries.filter((e) => e.enabled).length;
                   return (
-                    <motion.div
-                      key={group.bookId}
-                      layout
-                      {...springEnter}
-                      custom={gi}
-                    >
+                    <motion.div key={group.bookId} layout {...springEnter} custom={gi}>
                       <Card className="overflow-hidden p-0">
                         {/* 世界书标题栏（一级） */}
                         <div className="flex items-center gap-2 border-b border-border/30 p-3">
@@ -843,9 +799,7 @@ export default function WorldInfoPage() {
                               <IconChevronRight className="size-4 text-muted-foreground" />
                             </motion.div>
                             <IconBook className="size-4 shrink-0 text-primary" />
-                            <h3 className="truncate font-medium">
-                              {group.bookName}
-                            </h3>
+                            <h3 className="truncate font-medium">{group.bookName}</h3>
                             <Badge variant="secondary" className="shrink-0 text-xs">
                               {enabledCount}/{group.entries.length}
                             </Badge>
@@ -885,9 +839,7 @@ export default function WorldInfoPage() {
                               variant="ghost"
                               size="icon"
                               className="size-7 text-destructive"
-                              onClick={() =>
-                                handleDeleteBook(group.bookId, group.bookName)
-                              }
+                              onClick={() => handleDeleteBook(group.bookId, group.bookName)}
                               title="删除世界书"
                               {...pressableSubtle}
                             >
@@ -927,9 +879,7 @@ export default function WorldInfoPage() {
                                         <div className="min-w-0 flex-1">
                                           <div className="flex flex-wrap items-center gap-1.5">
                                             <h4 className="truncate text-sm font-medium">
-                                              {e.name ||
-                                                e.keys.join(", ") ||
-                                                "未命名条目"}
+                                              {e.name || e.keys.join(", ") || "未命名条目"}
                                             </h4>
                                             {e.constant && (
                                               <Badge
@@ -940,18 +890,12 @@ export default function WorldInfoPage() {
                                               </Badge>
                                             )}
                                             {e.useRegex && (
-                                              <Badge
-                                                variant="outline"
-                                                className="shrink-0 text-xs"
-                                              >
+                                              <Badge variant="outline" className="shrink-0 text-xs">
                                                 正则
                                               </Badge>
                                             )}
                                             {e.selective && (
-                                              <Badge
-                                                variant="outline"
-                                                className="shrink-0 text-xs"
-                                              >
+                                              <Badge variant="outline" className="shrink-0 text-xs">
                                                 选择性
                                               </Badge>
                                             )}
@@ -980,17 +924,15 @@ export default function WorldInfoPage() {
                                             e.secondaryKeys.length > 0 && (
                                               <div className="mt-1 flex flex-wrap items-center gap-1">
                                                 <IconTag className="size-3 text-muted-foreground" />
-                                                {e.secondaryKeys
-                                                  .slice(0, 3)
-                                                  .map((k, i) => (
-                                                    <Badge
-                                                      key={i}
-                                                      variant="outline"
-                                                      className="text-xs font-normal"
-                                                    >
-                                                      {k}
-                                                    </Badge>
-                                                  ))}
+                                                {e.secondaryKeys.slice(0, 3).map((k, i) => (
+                                                  <Badge
+                                                    key={i}
+                                                    variant="outline"
+                                                    className="text-xs font-normal"
+                                                  >
+                                                    {k}
+                                                  </Badge>
+                                                ))}
                                                 {e.secondaryKeys.length > 3 && (
                                                   <span className="text-xs text-muted-foreground">
                                                     +{e.secondaryKeys.length - 3}
@@ -1033,9 +975,7 @@ export default function WorldInfoPage() {
                                         <div className="flex shrink-0 flex-col items-end gap-2">
                                           <Switch
                                             checked={e.enabled}
-                                            onCheckedChange={(v) =>
-                                              handleToggleEnabled(e.id, v)
-                                            }
+                                            onCheckedChange={(v) => handleToggleEnabled(e.id, v)}
                                           />
                                           <div className="flex gap-0.5">
                                             <Button
@@ -1077,17 +1017,12 @@ export default function WorldInfoPage() {
       </div>
 
       {/* 世界书新建/重命名弹窗 */}
-      <Dialog
-        open={!!editingBook}
-        onOpenChange={(o) => !o && setEditingBook(null)}
-      >
+      <Dialog open={!!editingBook} onOpenChange={(o) => !o && setEditingBook(null)}>
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle>{isNewBook ? "新建世界书" : "重命名世界书"}</DialogTitle>
             <DialogDescription>
-              {isNewBook
-                ? "创建一个新的世界书分组，可在其中添加多个条目"
-                : "修改世界书名称"}
+              {isNewBook ? "创建一个新的世界书分组，可在其中添加多个条目" : "修改世界书名称"}
             </DialogDescription>
           </DialogHeader>
           {editingBook && (
@@ -1119,10 +1054,7 @@ export default function WorldInfoPage() {
       </Dialog>
 
       {/* 条目新建/编辑弹窗 */}
-      <Dialog
-        open={!!editingEntry}
-        onOpenChange={(o) => !o && setEditingEntry(null)}
-      >
+      <Dialog open={!!editingEntry} onOpenChange={(o) => !o && setEditingEntry(null)}>
         <DialogContent className="max-h-[90vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>
@@ -1133,9 +1065,7 @@ export default function WorldInfoPage() {
                 </span>
               )}
             </DialogTitle>
-            <DialogDescription>
-              设置关键词、内容与注入位置，对话中将按规则触发
-            </DialogDescription>
+            <DialogDescription>设置关键词、内容与注入位置，对话中将按规则触发</DialogDescription>
           </DialogHeader>
           {editingEntry && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
@@ -1145,9 +1075,7 @@ export default function WorldInfoPage() {
                   <label className="text-sm font-medium">条目名称</label>
                   <Input
                     value={editingEntry.name ?? ""}
-                    onChange={(e) =>
-                      updateEntryField("name", e.target.value)
-                    }
+                    onChange={(e) => updateEntryField("name", e.target.value)}
                     placeholder="例如：魔法学院背景"
                   />
                 </div>
@@ -1156,9 +1084,7 @@ export default function WorldInfoPage() {
                 <div className="flex items-center justify-between rounded-md border p-3">
                   <div>
                     <div className="text-sm font-medium">常驻</div>
-                    <div className="text-xs text-muted-foreground">
-                      无需关键词即可注入
-                    </div>
+                    <div className="text-xs text-muted-foreground">无需关键词即可注入</div>
                   </div>
                   <Switch
                     checked={editingEntry.constant}
@@ -1193,9 +1119,7 @@ export default function WorldInfoPage() {
                     ) : (
                       <Input
                         value={editingEntry.keys.join(", ")}
-                        onChange={(e) =>
-                          updateEntryField("keys", parseKeys(e.target.value))
-                        }
+                        onChange={(e) => updateEntryField("keys", parseKeys(e.target.value))}
                         placeholder="关键词1, 关键词2，关键词3"
                       />
                     )}
@@ -1233,42 +1157,29 @@ export default function WorldInfoPage() {
                     </div>
                     <Switch
                       checked={!!editingEntry.selective}
-                      onCheckedChange={(v) =>
-                        updateEntryField("selective", v)
-                      }
+                      onCheckedChange={(v) => updateEntryField("selective", v)}
                     />
                   </div>
                 )}
 
                 {/* 次要关键词（选择性启用时显示） */}
-                {!editingEntry.constant &&
-                  !editingEntry.useRegex &&
-                  editingEntry.selective && (
-                    <div className="grid gap-2">
-                      <label className="text-sm font-medium">
-                        次要关键词（中英文逗号分隔）
-                      </label>
-                      <Input
-                        value={(editingEntry.secondaryKeys ?? []).join(", ")}
-                        onChange={(e) =>
-                          updateEntryField(
-                            "secondaryKeys",
-                            parseKeys(e.target.value),
-                          )
-                        }
-                        placeholder="次要关键词1, 次要关键词2"
-                      />
-                    </div>
-                  )}
+                {!editingEntry.constant && !editingEntry.useRegex && editingEntry.selective && (
+                  <div className="grid gap-2">
+                    <label className="text-sm font-medium">次要关键词（中英文逗号分隔）</label>
+                    <Input
+                      value={(editingEntry.secondaryKeys ?? []).join(", ")}
+                      onChange={(e) => updateEntryField("secondaryKeys", parseKeys(e.target.value))}
+                      placeholder="次要关键词1, 次要关键词2"
+                    />
+                  </div>
+                )}
 
                 {/* 内容 */}
                 <div className="grid gap-2">
                   <label className="text-sm font-medium">提示词内容</label>
                   <Textarea
                     value={editingEntry.content}
-                    onChange={(e) =>
-                      updateEntryField("content", e.target.value)
-                    }
+                    onChange={(e) => updateEntryField("content", e.target.value)}
                     placeholder="命中关键词时注入的背景设定"
                     rows={5}
                   />
@@ -1280,9 +1191,7 @@ export default function WorldInfoPage() {
                     <label className="text-sm font-medium">注入位置</label>
                     <Select
                       value={String(editingEntry.position)}
-                      onValueChange={(v) =>
-                        updateEntryField("position", Number(v))
-                      }
+                      onValueChange={(v) => updateEntryField("position", Number(v))}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -1301,9 +1210,7 @@ export default function WorldInfoPage() {
                       type="number"
                       min={0}
                       value={editingEntry.depth}
-                      onChange={(e) =>
-                        updateEntryField("depth", Number(e.target.value))
-                      }
+                      onChange={(e) => updateEntryField("depth", Number(e.target.value))}
                     />
                   </div>
                 </div>
@@ -1315,24 +1222,18 @@ export default function WorldInfoPage() {
                     <Input
                       type="number"
                       value={editingEntry.order}
-                      onChange={(e) =>
-                        updateEntryField("order", Number(e.target.value))
-                      }
+                      onChange={(e) => updateEntryField("order", Number(e.target.value))}
                     />
                   </div>
                   <div className="grid gap-2">
-                    <label className="text-sm font-medium">
-                      插入顺序（越高影响力越大）
-                    </label>
+                    <label className="text-sm font-medium">插入顺序（越高影响力越大）</label>
                     <Input
                       type="number"
                       value={editingEntry.insertionOrder ?? ""}
                       onChange={(e) =>
                         updateEntryField(
                           "insertionOrder",
-                          e.target.value
-                            ? Number(e.target.value)
-                            : undefined,
+                          e.target.value ? Number(e.target.value) : undefined,
                         )
                       }
                       placeholder="留空使用默认"

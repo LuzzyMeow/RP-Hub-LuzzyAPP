@@ -25,8 +25,8 @@ import type {
   McpSubTool,
   ToolExecutionContext,
   WorldInfoEntry,
-} from '~/types/luzzy';
-import { callMcpTool } from '~/services/mcpService';
+} from "~/types/luzzy";
+import { callMcpTool } from "~/services/mcpService";
 
 // ============================================================================
 // 常量
@@ -44,17 +44,33 @@ const ACTIVE_TOOL_DEFAULT_RESULT_COUNT = 8;
 const ACTIVE_TOOL_MAX_RESULT_COUNT = 12;
 
 /** Tavily 搜索端点 */
-const TAVILY_SEARCH_ENDPOINT = 'https://api.tavily.com/search';
-const TAVILY_EXTRACT_ENDPOINT = 'https://api.tavily.com/extract';
-const TAVILY_SEARCH_DEPTH = 'advanced';
+const TAVILY_SEARCH_ENDPOINT = "https://api.tavily.com/search";
+const TAVILY_EXTRACT_ENDPOINT = "https://api.tavily.com/extract";
+const TAVILY_SEARCH_DEPTH = "advanced";
 
 /** Anysearch 搜索端点 */
-const ANYSEARCH_SEARCH_ENDPOINT = 'https://api.anysearch.com/v1/search';
+const ANYSEARCH_SEARCH_ENDPOINT = "https://api.anysearch.com/v1/search";
 
 /** 支持文本读取的文件扩展名（用于 skill_readfile） */
 const SKILL_FILE_TEXT_EXTENSIONS = [
-  '.md', '.txt', '.json', '.yaml', '.yml', '.js', '.ts', '.py',
-  '.html', '.css', '.xml', '.csv', '.log', '.ini', '.toml', '.sh', '.bat', '.ps1',
+  ".md",
+  ".txt",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".js",
+  ".ts",
+  ".py",
+  ".html",
+  ".css",
+  ".xml",
+  ".csv",
+  ".log",
+  ".ini",
+  ".toml",
+  ".sh",
+  ".bat",
+  ".ps1",
 ];
 
 // ============================================================================
@@ -65,10 +81,10 @@ const SKILL_FILE_TEXT_EXTENSIONS = [
  * 规范化工具调用名称（去除 _add / _cover 后缀，转小写）
  */
 const normalizeActiveToolCallName = (value: string): string => {
-  return String(value || '')
+  return String(value || "")
     .trim()
     .toLowerCase()
-    .replace(/_(add|cover)$/, '');
+    .replace(/_(add|cover)$/, "");
 };
 
 /**
@@ -79,11 +95,7 @@ const normalizeActiveToolCallName = (value: string): string => {
 const isBuiltinActiveTool = (tool: ActiveTool): boolean => {
   const t = tool?.type;
   return (
-    t === 'vector' ||
-    t === 'keyword' ||
-    t === 'web' ||
-    t === 'world' ||
-    t === 'skill_readfile'
+    t === "vector" || t === "keyword" || t === "web" || t === "world" || t === "skill_readfile"
   );
 };
 
@@ -92,57 +104,52 @@ const isBuiltinActiveTool = (tool: ActiveTool): boolean => {
  *
  * 通过 type 或 callName 前缀判断。
  */
-export const isMcpHttpActiveTool = (
-  tool: ActiveTool | null | undefined,
-): boolean => {
+export const isMcpHttpActiveTool = (tool: ActiveTool | null | undefined): boolean => {
   if (!tool) return false;
-  if (tool.type === 'mcp_http') return true;
-  return normalizeActiveToolCallName(tool.callName || '').startsWith('tool_mcp_');
+  if (tool.type === "mcp_http") return true;
+  return normalizeActiveToolCallName(tool.callName || "").startsWith("tool_mcp_");
 };
 
 /**
  * 判断是否为 SKILL 工具（非 skill_readfile）
  */
 const isSkillActiveTool = (tool: ActiveTool): boolean => {
-  if (tool.type === 'skill') return true;
-  const base = normalizeActiveToolCallName(tool.callName || '');
-  return base.startsWith('tool_skill_') && !base.startsWith('tool_skill_readfile');
+  if (tool.type === "skill") return true;
+  const base = normalizeActiveToolCallName(tool.callName || "");
+  return base.startsWith("tool_skill_") && !base.startsWith("tool_skill_readfile");
 };
 
 /**
  * 判断是否为 SKILL 文件阅读工具
  */
 const isSkillReadfileActiveTool = (tool: ActiveTool): boolean => {
-  if (tool.type === 'skill_readfile') return true;
-  return normalizeActiveToolCallName(tool.callName || '') === 'tool_skill_readfile';
+  if (tool.type === "skill_readfile") return true;
+  return normalizeActiveToolCallName(tool.callName || "") === "tool_skill_readfile";
 };
 
 /**
  * 判断是否为向量记忆工具
  */
 const isVectorActiveTool = (tool: ActiveTool): boolean => {
-  if (tool.type === 'vector') return true;
-  return normalizeActiveToolCallName(tool.callName) === 'tool_memory';
+  if (tool.type === "vector") return true;
+  return normalizeActiveToolCallName(tool.callName) === "tool_memory";
 };
 
 /**
  * 判断是否为关键词搜索工具
  */
 const isKeywordActiveTool = (tool: ActiveTool): boolean => {
-  if (tool.type === 'keyword') return true;
-  return normalizeActiveToolCallName(tool.callName) === 'tool_grep';
+  if (tool.type === "keyword") return true;
+  return normalizeActiveToolCallName(tool.callName) === "tool_grep";
 };
 
 /**
  * 判断是否为 Web 搜索工具
  */
 const isWebActiveTool = (tool: ActiveTool): boolean => {
-  if (tool.type === 'web') return true;
-  const base = normalizeActiveToolCallName(tool.callName || '');
-  return (
-    base === 'tool_web' ||
-    /tavily|联网搜索/i.test(String(tool.name || ''))
-  );
+  if (tool.type === "web") return true;
+  const base = normalizeActiveToolCallName(tool.callName || "");
+  return base === "tool_web" || /tavily|联网搜索/i.test(String(tool.name || ""));
 };
 
 /**
@@ -151,20 +158,17 @@ const isWebActiveTool = (tool: ActiveTool): boolean => {
  * 优先于 Web（Tavily）判断，避免 anysearch 工具被误识别为 Tavily 工具。
  */
 const isAnysearchActiveTool = (tool: ActiveTool): boolean => {
-  const base = normalizeActiveToolCallName(tool.callName || '');
-  return (
-    base === 'tool_anysearch' ||
-    /anysearch/i.test(String(tool.name || ''))
-  );
+  const base = normalizeActiveToolCallName(tool.callName || "");
+  return base === "tool_anysearch" || /anysearch/i.test(String(tool.name || ""));
 };
 
 /**
  * 判断是否为世界书工具
  */
 const isWorldInfoActiveTool = (tool: ActiveTool): boolean => {
-  if (tool.type === 'world') return true;
-  const base = normalizeActiveToolCallName(tool.callName || '');
-  return ['tool_world', 'tool_world_list', 'tool_world_read', 'tool_world_edit'].includes(base);
+  if (tool.type === "world") return true;
+  const base = normalizeActiveToolCallName(tool.callName || "");
+  return ["tool_world", "tool_world_list", "tool_world_read", "tool_world_edit"].includes(base);
 };
 
 // ============================================================================
@@ -199,16 +203,14 @@ const getActiveToolResultCountMax = (): number => {
 export const normalizeActiveTool = (tool: Partial<ActiveTool>): ActiveTool => {
   const input = tool || {};
   const resultCount = Number(input.resultCount);
-  const rawCallName = normalizeActiveToolCallName(
-    input.callName || 'tool_memory',
-  );
+  const rawCallName = normalizeActiveToolCallName(input.callName || "tool_memory");
 
   // 兼容旧版世界书工具名
-  const legacyWorldToolNames = ['tool_world_list', 'tool_world_read', 'tool_world_edit'];
+  const legacyWorldToolNames = ["tool_world_list", "tool_world_read", "tool_world_edit"];
   const isLegacyWorldTool = legacyWorldToolNames.includes(rawCallName);
-  const callName = isLegacyWorldTool ? 'tool_world' : rawCallName;
+  const callName = isLegacyWorldTool ? "tool_world" : rawCallName;
 
-  const type = (input.type || 'vector') as ActiveToolType;
+  const type = (input.type || "vector") as ActiveToolType;
   const resultCountVersion = Number(input.resultCountVersion) || 1;
 
   const countMin = getActiveToolResultCountMin();
@@ -223,7 +225,7 @@ export const normalizeActiveTool = (tool: Partial<ActiveTool>): ActiveTool => {
   // 版本迁移：旧版本且为默认值时，重置为当前默认值
   if (
     resultCountVersion < ACTIVE_TOOL_RESULT_COUNT_VERSION &&
-    type !== 'web' &&
+    type !== "web" &&
     (!Number.isFinite(resultCount) ||
       Math.round(resultCount) <= ACTIVE_TOOL_MIN_RESULT_COUNT ||
       Math.round(resultCount) === 10)
@@ -232,50 +234,46 @@ export const normalizeActiveTool = (tool: Partial<ActiveTool>): ActiveTool => {
   }
 
   const normalized: ActiveTool = {
-    id: String(input.id || ''),
-    name: String(input.name || '未命名工具').trim() || '未命名工具',
+    id: String(input.id || ""),
+    name: String(input.name || "未命名工具").trim() || "未命名工具",
     enabled: input.enabled !== false,
     callName,
     type,
-    description: String(input.description || '').trim(),
-    displayDescription: String(input.displayDescription || '').trim() || undefined,
+    description: String(input.description || "").trim(),
+    displayDescription: String(input.displayDescription || "").trim() || undefined,
     resultCount: normalizedResultCount,
     resultCountVersion: ACTIVE_TOOL_RESULT_COUNT_VERSION,
   };
 
   // Web 工具特有字段
-  if (type === 'web') {
-    normalized.tavilyApiKey = String(input.tavilyApiKey || '').trim() || undefined;
+  if (type === "web") {
+    normalized.tavilyApiKey = String(input.tavilyApiKey || "").trim() || undefined;
   }
 
   // 世界书工具特有字段
-  if (type === 'world') {
-    normalized.worldInfoAccessMode =
-      String(input.worldInfoAccessMode || 'read').trim() || 'read';
+  if (type === "world") {
+    normalized.worldInfoAccessMode = String(input.worldInfoAccessMode || "read").trim() || "read";
     normalized.worldInfoAccessModeVersion = ACTIVE_TOOL_WORLD_ACCESS_VERSION;
   }
 
   // MCP 工具特有字段
-  if (type === 'mcp_http') {
-    normalized.mcpServerUrl = String(input.mcpServerUrl || '').trim() || undefined;
-    normalized.mcpServerName = String(input.mcpServerName || '').trim() || undefined;
+  if (type === "mcp_http") {
+    normalized.mcpServerUrl = String(input.mcpServerUrl || "").trim() || undefined;
+    normalized.mcpServerName = String(input.mcpServerName || "").trim() || undefined;
     normalized.mcpTools = Array.isArray(input.mcpTools) ? input.mcpTools : [];
   }
 
   // SKILL 工具特有字段
-  if (type === 'skill') {
-    normalized.skillFileContent = String(input.skillFileContent || '');
-    normalized.skillFileName = String(input.skillFileName || '').trim() || undefined;
+  if (type === "skill") {
+    normalized.skillFileContent = String(input.skillFileContent || "");
+    normalized.skillFileName = String(input.skillFileName || "").trim() || undefined;
   }
 
   // 角色卡启用字段（仅 skill 和 mcp 工具）
-  if (type === 'skill' || type === 'mcp_http') {
-    normalized.enableMode =
-      input.enableMode === 'whitelist' ? 'whitelist' : 'all';
+  if (type === "skill" || type === "mcp_http") {
+    normalized.enableMode = input.enableMode === "whitelist" ? "whitelist" : "all";
     normalized.allowedCharacterUuids = Array.isArray(input.allowedCharacterUuids)
-      ? input.allowedCharacterUuids.filter(
-          (uuid) => typeof uuid === 'string' && uuid.length > 0,
-        )
+      ? input.allowedCharacterUuids.filter((uuid) => typeof uuid === "string" && uuid.length > 0)
       : [];
   }
 
@@ -295,10 +293,8 @@ export const normalizeActiveTool = (tool: Partial<ActiveTool>): ActiveTool => {
  * @param tool - 工具对象
  * @returns 包含 add 和 cover 模式标签的对象
  */
-export const getActiveToolCallLabels = (
-  tool: ActiveTool,
-): { add: string; cover: string } => {
-  const baseCallName = normalizeActiveToolCallName(tool?.callName || 'tool_memory');
+export const getActiveToolCallLabels = (tool: ActiveTool): { add: string; cover: string } => {
+  const baseCallName = normalizeActiveToolCallName(tool?.callName || "tool_memory");
   return {
     add: `${baseCallName}_add`,
     cover: `${baseCallName}_cover`,
@@ -309,7 +305,7 @@ export const getActiveToolCallLabels = (
  * 获取 MCP 工具服务器短 ID（取 id 末尾 6 位）
  */
 const getMcpToolServerShortId = (tool: ActiveTool): string => {
-  const id = String(tool?.id || '');
+  const id = String(tool?.id || "");
   return id.length >= 6 ? id.slice(-6) : id;
 };
 
@@ -343,21 +339,21 @@ export const getMcpSubToolCallLabels = (
  * 转义正则表达式特殊字符
  */
 const escapeRegexText = (text: string): string => {
-  return String(text || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(text || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 };
 
 /**
  * 去除代码块（用于工具调用检测，避免误检测代码块中的标签）
  */
 const stripCodeBlocksForToolDetection = (text: string): string => {
-  return String(text || '').replace(/```[\s\S]*?```/g, '');
+  return String(text || "").replace(/```[\s\S]*?```/g, "");
 };
 
 /**
  * 清理工具调用理由文本
  */
 const cleanActiveToolCallReason = (reason: string | undefined): string => {
-  return String(reason || '').trim();
+  return String(reason || "").trim();
 };
 
 /**
@@ -375,7 +371,7 @@ export const findPendingActiveToolCallInText = (
   text: string,
   tools: ActiveTool[],
 ): ActiveToolCall | null => {
-  const originalContent = String(text || '');
+  const originalContent = String(text || "");
   if (!originalContent) return null;
 
   const mainContent = stripCodeBlocksForToolDetection(originalContent);
@@ -385,25 +381,25 @@ export const findPendingActiveToolCallInText = (
   for (const tool of toolList) {
     const labelForms: Array<{
       label: string;
-      mode: 'add' | 'cover';
+      mode: "add" | "cover";
       mcpSubToolName: string;
     }> = [];
 
     if (isMcpHttpActiveTool(tool) && Array.isArray(tool.mcpTools)) {
       for (const sub of tool.mcpTools) {
         const subLabels = getMcpSubToolCallLabels(tool, sub.name);
-        labelForms.push({ label: subLabels.add, mode: 'add', mcpSubToolName: sub.name });
-        labelForms.push({ label: subLabels.cover, mode: 'cover', mcpSubToolName: sub.name });
+        labelForms.push({ label: subLabels.add, mode: "add", mcpSubToolName: sub.name });
+        labelForms.push({ label: subLabels.cover, mode: "cover", mcpSubToolName: sub.name });
       }
     } else {
       const labels = getActiveToolCallLabels(tool);
-      labelForms.push({ label: labels.add, mode: 'add', mcpSubToolName: '' });
-      labelForms.push({ label: labels.cover, mode: 'cover', mcpSubToolName: '' });
+      labelForms.push({ label: labels.add, mode: "add", mcpSubToolName: "" });
+      labelForms.push({ label: labels.cover, mode: "cover", mcpSubToolName: "" });
     }
 
     for (const form of labelForms) {
       const escapedName = escapeRegexText(form.label);
-      const regex = new RegExp(`<\\s*${escapedName}\\s*:\\s*([\\s\\S]*)$`, 'i');
+      const regex = new RegExp(`<\\s*${escapedName}\\s*:\\s*([\\s\\S]*)$`, "i");
       const match = mainContent.match(regex);
       if (!match) continue;
 
@@ -411,7 +407,7 @@ export const findPendingActiveToolCallInText = (
       const index = mainContent.length - raw.length;
 
       // 尝试从前一行提取 <reason:...> 调用理由
-      let reason = '';
+      let reason = "";
       const beforeContent = mainContent.slice(0, index);
       const reasonMatch = beforeContent.match(/<reason\s*:\s*([^>\n]*)>\s*$/i);
       if (reasonMatch) {
@@ -422,7 +418,7 @@ export const findPendingActiveToolCallInText = (
         tool,
         mode: form.mode,
         callLabel: form.label,
-        query: String(match[1] || '').trim(),
+        query: String(match[1] || "").trim(),
         raw,
         reason: reason || undefined,
         mcpSubToolName: form.mcpSubToolName || undefined,
@@ -447,7 +443,7 @@ export const findPendingActiveToolCallInText = (
 
 /** v0.4.6: 内置工具调用（文本标签模式） */
 export interface BuiltinToolCall {
-  toolType: BuiltinToolConfig['type'];
+  toolType: BuiltinToolConfig["type"];
   callLabel: string;
   query: string;
   raw: string;
@@ -468,7 +464,7 @@ export const findPendingBuiltinToolCallInText = (
   text: string,
   configs: BuiltinToolConfig[],
 ): BuiltinToolCall | null => {
-  const content = String(text || '');
+  const content = String(text || "");
   if (!content) return null;
 
   const enabledConfigs = (Array.isArray(configs) ? configs : []).filter((c) => c.enabled);
@@ -479,7 +475,7 @@ export const findPendingBuiltinToolCallInText = (
     const escapedLabel = escapeRegexText(callLabel);
     // 匹配 <callLabel:query> 格式（无 _add/_cover 后缀）
     // query 内容到下一个 < 或行尾结束
-    const regex = new RegExp(`<\\s*${escapedLabel}\\s*:\\s*([\\s\\S]*?)(?:<|$)`, 'i');
+    const regex = new RegExp(`<\\s*${escapedLabel}\\s*:\\s*([\\s\\S]*?)(?:<|$)`, "i");
     const match = content.match(regex);
     if (match && match[1]) {
       const query = match[1].trim();
@@ -514,13 +510,13 @@ export const filterToolsForCharacter = (
   tools: ActiveTool[],
   characterUuid: string | null,
 ): ActiveTool[] => {
-  const uuid = characterUuid || '';
+  const uuid = characterUuid || "";
   return (Array.isArray(tools) ? tools : []).filter((tool) => {
     // 内置工具全局启用
     if (isBuiltinActiveTool(tool)) return true;
 
     // skill 和 mcp 工具按角色卡过滤
-    if (tool.type === 'skill' || tool.type === 'mcp_http') {
+    if (tool.type === "skill" || tool.type === "mcp_http") {
       const allowedUuids = Array.isArray(tool.allowedCharacterUuids)
         ? tool.allowedCharacterUuids
         : [];
@@ -545,9 +541,9 @@ export const filterToolsForCharacter = (
 export const createActiveToolUi = (toolCall: ActiveToolCall): ActiveToolUi => {
   return {
     tool: toolCall.tool,
-    mode: toolCall.mode || 'add',
-    callName: toolCall.callLabel || toolCall.tool?.callName || '',
-    query: toolCall.query || '',
+    mode: toolCall.mode || "add",
+    callName: toolCall.callLabel || toolCall.tool?.callName || "",
+    query: toolCall.query || "",
     raw: toolCall.raw,
     reason: cleanActiveToolCallReason(toolCall.reason),
     mcpSubToolName: toolCall.mcpSubToolName,
@@ -562,15 +558,13 @@ export const createActiveToolUi = (toolCall: ActiveToolCall): ActiveToolUi => {
  * @param toolUi - 工具调用 UI 状态
  * @returns 工具调用对象
  */
-export const buildActiveToolCallFromUi = (
-  toolUi: ActiveToolUi,
-): ActiveToolCall => {
+export const buildActiveToolCallFromUi = (toolUi: ActiveToolUi): ActiveToolCall => {
   const tool = toolUi.tool;
-  let mcpSubToolName = toolUi.mcpSubToolName || '';
+  let mcpSubToolName = toolUi.mcpSubToolName || "";
 
   // MCP 工具：若 mcpSubToolName 为空，从 callName 反查
   if (!mcpSubToolName && isMcpHttpActiveTool(tool)) {
-    const callLabel = toolUi.callName || '';
+    const callLabel = toolUi.callName || "";
     const subTools: McpSubTool[] = Array.isArray(tool.mcpTools) ? tool.mcpTools : [];
     const matched = subTools.find((sub) => {
       const labels = getMcpSubToolCallLabels(tool, sub.name);
@@ -581,10 +575,10 @@ export const buildActiveToolCallFromUi = (
 
   return {
     tool,
-    mode: toolUi.mode || 'add',
+    mode: toolUi.mode || "add",
     callLabel: toolUi.callName || getActiveToolCallLabels(tool).add,
-    query: String(toolUi.query || '').trim(),
-    raw: toolUi.raw || '',
+    query: String(toolUi.query || "").trim(),
+    raw: toolUi.raw || "",
     reason: cleanActiveToolCallReason(toolUi.reason),
     mcpSubToolName: mcpSubToolName || undefined,
   };
@@ -598,16 +592,16 @@ export const buildActiveToolCallFromUi = (
  * 截断文本到指定长度
  */
 const trimText = (text: string, maxLen: number): string => {
-  const str = String(text || '').trim();
+  const str = String(text || "").trim();
   if (str.length <= maxLen) return str;
-  return str.slice(0, maxLen) + '...';
+  return str.slice(0, maxLen) + "...";
 };
 
 /**
  * 转义 XML 特殊字符
  */
 const escapeXml = (s: unknown): string =>
-  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /**
  * 从工具查询中提取 URL（用于 Web 工具的 extract 模式）
@@ -617,7 +611,7 @@ const extractWebUrlsFromToolQuery = (query: string): string[] => {
   const regex = /https?:\/\/[^\s<>"']+/gi;
   let match: RegExpExecArray | null;
   while ((match = regex.exec(query)) !== null) {
-    urls.push(match[0].replace(/[.,;)]+$/, ''));
+    urls.push(match[0].replace(/[.,;)]+$/, ""));
   }
   return urls;
 };
@@ -630,7 +624,7 @@ const extractWebUrlsFromToolQuery = (query: string): string[] => {
  */
 const executeVectorSearch = (
   query: string,
-  shards: ToolExecutionContext['vectorMemoryShards'],
+  shards: ToolExecutionContext["vectorMemoryShards"],
   limit: number,
 ): string => {
   const cleanQuery = trimText(query, 800);
@@ -645,7 +639,7 @@ const executeVectorSearch = (
 
   const scored = shards
     .map((shard) => {
-      const lowerContent = String(shard.content || '').toLowerCase();
+      const lowerContent = String(shard.content || "").toLowerCase();
       const matchedTerms = terms.filter((term) => lowerContent.includes(term));
       return { shard, score: matchedTerms.length };
     })
@@ -659,11 +653,11 @@ const executeVectorSearch = (
 
   const formatted = scored
     .map((item, index) => {
-      const turn = item.shard.turn || '?';
+      const turn = item.shard.turn || "?";
       const content = trimText(item.shard.content, 1800);
       return `  <memory index="${index + 1}" turn="${turn}">\n    ${content}\n  </memory>`;
     })
-    .join('\n\n');
+    .join("\n\n");
 
   return `<active_tool_result status="ok" type="vector_memory">\n${formatted}\n</active_tool_result>`;
 };
@@ -673,11 +667,7 @@ const executeVectorSearch = (
  *
  * 在聊天消息中按关键词搜索匹配的对话内容。
  */
-const executeKeywordSearch = (
-  query: string,
-  messages: ChatMessage[],
-  limit: number,
-): string => {
+const executeKeywordSearch = (query: string, messages: ChatMessage[], limit: number): string => {
   const cleanQuery = trimText(query, 300);
   if (!cleanQuery) {
     return '<active_tool_result status="empty">关键词搜索未找到匹配结果。</active_tool_result>';
@@ -706,9 +696,9 @@ const executeKeywordSearch = (
   }> = [];
 
   messages.forEach((message, index) => {
-    if (!message || message.role === 'system') return;
-    const text = String(message.content || '').trim();
-    if (!text || text.includes('<active_tool_result')) return;
+    if (!message || message.role === "system") return;
+    const text = String(message.content || "").trim();
+    if (!text || text.includes("<active_tool_result")) return;
 
     const lowerText = text.toLowerCase();
     const matchedTerms = terms.filter((_term, termIndex) =>
@@ -717,7 +707,7 @@ const executeKeywordSearch = (
     if (matchedTerms.length === 0) return;
 
     const fullQueryMatched = lowerText.includes(lowerTerms[0]);
-    const roleLabel = message.role === 'user' ? '用户' : '角色卡';
+    const roleLabel = message.role === "user" ? "用户" : "角色卡";
     scored.push({
       role: message.role,
       speaker: roleLabel,
@@ -743,9 +733,9 @@ const executeKeywordSearch = (
 
   const formatted = sorted
     .map((item, index) => {
-      return `  <dialogue index="${index + 1}" speaker="${item.speaker}" matched="${item.matchedTerms.join(', ')}">\n    ${item.text}\n  </dialogue>`;
+      return `  <dialogue index="${index + 1}" speaker="${item.speaker}" matched="${item.matchedTerms.join(", ")}">\n    ${item.text}\n  </dialogue>`;
     })
-    .join('\n\n');
+    .join("\n\n");
 
   return `<active_tool_result status="ok" type="keyword_search">\n${formatted}\n</active_tool_result>`;
 };
@@ -768,9 +758,9 @@ const executeWebSearch = async (
     return '<active_tool_result status="empty">Web 搜索查询为空。</active_tool_result>';
   }
 
-  const key = String(apiKey || '').trim();
+  const key = String(apiKey || "").trim();
   if (!key) {
-    throw new Error('请先在工具设置里填写 Tavily API Key。');
+    throw new Error("请先在工具设置里填写 Tavily API Key。");
   }
 
   // 检测是否为 URL 提取模式
@@ -779,15 +769,15 @@ const executeWebSearch = async (
     const body = {
       urls: extractUrls.length === 1 ? extractUrls[0] : extractUrls,
       extract_depth: TAVILY_SEARCH_DEPTH,
-      format: 'markdown',
+      format: "markdown",
       include_favicon: true,
       timeout: 30,
     };
     const response = await fetch(TAVILY_EXTRACT_ENDPOINT, {
-      method: 'POST',
+      method: "POST",
       headers: {
         Authorization: `Bearer ${key}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
       signal,
@@ -796,18 +786,20 @@ const executeWebSearch = async (
     if (!response.ok) {
       throw new Error(`Tavily 网页读取失败：HTTP ${response.status}`);
     }
-    const results = (Array.isArray(data.results) ? data.results : []) as Array<Record<string, unknown>>;
+    const results = (Array.isArray(data.results) ? data.results : []) as Array<
+      Record<string, unknown>
+    >;
     if (results.length === 0) {
       return '<active_tool_result status="empty" web_mode="extract">网页读取没有抽取到可用正文。</active_tool_result>';
     }
     const formatted = results
       .map((item, index) => {
-        const url = String(item.url || extractUrls[index] || '').trim();
+        const url = String(item.url || extractUrls[index] || "").trim();
         const title = String(item.title || url).trim();
-        const content = trimText(String(item.raw_content || item.content || ''), 6000);
+        const content = trimText(String(item.raw_content || item.content || ""), 6000);
         return `  <web_page index="${index + 1}" title="${escapeXml(title)}" url="${escapeXml(url)}">\n    <content>\n      ${escapeXml(content)}\n    </content>\n  </web_page>`;
       })
-      .join('\n\n');
+      .join("\n\n");
     return `<active_tool_result status="ok" type="web_search" web_mode="extract">\n${formatted}\n</active_tool_result>`;
   }
 
@@ -820,38 +812,41 @@ const executeWebSearch = async (
     query: cleanQuery,
     search_depth: TAVILY_SEARCH_DEPTH,
     max_results: maxResults,
-    topic: 'general',
+    topic: "general",
     include_favicon: true,
   };
   const response = await fetch(TAVILY_SEARCH_ENDPOINT, {
-    method: 'POST',
+    method: "POST",
     headers: {
       Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
     signal,
   });
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    if (response.status === 401) throw new Error('Tavily API Key 无效，请检查工具设置里的 API Key。');
-    if (response.status === 429) throw new Error('Tavily 请求太频繁或额度不足，请稍后再试。');
+    if (response.status === 401)
+      throw new Error("Tavily API Key 无效，请检查工具设置里的 API Key。");
+    if (response.status === 429) throw new Error("Tavily 请求太频繁或额度不足，请稍后再试。");
     throw new Error(`Tavily 搜索失败：HTTP ${response.status}`);
   }
 
-  const results = (Array.isArray(data.results) ? data.results : []).slice(0, maxResults) as Array<Record<string, unknown>>;
+  const results = (Array.isArray(data.results) ? data.results : []).slice(0, maxResults) as Array<
+    Record<string, unknown>
+  >;
   if (results.length === 0) {
     return '<active_tool_result status="empty" web_mode="search">联网搜索没有找到可用网页结果。</active_tool_result>';
   }
 
   const formatted = results
     .map((item, index) => {
-      const title = String(item.title || '未命名网页').trim();
-      const url = String(item.url || '').trim();
-      const content = trimText(String(item.content || ''), 1800);
+      const title = String(item.title || "未命名网页").trim();
+      const url = String(item.url || "").trim();
+      const content = trimText(String(item.content || ""), 1800);
       return `  <web_source index="${index + 1}" title="${escapeXml(title)}" url="${escapeXml(url)}">\n    <content>\n      ${escapeXml(content)}\n    </content>\n  </web_source>`;
     })
-    .join('\n\n');
+    .join("\n\n");
 
   return `<active_tool_result status="ok" type="web_search" web_mode="search">\n${formatted}\n</active_tool_result>`;
 };
@@ -879,21 +874,24 @@ const executeAnysearchSearch = async (
     return '<active_tool_result status="empty" web_mode="anysearch">Anysearch 搜索查询为空。</active_tool_result>';
   }
 
-  const token = String(config?.anysearchToken || '').trim();
+  const token = String(config?.anysearchToken || "").trim();
   const maxResults = Math.max(
     ACTIVE_TOOL_MIN_RESULT_COUNT,
-    Math.min(ACTIVE_TOOL_MAX_RESULT_COUNT, Number(config?.resultCount) || limit || ACTIVE_TOOL_DEFAULT_RESULT_COUNT),
+    Math.min(
+      ACTIVE_TOOL_MAX_RESULT_COUNT,
+      Number(config?.resultCount) || limit || ACTIVE_TOOL_DEFAULT_RESULT_COUNT,
+    ),
   );
 
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   let response: Response;
   try {
     response = await fetch(ANYSEARCH_SEARCH_ENDPOINT, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: JSON.stringify({ query: cleanQuery, max_results: maxResults }),
       signal,
@@ -904,18 +902,14 @@ const executeAnysearchSearch = async (
 
   const data = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok) {
-    if (response.status === 401) throw new Error('Anysearch API Token 无效，请检查工具设置。');
-    if (response.status === 429) throw new Error('Anysearch 请求太频繁或额度不足，请稍后再试。');
+    if (response.status === 401) throw new Error("Anysearch API Token 无效，请检查工具设置。");
+    if (response.status === 429) throw new Error("Anysearch 请求太频繁或额度不足，请稍后再试。");
     throw new Error(`Anysearch 搜索失败：HTTP ${response.status}`);
   }
 
   // 兼容 { results: [...] } 与裸数组两种响应结构
   const results = (
-    Array.isArray(data.results)
-      ? data.results
-      : Array.isArray(data)
-        ? data
-        : []
+    Array.isArray(data.results) ? data.results : Array.isArray(data) ? data : []
   ).slice(0, maxResults) as Array<Record<string, unknown>>;
 
   if (results.length === 0) {
@@ -924,12 +918,12 @@ const executeAnysearchSearch = async (
 
   const formatted = results
     .map((item, index) => {
-      const title = String(item.title || item.name || '未命名网页').trim();
-      const url = String(item.url || item.link || '').trim();
-      const content = trimText(String(item.content || item.snippet || item.summary || ''), 1800);
+      const title = String(item.title || item.name || "未命名网页").trim();
+      const url = String(item.url || item.link || "").trim();
+      const content = trimText(String(item.content || item.snippet || item.summary || ""), 1800);
       return `  <web_source index="${index + 1}" title="${escapeXml(title)}" url="${escapeXml(url)}">\n    <content>\n      ${escapeXml(content)}\n    </content>\n  </web_source>`;
     })
-    .join('\n\n');
+    .join("\n\n");
 
   return `<active_tool_result status="ok" type="web_search" web_mode="anysearch">\n${formatted}\n</active_tool_result>`;
 };
@@ -942,32 +936,36 @@ const executeAnysearchSearch = async (
  * - read <name>：按名称读取世界书条目
  * - 默认：按关键词搜索世界书条目
  */
-const executeWorldInfoSearch = (
-  query: string,
-  entries: WorldInfoEntry[],
-): string => {
-  const cleanQuery = String(query || '').trim();
+const executeWorldInfoSearch = (query: string, entries: WorldInfoEntry[]): string => {
+  const cleanQuery = String(query || "").trim();
   const enabled = (Array.isArray(entries) ? entries : []).filter((e) => e.enabled !== false);
 
-  if (cleanQuery.toLowerCase() === 'list') {
+  if (cleanQuery.toLowerCase() === "list") {
     if (enabled.length === 0) {
       return '<active_tool_result status="empty" world_info_mode="list">没有已启用的世界书条目。</active_tool_result>';
     }
-    const names = enabled.map((e, i) => `  <entry index="${i + 1}" name="${e.name || e.id}">`).join('\n');
+    const names = enabled
+      .map((e, i) => `  <entry index="${i + 1}" name="${e.name || e.id}">`)
+      .join("\n");
     return `<active_tool_result status="ok" type="world_info" world_info_mode="list">\n${names}\n</active_tool_result>`;
   }
 
-  if (cleanQuery.toLowerCase().startsWith('read ')) {
+  if (cleanQuery.toLowerCase().startsWith("read ")) {
     const targetName = cleanQuery.slice(5).trim();
     const matched = enabled.filter((e) =>
-      String(e.name || e.id || '').toLowerCase().includes(targetName.toLowerCase()),
+      String(e.name || e.id || "")
+        .toLowerCase()
+        .includes(targetName.toLowerCase()),
     );
     if (matched.length === 0) {
       return `<active_tool_result status="empty" world_info_mode="read">未找到名称包含 "${targetName}" 的世界书条目。</active_tool_result>`;
     }
     const formatted = matched
-      .map((e, i) => `  <entry index="${i + 1}" name="${e.name || e.id}">\n    ${trimText(e.content, 6000)}\n  </entry>`)
-      .join('\n\n');
+      .map(
+        (e, i) =>
+          `  <entry index="${i + 1}" name="${e.name || e.id}">\n    ${trimText(e.content, 6000)}\n  </entry>`,
+      )
+      .join("\n\n");
     return `<active_tool_result status="ok" type="world_info" world_info_mode="read">\n${formatted}\n</active_tool_result>`;
   }
 
@@ -982,7 +980,7 @@ const executeWorldInfoSearch = (
 
   const matched = enabled
     .map((e) => {
-      const lowerContent = String(e.content || '').toLowerCase();
+      const lowerContent = String(e.content || "").toLowerCase();
       const lowerKeys = (e.keys || []).map((k) => String(k).toLowerCase());
       const contentMatches = terms.filter((t) => lowerContent.includes(t));
       const keyMatches = terms.filter((t) => lowerKeys.some((k) => k.includes(t)));
@@ -1002,7 +1000,7 @@ const executeWorldInfoSearch = (
       const e = item.entry;
       return `  <entry index="${i + 1}" name="${e.name || e.id}" order="${e.order}">\n    ${trimText(e.content, 4000)}\n  </entry>`;
     })
-    .join('\n\n');
+    .join("\n\n");
 
   return `<active_tool_result status="ok" type="world_info" world_info_mode="search">\n${formatted}\n</active_tool_result>`;
 };
@@ -1016,8 +1014,8 @@ const executeWorldInfoSearch = (
  * @returns 错误信息字符串（需要工具列表支持）
  */
 const executeSkillReadfile = (query: string): string => {
-  const rawQuery = String(query || '').trim();
-  const slashIdx = rawQuery.indexOf('/');
+  const rawQuery = String(query || "").trim();
+  const slashIdx = rawQuery.indexOf("/");
   if (slashIdx <= 0) {
     return '<active_tool_result status="error" type="skill_readfile">参数格式错误，应为 skill_name/file_path</active_tool_result>';
   }
@@ -1044,8 +1042,8 @@ const executeSkillReadfile = (query: string): string => {
  * 将 SKILL 文件内容作为上下文注入。
  */
 const executeSkill = (tool: ActiveTool): string => {
-  const skillMd = String(tool.skillFileContent || '');
-  const skillName = String(tool.skillFileName || tool.name || '');
+  const skillMd = String(tool.skillFileContent || "");
+  const skillName = String(tool.skillFileName || tool.name || "");
   if (!skillMd) {
     return `<active_tool_result status="empty" type="skill">SKILL "${skillName}" 没有内容。</active_tool_result>`;
   }
@@ -1063,24 +1061,24 @@ const executeMcpHttp = async (
   query: string,
   sessionIds: Map<string, string>,
 ): Promise<string> => {
-  const url = String(tool.mcpServerUrl || '').trim();
+  const url = String(tool.mcpServerUrl || "").trim();
   if (!url) {
-    throw new Error('MCP server URL 未配置');
+    throw new Error("MCP server URL 未配置");
   }
   if (!subToolName) {
-    throw new Error('MCP 子工具名称为空');
+    throw new Error("MCP 子工具名称为空");
   }
 
   let mcpArgs: Record<string, unknown> = {};
   try {
-    mcpArgs = JSON.parse(query || '{}') as Record<string, unknown>;
+    mcpArgs = JSON.parse(query || "{}") as Record<string, unknown>;
   } catch {
     mcpArgs = { _raw: query };
   }
 
   const sessionId = sessionIds.get(url);
   const result = await callMcpTool(url, subToolName, mcpArgs, sessionId);
-  const status = result.isError ? 'error' : 'ok';
+  const status = result.isError ? "error" : "ok";
   return `<active_tool_result status="${status}" type="mcp_http" sub_tool="${subToolName}">\n  ${trimText(result.text, 6000)}\n</active_tool_result>`;
 };
 
@@ -1108,11 +1106,11 @@ export const executeActiveToolCall = async (
   context: ToolExecutionContext,
 ): Promise<string> => {
   const tool = toolCall.tool;
-  const query = String(toolCall.query || '').trim();
+  const query = String(toolCall.query || "").trim();
   const limit = Number(tool.resultCount) || ACTIVE_TOOL_DEFAULT_RESULT_COUNT;
 
   if (!tool) {
-    throw new Error('工具对象为空');
+    throw new Error("工具对象为空");
   }
 
   // 向量记忆检索
@@ -1132,7 +1130,7 @@ export const executeActiveToolCall = async (
 
   // Web 搜索
   if (isWebActiveTool(tool)) {
-    const apiKey = String(tool.tavilyApiKey || context.tavilyApiKey || '').trim();
+    const apiKey = String(tool.tavilyApiKey || context.tavilyApiKey || "").trim();
     return executeWebSearch(query, apiKey, limit);
   }
 
@@ -1148,12 +1146,7 @@ export const executeActiveToolCall = async (
 
   // MCP 工具调用
   if (isMcpHttpActiveTool(tool)) {
-    return executeMcpHttp(
-      tool,
-      toolCall.mcpSubToolName || '',
-      query,
-      context.mcpSessionIds,
-    );
+    return executeMcpHttp(tool, toolCall.mcpSubToolName || "", query, context.mcpSessionIds);
   }
 
   // SKILL 执行

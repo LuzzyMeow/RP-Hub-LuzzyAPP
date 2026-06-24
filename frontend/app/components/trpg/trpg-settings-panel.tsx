@@ -11,11 +11,7 @@
 
 import * as React from "react";
 import { motion } from "motion/react";
-import {
-  IconSettings,
-  IconChevronRight,
-  IconInfo,
-} from "~/components/luzzy/luzzy-icons";
+import { IconSettings, IconChevronRight, IconInfo } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
 import {
@@ -41,9 +37,7 @@ export function TrpgSettingsPanel() {
   const apiProviderId = useAppStore((s) => s.apiProviderId);
   const modelName = useAppStore((s) => s.modelName);
   const customApiProviders = useAppStore((s) => s.customApiProviders);
-  const builtinThinkingDepthOverrides = useAppStore(
-    (s) => s.builtinThinkingDepthOverrides,
-  );
+  const builtinThinkingDepthOverrides = useAppStore((s) => s.builtinThinkingDepthOverrides);
 
   // 获取所有供应商
   const allProviders = React.useMemo(
@@ -104,10 +98,7 @@ export function TrpgSettingsPanel() {
       {/* 模型选择器 */}
       <div className="space-y-1.5">
         <label className="text-xs text-muted-foreground">专用模型</label>
-        <Select
-          value={trpgModel || "__default__"}
-          onValueChange={handleSelect}
-        >
+        <Select value={trpgModel || "__default__"} onValueChange={handleSelect}>
           <SelectTrigger className="w-full" size="sm">
             <SelectValue>
               {trpgModel ? currentModelLabel : `跟随全局（${globalDefaultLabel}）`}
@@ -117,17 +108,13 @@ export function TrpgSettingsPanel() {
             {/* 跟随全局默认 */}
             <SelectGroup>
               <SelectLabel>默认</SelectLabel>
-              <SelectItem value="__default__">
-                跟随全局默认（{globalDefaultLabel}）
-              </SelectItem>
+              <SelectItem value="__default__">跟随全局默认（{globalDefaultLabel}）</SelectItem>
             </SelectGroup>
 
             {/* 各供应商模型 */}
             {allProviders.map((provider) => (
               <SelectGroup key={provider.id}>
-                <SelectLabel>
-                  {provider.displayName || provider.name}
-                </SelectLabel>
+                <SelectLabel>{provider.displayName || provider.name}</SelectLabel>
                 {provider.models?.map((model) => (
                   <SelectItem
                     key={`${provider.id}_${model.name}`}
@@ -171,9 +158,7 @@ export function TrpgSettingsPanel() {
         className="rounded-md border border-border/20 bg-muted/10 p-2.5"
       >
         <p className="text-[10px] text-muted-foreground">当前使用</p>
-        <p className="mt-0.5 text-sm font-medium text-foreground">
-          {currentModelLabel}
-        </p>
+        <p className="mt-0.5 text-sm font-medium text-foreground">{currentModelLabel}</p>
       </motion.div>
     </motion.div>
   );

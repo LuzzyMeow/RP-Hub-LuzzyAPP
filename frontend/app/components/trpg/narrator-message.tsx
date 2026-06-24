@@ -35,10 +35,7 @@ import {
 
 import type { TrpgMessage, NarratorSections, ActionOption } from "~/types/trpg";
 import Markdown from "~/components/markdown/markdown";
-import {
-  springSoft,
-  easeFast,
-} from "~/lib/motion-presets";
+import { springSoft, easeFast } from "~/lib/motion-presets";
 
 // ============================================================================
 // Props
@@ -120,9 +117,7 @@ function NarratorSectionsView({
           title="记忆引用"
           defaultOpen={false}
         >
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {sections.memoryRef}
-          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{sections.memoryRef}</p>
         </CollapsibleSection>
       )}
 
@@ -133,9 +128,7 @@ function NarratorSectionsView({
           title="剧情分析"
           defaultOpen={false}
         >
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {sections.plotAnalysis}
-          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{sections.plotAnalysis}</p>
         </CollapsibleSection>
       )}
 
@@ -172,10 +165,7 @@ function NarratorSectionsView({
 
       {/* 5. 行动选项（A-E 卡片） */}
       {sections.actionOptions && sections.actionOptions.length > 0 && (
-        <ActionOptionsGrid
-          options={sections.actionOptions}
-          onSelectAction={onSelectAction}
-        />
+        <ActionOptionsGrid options={sections.actionOptions} onSelectAction={onSelectAction} />
       )}
 
       {/* 6. 状态信息（紧凑显示） */}
@@ -187,9 +177,7 @@ function NarratorSectionsView({
           className="flex items-start gap-1.5 rounded-md border border-border/20 bg-muted/10 px-2.5 py-1.5"
         >
           <IconInfo className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            {sections.statusInfo}
-          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground">{sections.statusInfo}</p>
         </motion.div>
       )}
 
@@ -261,11 +249,7 @@ function ActionOptionsGrid({
 // 工具调用列表
 // ============================================================================
 
-function ToolCallsList({
-  toolCalls,
-}: {
-  toolCalls: NonNullable<TrpgMessage["toolCalls"]>;
-}) {
+function ToolCallsList({ toolCalls }: { toolCalls: NonNullable<TrpgMessage["toolCalls"]> }) {
   const [expanded, setExpanded] = React.useState(false);
 
   return (
@@ -296,15 +280,10 @@ function ToolCallsList({
           >
             <div className="space-y-1 px-2.5 pb-2">
               {toolCalls.map((tc) => (
-                <div
-                  key={tc.id}
-                  className="rounded border border-border/20 bg-background/30 p-1.5"
-                >
+                <div key={tc.id} className="rounded border border-border/20 bg-background/30 p-1.5">
                   <div className="flex items-center gap-1.5">
                     <IconCheck className="size-3 text-green-500" />
-                    <span className="font-mono text-[11px] text-foreground">
-                      {tc.name}
-                    </span>
+                    <span className="font-mono text-[11px] text-foreground">{tc.name}</span>
                   </div>
                   {tc.result && (
                     <p className="mt-1 line-clamp-3 font-mono text-[10px] text-muted-foreground">
@@ -348,11 +327,7 @@ function CollapsibleSection({
       >
         {icon}
         <span className="font-medium">{title}</span>
-        <motion.div
-          animate={{ rotate: open ? 90 : 0 }}
-          transition={easeFast}
-          className="ml-auto"
-        >
+        <motion.div animate={{ rotate: open ? 90 : 0 }} transition={easeFast} className="ml-auto">
           <IconChevronRight className="size-3" />
         </motion.div>
       </motion.button>

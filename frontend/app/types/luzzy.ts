@@ -3,7 +3,7 @@
  */
 
 /** 消息角色 */
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = "user" | "assistant" | "system";
 
 /** 单条聊天消息（内部使用） */
 export interface ChatMessage {
@@ -73,10 +73,17 @@ export interface TokenUsage {
 /** Agent 执行步骤 */
 export interface AgentStep {
   id: string;
-  type: 'thinking' | 'tool_call' | 'tool_result' | 'memory_inject' | 'knowledge_call' | 'brainstorm' | 'cot_output';
+  type:
+    | "thinking"
+    | "tool_call"
+    | "tool_result"
+    | "memory_inject"
+    | "knowledge_call"
+    | "brainstorm"
+    | "cot_output";
   title: string;
   content?: string;
-  status: 'running' | 'completed' | 'error';
+  status: "running" | "completed" | "error";
   startedAt: number;
   endedAt?: number;
   /** v0.5.1: 所属请求阶段（1=工具决策, 2=CoT, 3=正文） */
@@ -87,13 +94,13 @@ export interface AgentStep {
 
 /** 工具调用状态 */
 export type ToolCallStatus =
-  | 'pending'
-  | 'receiving'
-  | 'queued'
-  | 'running'
-  | 'continuing'
-  | 'completed'
-  | 'error';
+  | "pending"
+  | "receiving"
+  | "queued"
+  | "running"
+  | "continuing"
+  | "completed"
+  | "error";
 
 /** 工具调用 */
 export interface ToolCall {
@@ -123,7 +130,7 @@ export interface WorldInfoRecall {
   content: string;
   score: number;
   /** v0.7.2: 召回策略（constant=总是激活, keyword=关键词命中, semantic=语义相似度） */
-  strategy?: 'constant' | 'keyword' | 'semantic';
+  strategy?: "constant" | "keyword" | "semantic";
 }
 
 /** 角色卡 */
@@ -179,13 +186,13 @@ export interface ApiProvider {
 
 /** API 协议类型 */
 export type ApiType =
-  | 'openai-compatible'
-  | 'google-gemini'
-  | 'anthropic-messages'
-  | 'openai-responses';
+  | "openai-compatible"
+  | "google-gemini"
+  | "anthropic-messages"
+  | "openai-responses";
 
 /** 思考深度档位（OpenAI reasoning_effort 对齐，v0.3.0 扩展为 6 档） */
-export type ThinkingDepth = 'minimal' | 'auto' | 'low' | 'medium' | 'high' | 'max';
+export type ThinkingDepth = "minimal" | "auto" | "low" | "medium" | "high" | "max";
 
 /** 模型配置（每供应商多模型） */
 export interface ModelConfig {
@@ -226,10 +233,10 @@ export interface ApiSettings {
 }
 
 /** 主题模式 */
-export type ThemeMode = 'light' | 'dark';
+export type ThemeMode = "light" | "dark";
 
 /** 底部 Tab 图标名称（与 BottomTabBar 的 TabIcon switch 一一对应） */
-export type TabIconName = 'chat' | 'characters' | 'trpg' | 'tools' | 'mine';
+export type TabIconName = "chat" | "characters" | "trpg" | "tools" | "mine";
 
 /** 底部 Tab 项 */
 export interface TabItem {
@@ -307,18 +314,18 @@ export interface RegexScript {
 }
 
 /** 正则作用范围（v0.3.0 新增） */
-export type RegexScope = 'user' | 'character' | 'thinking' | 'worldinfo';
+export type RegexScope = "user" | "character" | "thinking" | "worldinfo";
 
 /** 正则执行时机（v0.3.0 新增） */
 export type RegexTiming =
-  | 'display'      // 显示时
-  | 'send'         // 发送时
-  | 'send_display' // 发送和显示时
-  | 'receive'      // 接收时
-  | 'receive_edit'; // 接收和改写时
+  | "display" // 显示时
+  | "send" // 发送时
+  | "send_display" // 发送和显示时
+  | "receive" // 接收时
+  | "receive_edit"; // 接收和改写时
 
 /** 参数替换模式（v0.3.0 新增） */
-export type RegexParamReplace = 'none' | 'raw' | 'escape';
+export type RegexParamReplace = "none" | "raw" | "escape";
 
 /** 正则脚本条目（v0.3.0 重构） */
 export interface RegexScriptEntry {
@@ -360,16 +367,16 @@ export interface RegexScriptGroup {
 
 /** ActiveTool 类型 */
 export type ActiveToolType =
-  | 'vector'
-  | 'keyword'
-  | 'web'
-  | 'world'
-  | 'skill_readfile'
-  | 'mcp_http'
-  | 'skill';
+  | "vector"
+  | "keyword"
+  | "web"
+  | "world"
+  | "skill_readfile"
+  | "mcp_http"
+  | "skill";
 
 /** ActiveTool 启用模式 */
-export type ActiveToolEnableMode = 'all' | 'whitelist';
+export type ActiveToolEnableMode = "all" | "whitelist";
 
 /** ActiveTool */
 export interface ActiveTool {
@@ -436,7 +443,7 @@ export interface UserProfile {
   uuid: string;
   name: string;
   description: string;
-  person: 'first' | 'second' | 'third';
+  person: "first" | "second" | "third";
   /** 头像（data URL，仅本地展示，不注入聊天） */
   avatar?: string;
 }
@@ -450,13 +457,13 @@ export interface UiTemplate {
   /** 角色卡绑定（空数组=全局） */
   enabledForCharacters?: string[];
   /** 注入类型 */
-  injectionType?: 'markdown' | 'html' | 'css';
+  injectionType?: "markdown" | "html" | "css";
 }
 
 /** ActiveTool 调用 */
 export interface ActiveToolCall {
   tool: ActiveTool;
-  mode: 'add' | 'cover';
+  mode: "add" | "cover";
   callLabel: string;
   query: string;
   raw: string;
@@ -467,7 +474,7 @@ export interface ActiveToolCall {
 /** ActiveTool UI 状态 */
 export interface ActiveToolUi {
   tool: ActiveTool;
-  mode: 'add' | 'cover';
+  mode: "add" | "cover";
   callName: string;
   query: string;
   raw: string;
@@ -530,7 +537,7 @@ export interface SkillFileNode {
 }
 
 /** SKILL 导入来源 */
-export type SkillImportSource = 'github' | 'zip' | 'manual';
+export type SkillImportSource = "github" | "zip" | "manual";
 
 /** GitHub 镜像站 */
 export interface GithubMirror {
@@ -539,13 +546,13 @@ export interface GithubMirror {
 }
 
 /** 角色卡导出格式 */
-export type CharacterExportFormat = 'png' | 'json' | 'chat';
+export type CharacterExportFormat = "png" | "json" | "chat";
 
 /** 上下文查看器条目 */
 export interface ContextViewerItem {
   role: MessageRole;
   content: string;
-  source: 'system' | 'character' | 'history' | 'worldinfo' | 'memory' | 'preset' | 'tool';
+  source: "system" | "character" | "history" | "worldinfo" | "memory" | "preset" | "tool";
   tokenEstimate?: number;
 }
 
@@ -561,10 +568,10 @@ export interface ModelInfo {
 }
 
 /** 模型选择模式 */
-export type ModelSelectionMode = 'quality' | 'balanced' | 'fast';
+export type ModelSelectionMode = "quality" | "balanced" | "fast";
 
 /** API 状态 */
-export type ApiStatus = 'unknown' | 'checking' | 'connected' | 'error';
+export type ApiStatus = "unknown" | "checking" | "connected" | "error";
 
 // ============================================================================
 // v0.2.0 新增类型
@@ -626,7 +633,7 @@ export interface KnowledgeBase {
 export interface KnowledgeBaseFile {
   id: string;
   name: string;
-  type: 'image' | 'md' | 'txt';
+  type: "image" | "md" | "txt";
   /** 文本内容或图片 base64 */
   content: string;
   size: number;
@@ -651,7 +658,7 @@ export interface KnowledgeBaseFile {
 // }
 
 /** 工具全局模式 */
-export type ToolGlobalMode = 'force' | 'active' | 'adaptive';
+export type ToolGlobalMode = "force" | "active" | "adaptive";
 
 /** 工具全局设置 */
 export interface ToolGlobalSettings {
@@ -683,19 +690,19 @@ export interface SplashState {
 
 /** 内置工具类型（v0.2.0 重构） */
 export type BuiltinToolType =
-  | 'vector-memory'
-  | 'keyword-search'
-  | 'memory-recall'
-  | 'world-recall'  // v0.4.3 新增:世界书召回（嵌入模型）；v0.7.2: 合并 world-search，三策略混合召回
-  | 'anysearch';
+  | "vector-memory"
+  | "keyword-search"
+  | "memory-recall"
+  | "world-recall" // v0.4.3 新增:世界书召回（嵌入模型）；v0.7.2: 合并 world-search，三策略混合召回
+  | "anysearch";
 
 /**
  * v0.8.1: 被动触发工具集合
  * 这些工具由系统预执行，不注入 tools 参数，不出现在 agentic 循环中
  */
 export const PASSIVE_TOOL_TYPES: ReadonlySet<BuiltinToolType> = new Set([
-  'memory-recall',
-  'world-recall',
+  "memory-recall",
+  "world-recall",
 ]);
 
 /** 内置工具配置 */

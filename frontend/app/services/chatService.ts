@@ -25,16 +25,16 @@ import type {
   BuiltinToolType,
   ActiveTool,
   ToolGlobalMode,
-} from '~/types/luzzy';
-import { PASSIVE_TOOL_TYPES } from '~/types/luzzy';
-import { parseCot } from '~/services/markdownService';
+} from "~/types/luzzy";
+import { PASSIVE_TOOL_TYPES } from "~/types/luzzy";
+import { parseCot } from "~/services/markdownService";
 import {
   buildVectorMemory,
   loadVectorMemoryShards,
   saveVectorMemoryShards,
   compressContext,
-} from '~/services/memoryService';
-import { logger } from '~/services/logger';
+} from "~/services/memoryService";
+import { logger } from "~/services/logger";
 
 // ============================================================================
 // 类型定义
@@ -42,7 +42,7 @@ import { logger } from '~/services/logger';
 
 /** API 消息格式（发送给 API 的消息结构） */
 export interface ApiMessage {
-  role: MessageRole | 'tool';
+  role: MessageRole | "tool";
   content: string;
   name?: string;
   /** v0.4.6: 工具结果消息的关联 tool_call_id（OpenAI function calling 协议） */
@@ -50,7 +50,7 @@ export interface ApiMessage {
   /** v0.4.6: assistant 消息携带的 tool_calls 数组（OpenAI function calling 协议） */
   tool_calls?: Array<{
     id: string;
-    type: 'function';
+    type: "function";
     function: { name: string; arguments: string };
   }>;
 }
@@ -114,54 +114,62 @@ export interface ExtractMemoryParams {
  *
  * 用于在 system prompt 末尾注入工具描述，提升模型主动调用工具的概率
  */
-export const BUILTIN_TOOL_INFO: Record<BuiltinToolType, {
-  callLabel: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}> = {
-  'memory-recall': {
-    callLabel: 'memory-recall',
-    description: '【被动触发】使用嵌入模型自动召回会话中与用户消息相关的历史对话轮次，按相似度排序返回。不需手动调用。',
+export const BUILTIN_TOOL_INFO: Record<
+  BuiltinToolType,
+  {
+    callLabel: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  }
+> = {
+  "memory-recall": {
+    callLabel: "memory-recall",
+    description:
+      "【被动触发】使用嵌入模型自动召回会话中与用户消息相关的历史对话轮次，按相似度排序返回。不需手动调用。",
     parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: '记忆召回的查询关键词' } },
-      required: ['query'],
+      type: "object",
+      properties: { query: { type: "string", description: "记忆召回的查询关键词" } },
+      required: ["query"],
     },
   },
-  'vector-memory': {
-    callLabel: 'vector-memory',
-    description: '在当前会话的向量记忆中语义检索。当你需要回忆之前对话的细节、查找已讨论过的内容时调用。参数 query 为空格分隔的关键词列表（如"城堡 之前 名字"）。',
+  "vector-memory": {
+    callLabel: "vector-memory",
+    description:
+      '在当前会话的向量记忆中语义检索。当你需要回忆之前对话的细节、查找已讨论过的内容时调用。参数 query 为空格分隔的关键词列表（如"城堡 之前 名字"）。',
     parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: '空格分隔的多个关键词' } },
-      required: ['query'],
+      type: "object",
+      properties: { query: { type: "string", description: "空格分隔的多个关键词" } },
+      required: ["query"],
     },
   },
-  'keyword-search': {
-    callLabel: 'keyword-search',
-    description: '在当前会话中按关键词搜索聊天消息。当你需要查找包含特定词汇的历史对话时调用。参数 query 为空格分隔的多个关键词。',
+  "keyword-search": {
+    callLabel: "keyword-search",
+    description:
+      "在当前会话中按关键词搜索聊天消息。当你需要查找包含特定词汇的历史对话时调用。参数 query 为空格分隔的多个关键词。",
     parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: '空格分隔的多个关键词' } },
-      required: ['query'],
+      type: "object",
+      properties: { query: { type: "string", description: "空格分隔的多个关键词" } },
+      required: ["query"],
     },
   },
-  'world-recall': {
-    callLabel: 'world-recall',
-    description: '【被动触发】三策略混合召回世界书条目：(1) constant=true 条目直接注入 (2) keys 匹配用户输入的关键词条目直接召回 (3) 剩余条目使用嵌入模型语义检索。不需手动调用。',
+  "world-recall": {
+    callLabel: "world-recall",
+    description:
+      "【被动触发】三策略混合召回世界书条目：(1) constant=true 条目直接注入 (2) keys 匹配用户输入的关键词条目直接召回 (3) 剩余条目使用嵌入模型语义检索。不需手动调用。",
     parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: '空格分隔的多个关键词' } },
-      required: ['query'],
+      type: "object",
+      properties: { query: { type: "string", description: "空格分隔的多个关键词" } },
+      required: ["query"],
     },
   },
-  'anysearch': {
-    callLabel: 'anysearch',
-    description: '联网搜索外部实时信息。当需要查找实时数据、最新资讯、事实核查时调用。参数 query 为搜索查询内容。',
+  anysearch: {
+    callLabel: "anysearch",
+    description:
+      "联网搜索外部实时信息。当需要查找实时数据、最新资讯、事实核查时调用。参数 query 为搜索查询内容。",
     parameters: {
-      type: 'object',
-      properties: { query: { type: 'string', description: '联网搜索的查询内容' } },
-      required: ['query'],
+      type: "object",
+      properties: { query: { type: "string", description: "联网搜索的查询内容" } },
+      required: ["query"],
     },
   },
 };
@@ -179,49 +187,56 @@ function buildToolDescriptions(
 ): string {
   const enabledBuiltin = (builtinConfigs || []).filter((c) => c.enabled);
   const enabledActive = (activeTools || []).filter((t) => t.enabled);
-  if (enabledBuiltin.length === 0 && enabledActive.length === 0) return '';
+  if (enabledBuiltin.length === 0 && enabledActive.length === 0) return "";
 
   const lines: string[] = [
-    '<available_tools>',
-    '以下是当前可用的所有工具。调用格式：<tool_calls>callLabel:关键词1 关键词2|callLabel2:关键词3</tool_calls>',
-    '请优先查看每个工具的描述，选择最适合当前需求的工具。',
+    "<available_tools>",
+    "以下是当前可用的所有工具。调用格式：<tool_calls>callLabel:关键词1 关键词2|callLabel2:关键词3</tool_calls>",
+    "请优先查看每个工具的描述，选择最适合当前需求的工具。",
   ];
 
   // 内置记忆/搜索工具
   const memorySearchBuiltins = enabledBuiltin.filter(
-    (c) => c.type === 'vector-memory' || c.type === 'keyword-search',
+    (c) => c.type === "vector-memory" || c.type === "keyword-search",
   );
   // 内置世界书工具
   // v0.7.2: world-search 已合并到 world-recall（三策略混合召回），world-recall 为被动触发不在 available_tools 列出
-  const worldBuiltins = enabledBuiltin.filter(
-    (c) => c.type === 'world-recall',
-  );
+  const worldBuiltins = enabledBuiltin.filter((c) => c.type === "world-recall");
   // 内置联网工具
-  const webBuiltins = enabledBuiltin.filter(
-    (c) => c.type === 'anysearch',
-  );
+  const webBuiltins = enabledBuiltin.filter((c) => c.type === "anysearch");
   // 其他内置工具（排除已分类和被动触发的 memory-recall / world-recall）
   const otherBuiltins = enabledBuiltin.filter(
-    (c) => !['vector-memory', 'keyword-search', 'world-recall', 'anysearch', 'memory-recall'].includes(c.type),
+    (c) =>
+      !["vector-memory", "keyword-search", "world-recall", "anysearch", "memory-recall"].includes(
+        c.type,
+      ),
   );
 
   // 按工具类型分组的用户工具
-  const skillTools = enabledActive.filter((t) => t.type === 'skill' || t.type === 'skill_readfile');
-  const mcpTools = enabledActive.filter((t) => t.type === 'mcp_http');
-  const webUserTools = enabledActive.filter((t) => t.type === 'web');
-  const vectorUserTools = enabledActive.filter((t) => t.type === 'vector' || t.type === 'keyword');
-  const worldUserTools = enabledActive.filter((t) => t.type === 'world');
+  const skillTools = enabledActive.filter((t) => t.type === "skill" || t.type === "skill_readfile");
+  const mcpTools = enabledActive.filter((t) => t.type === "mcp_http");
+  const webUserTools = enabledActive.filter((t) => t.type === "web");
+  const vectorUserTools = enabledActive.filter((t) => t.type === "vector" || t.type === "keyword");
+  const worldUserTools = enabledActive.filter((t) => t.type === "world");
   const otherUserTools = enabledActive.filter(
-    (t) => !(['skill', 'skill_readfile', 'mcp_http', 'web', 'vector', 'keyword', 'world'] as string[]).includes(t.type),
+    (t) =>
+      !(
+        ["skill", "skill_readfile", "mcp_http", "web", "vector", "keyword", "world"] as string[]
+      ).includes(t.type),
   );
 
-  const addGroup = (title: string, configs: typeof enabledBuiltin, tools?: typeof enabledActive) => {
+  const addGroup = (
+    title: string,
+    configs: typeof enabledBuiltin,
+    tools?: typeof enabledActive,
+  ) => {
     const items: string[] = [];
     for (const c of configs) {
       // v0.8.1: 使用 PASSIVE_TOOL_TYPES 常量过滤被动触发工具
       if (PASSIVE_TOOL_TYPES.has(c.type)) continue;
       const info = BUILTIN_TOOL_INFO[c.type];
-      if (info) items.push(`- \`${info.callLabel}\`: ${info.description}（返回 ${c.resultCount} 条）`);
+      if (info)
+        items.push(`- \`${info.callLabel}\`: ${info.description}（返回 ${c.resultCount} 条）`);
     }
     if (tools) {
       for (const t of tools) {
@@ -235,15 +250,27 @@ function buildToolDescriptions(
     }
   };
 
-  addGroup('【历史记忆搜索】', memorySearchBuiltins, vectorUserTools);
-  addGroup('【世界书设定检索】', worldBuiltins, worldUserTools);
-  addGroup('【联网搜索】', webBuiltins, webUserTools);
-  addGroup('【MCP 外部工具】', otherBuiltins.filter(c => c.type.startsWith('mcp')), mcpTools);
-  addGroup('【SKILL 技能工具】', otherBuiltins.filter(c => c.type.startsWith('skill')), skillTools);
-  addGroup('【其他工具】', otherBuiltins.filter(c => !c.type.startsWith('mcp') && !c.type.startsWith('skill')), otherUserTools);
+  addGroup("【历史记忆搜索】", memorySearchBuiltins, vectorUserTools);
+  addGroup("【世界书设定检索】", worldBuiltins, worldUserTools);
+  addGroup("【联网搜索】", webBuiltins, webUserTools);
+  addGroup(
+    "【MCP 外部工具】",
+    otherBuiltins.filter((c) => c.type.startsWith("mcp")),
+    mcpTools,
+  );
+  addGroup(
+    "【SKILL 技能工具】",
+    otherBuiltins.filter((c) => c.type.startsWith("skill")),
+    skillTools,
+  );
+  addGroup(
+    "【其他工具】",
+    otherBuiltins.filter((c) => !c.type.startsWith("mcp") && !c.type.startsWith("skill")),
+    otherUserTools,
+  );
 
-  lines.push('\n</available_tools>');
-  return lines.join('\n');
+  lines.push("\n</available_tools>");
+  return lines.join("\n");
 }
 
 /**
@@ -281,11 +308,11 @@ function buildNativeToolProtocol(maxSteps: number): string {
 
 /** 默认用户档案（未配置用户信息时使用） */
 export const DEFAULT_USER: UserProfile = {
-  uuid: 'user',
+  uuid: "user",
   // v0.4.1: 默认用户名保持为空,UI 显示时用占位符 "未设置"
-  name: '',
-  description: '',
-  person: 'first',
+  name: "",
+  description: "",
+  person: "first",
 };
 
 /** 默认世界书扫描深度 */
@@ -339,7 +366,7 @@ const truncateByTokens = (messages: ChatMessage[], maxTokens: number): ChatMessa
  * @returns 拼接后的文本
  */
 const joinWorldInfoContent = (entries: WorldInfoEntry[]): string => {
-  return entries.map((e) => `[${e.id}]\n${e.content}`).join('\n\n');
+  return entries.map((e) => `[${e.id}]\n${e.content}`).join("\n\n");
 };
 
 // ============================================================================
@@ -355,19 +382,19 @@ const joinWorldInfoContent = (entries: WorldInfoEntry[]): string => {
  * @returns 编译后的 RegExp 对象
  */
 export const createWorldInfoRegex = (pattern: string): RegExp => {
-  let source = String(pattern || '');
-  let flags = 'i';
-  if (source.startsWith('/') && source.lastIndexOf('/') > 0) {
-    const lastSlash = source.lastIndexOf('/');
+  let source = String(pattern || "");
+  let flags = "i";
+  if (source.startsWith("/") && source.lastIndexOf("/") > 0) {
+    const lastSlash = source.lastIndexOf("/");
     const potentialFlags = source.slice(lastSlash + 1);
     if (/^[dgimsuvy]*$/.test(potentialFlags)) {
       source = source.slice(1, lastSlash);
       flags = potentialFlags;
     }
   }
-  flags = flags.replace(/g/g, '');
-  if (!flags.includes('i')) flags += 'i';
-  if (/\\[pP]\{/.test(source) && !flags.includes('u')) flags += 'u';
+  flags = flags.replace(/g/g, "");
+  if (!flags.includes("i")) flags += "i";
+  if (/\\[pP]\{/.test(source) && !flags.includes("u")) flags += "u";
   return new RegExp(source, flags);
 };
 
@@ -379,13 +406,9 @@ export const createWorldInfoRegex = (pattern: string): RegExp => {
  * @param useRegex - 是否使用正则匹配
  * @returns 是否匹配
  */
-export const worldInfoKeyMatchesText = (
-  key: string,
-  text: string,
-  useRegex = false,
-): boolean => {
-  const rawKey = String(key || '').trim();
-  const rawText = String(text || '');
+export const worldInfoKeyMatchesText = (key: string, text: string, useRegex = false): boolean => {
+  const rawKey = String(key || "").trim();
+  const rawText = String(text || "");
   if (!rawKey || !rawText) return false;
 
   if (useRegex) {
@@ -406,10 +429,7 @@ export const worldInfoKeyMatchesText = (
  * @returns 是否通过概率检查
  */
 export const passesWorldInfoProbability = (entry: WorldInfoEntry): boolean => {
-  const probability = Math.min(
-    100,
-    toNonNegativeNumber(entry.probability, 100),
-  );
+  const probability = Math.min(100, toNonNegativeNumber(entry.probability, 100));
   if (probability >= 100) return true;
   if (probability <= 0) return false;
   return Math.random() * 100 < probability;
@@ -438,7 +458,7 @@ const matchWorldInfoEntries = (
   const scanText = messages
     .slice(-scanDepth)
     .map((m) => m.content)
-    .join('\n');
+    .join("\n");
 
   for (const entry of entries) {
     // 常驻条目直接触发
@@ -453,9 +473,7 @@ const matchWorldInfoEntries = (
     // 关键词匹配
     if (!entry.keys || entry.keys.length === 0) continue;
 
-    const hasMatch = entry.keys.some((key) =>
-      worldInfoKeyMatchesText(key, scanText),
-    );
+    const hasMatch = entry.keys.some((key) => worldInfoKeyMatchesText(key, scanText));
 
     if (hasMatch) {
       triggered.push(entry);
@@ -489,9 +507,7 @@ const matchWorldInfoEntries = (
  * @param params - 构建参数
  * @returns 系统提示词与 API 消息列表
  */
-export const buildContext = async (
-  params: BuildContextParams,
-): Promise<BuildContextResult> => {
+export const buildContext = async (params: BuildContextParams): Promise<BuildContextResult> => {
   const {
     messages,
     character,
@@ -514,11 +530,7 @@ export const buildContext = async (
   // 回退保障：预执行失败时 skipWorldInfoInjection 保持 false，走经典注入路径
   const triggeredWorldInfo = params.skipWorldInfoInjection
     ? []
-    : matchWorldInfoEntries(
-        activeWorldInfo,
-        messages,
-        DEFAULT_WORLD_INFO_SCAN_DEPTH,
-      );
+    : matchWorldInfoEntries(activeWorldInfo, messages, DEFAULT_WORLD_INFO_SCAN_DEPTH);
 
   // 3. 构建系统提示词
   const systemPromptParts: string[] = [];
@@ -529,14 +541,14 @@ export const buildContext = async (
     .filter((p) => p.enabled !== false && p.content && p.content.trim())
     .map((p) => p.content)
     .filter((content) => content.trim())
-    .join('\n\n---\n\n');
+    .join("\n\n---\n\n");
   if (presetContents) {
     systemPromptParts.push(presetContents);
   }
 
   // v0.7.0: 两阶段架构 — 阶段2 现在同时输出 CoT 和正文，设定内容不再是"仅参考素材"
   // 移除原 cotReferenceHeader 隔离说明
-  const cotReferenceHeader = '';
+  const cotReferenceHeader = "";
 
   // 3.2 世界书条目（常驻 + 关键词触发）
   if (triggeredWorldInfo.length > 0) {
@@ -547,10 +559,10 @@ export const buildContext = async (
 
   // 3.3 文风优先级提示
   systemPromptParts.push(
-    '[Style Priority]\n' +
-      '开场白和历史消息只用于理解剧情事实、人物关系和场景状态，不作为文风模板；' +
-      '不要继承或模仿开场白、前文回复的句式、语气密度、段落节奏或排版习惯。' +
-      '最终回复的文风必须优先遵守上方系统预设中的规定文风。',
+    "[Style Priority]\n" +
+      "开场白和历史消息只用于理解剧情事实、人物关系和场景状态，不作为文风模板；" +
+      "不要继承或模仿开场白、前文回复的句式、语气密度、段落节奏或排版习惯。" +
+      "最终回复的文风必须优先遵守上方系统预设中的规定文风。",
   );
 
   // 3.4 角色定义
@@ -564,16 +576,14 @@ export const buildContext = async (
     if (character.dialogueExamples && character.dialogueExamples.length > 0) {
       const exampleBlocks = character.dialogueExamples
         .map((ex) => `{{char}}: ${ex.agent}\n{{user}}: ${ex.user}`)
-        .join('\n\n');
+        .join("\n\n");
       charParts.push(`<example>\n${exampleBlocks}\n</example>`);
     }
-    systemPromptParts.push(charParts.join('\n\n'));
+    systemPromptParts.push(charParts.join("\n\n"));
   }
 
   // 3.5 用户信息
-  systemPromptParts.push(
-    `[User Info]\nName: ${user.name}\nDescription: ${user.description || ''}`,
-  );
+  systemPromptParts.push(`[User Info]\nName: ${user.name}\nDescription: ${user.description || ""}`);
 
   // 3.6 全局记忆
   // v0.5.6: ACE 记忆机制已删除，不再注入 <global_memory> 段落
@@ -590,10 +600,10 @@ export const buildContext = async (
   // v0.4.3: 注入内置工具描述，提升模型主动调用工具的概率
   // v0.4.6: 同时注入用户工具描述，统一标签格式
   // v0.8.1: 按 toolMode 条件分支 — force 模式注入 <available_tools> 文本标签，active/adaptive 模式注入原生 function calling 协议
-  const toolMode = params.toolMode ?? 'active';
+  const toolMode = params.toolMode ?? "active";
   const maxSteps = params.maxAgentSteps ?? 10;
 
-  if (toolMode === 'force') {
+  if (toolMode === "force") {
     // force 模式：注入 <available_tools> 文本标签列表（现有逻辑）
     const toolDescriptions = buildToolDescriptions(params.builtinToolConfigs, params.activeTools);
     if (toolDescriptions) {
@@ -605,25 +615,25 @@ export const buildContext = async (
     systemPromptParts.push(buildNativeToolProtocol(maxSteps));
   }
 
-  const systemPrompt = systemPromptParts.join('\n\n');
+  const systemPrompt = systemPromptParts.join("\n\n");
 
   // 4. 构建 API 消息列表
   const apiMessages: ApiMessage[] = [];
 
   // 4.1 系统消息
-  apiMessages.push({ role: 'system', content: systemPrompt });
+  apiMessages.push({ role: "system", content: systemPrompt });
 
   // 4.2 开场白（如果聊天记录为空或第一条不是开场白）
   // v0.7.1: 单阶段架构 — 始终注入开场白作为上下文参考
   if (character && character.firstMessage) {
     const hasFirstMesInHistory =
       messages.length > 0 &&
-      messages[0].role === 'assistant' &&
+      messages[0].role === "assistant" &&
       messages[0].content === character.firstMessage;
 
     if (!hasFirstMesInHistory) {
       apiMessages.push({
-        role: 'assistant',
+        role: "assistant",
         content: character.firstMessage,
         name: character.name,
       });
@@ -652,15 +662,11 @@ export const buildContext = async (
   // modelName 格式为 `${providerId}_${model.name}`，通过前缀匹配定位供应商与模型
   let limitedMessages = compressedMessages;
   if (settings.modelName && apiProviders.length > 0) {
-    const matchedProvider = apiProviders.find((p) =>
-      settings.modelName.startsWith(`${p.id}_`),
-    );
+    const matchedProvider = apiProviders.find((p) => settings.modelName.startsWith(`${p.id}_`));
     if (matchedProvider?.models) {
       const prefix = `${matchedProvider.id}_`;
       const rawModelName = settings.modelName.slice(prefix.length);
-      const currentModel = matchedProvider.models.find(
-        (m) => m.name === rawModelName,
-      );
+      const currentModel = matchedProvider.models.find((m) => m.name === rawModelName);
       const limit = currentModel?.historyMessageLimit ?? 0;
       if (limit > 0 && compressedMessages.length > limit) {
         limitedMessages = compressedMessages.slice(-limit);
@@ -673,15 +679,11 @@ export const buildContext = async (
   // 丢弃的消息由记忆召回/向量记忆工具补充（已在阶段一实现）
   const MAX_CONTEXT_TOKENS = (() => {
     if (settings.modelName && apiProviders.length > 0) {
-      const matchedProvider = apiProviders.find((p) =>
-        settings.modelName.startsWith(`${p.id}_`),
-      );
+      const matchedProvider = apiProviders.find((p) => settings.modelName.startsWith(`${p.id}_`));
       if (matchedProvider?.models) {
         const prefix = `${matchedProvider.id}_`;
         const rawModelName = settings.modelName.slice(prefix.length);
-        const currentModel = matchedProvider.models.find(
-          (m) => m.name === rawModelName,
-        );
+        const currentModel = matchedProvider.models.find((m) => m.name === rawModelName);
         return currentModel?.contextLength ?? 128000;
       }
     }
@@ -705,7 +707,7 @@ export const buildContext = async (
     // 输出 OpenAI function calling 协议的 role:'tool' 消息
     if (msg.metadata?.isToolResult && msg.metadata?.toolCallId) {
       apiMessages.push({
-        role: 'tool',
+        role: "tool",
         content: msg.content,
         tool_call_id: msg.metadata.toolCallId,
       });
@@ -714,17 +716,17 @@ export const buildContext = async (
 
     // v0.4.6: 处理带 tool_calls 的 assistant 消息
     // 输出 OpenAI function calling 协议的 assistant 消息（携带 tool_calls 数组）
-    if (msg.role === 'assistant' && msg.toolCalls && msg.toolCalls.length > 0) {
-      const parsed = parseCot(msg.content || '');
+    if (msg.role === "assistant" && msg.toolCalls && msg.toolCalls.length > 0) {
+      const parsed = parseCot(msg.content || "");
       apiMessages.push({
-        role: 'assistant',
-        content: parsed.main || '',
+        role: "assistant",
+        content: parsed.main || "",
         tool_calls: msg.toolCalls.map((tc) => ({
           id: tc.id,
-          type: 'function' as const,
+          type: "function" as const,
           function: {
             name: tc.toolName,
-            arguments: typeof tc.query === 'string' ? JSON.stringify({ query: tc.query }) : '{}',
+            arguments: typeof tc.query === "string" ? JSON.stringify({ query: tc.query }) : "{}",
           },
         })),
       });
@@ -732,18 +734,18 @@ export const buildContext = async (
     }
 
     // 普通消息处理（现有逻辑）
-    const parsed = parseCot(msg.content || '');
+    const parsed = parseCot(msg.content || "");
     let content = parsed.main;
     // 用户消息的系统指令保留
-    if (parsed.sys && msg.role === 'user') {
-      content += '\n\n[系统指令: ' + parsed.sys + ']';
+    if (parsed.sys && msg.role === "user") {
+      content += "\n\n[系统指令: " + parsed.sys + "]";
     }
     content = content.trim();
     if (content) {
       apiMessages.push({
-        role: msg.role === 'user' ? 'user' : msg.role === 'system' ? 'system' : 'assistant',
+        role: msg.role === "user" ? "user" : msg.role === "system" ? "system" : "assistant",
         content,
-        name: msg.role === 'user' ? user.name : character?.name,
+        name: msg.role === "user" ? user.name : character?.name,
       });
     }
   }
@@ -800,7 +802,7 @@ export const processRegex = (
   user: UserProfile,
   messageDepth?: number,
 ): string => {
-  if (!text) return '';
+  if (!text) return "";
   if (!regexGroups || regexGroups.length === 0) return text;
 
   let result = text;
@@ -828,16 +830,13 @@ export const processRegex = (
   for (const entry of activeEntries) {
     try {
       let regexPattern = entry.findRegex;
-      let flags = 'g';
+      let flags = "g";
 
       if (!regexPattern) continue;
 
       // 解析 /pattern/flags 格式
-      if (
-        regexPattern.startsWith('/') &&
-        regexPattern.lastIndexOf('/') > 0
-      ) {
-        const lastSlash = regexPattern.lastIndexOf('/');
+      if (regexPattern.startsWith("/") && regexPattern.lastIndexOf("/") > 0) {
+        const lastSlash = regexPattern.lastIndexOf("/");
         const potentialFlags = regexPattern.substring(lastSlash + 1);
         if (/^[gimsuy]*$/.test(potentialFlags)) {
           flags = potentialFlags;
@@ -846,45 +845,42 @@ export const processRegex = (
       }
 
       // 兼容内联修饰符 (?s), (?i), (?m)
-      if (regexPattern.includes('(?s)')) {
-        regexPattern = regexPattern.replace(/\(\?s\)/g, '');
-        if (!flags.includes('s')) flags += 's';
+      if (regexPattern.includes("(?s)")) {
+        regexPattern = regexPattern.replace(/\(\?s\)/g, "");
+        if (!flags.includes("s")) flags += "s";
       }
-      if (regexPattern.includes('(?i)')) {
-        regexPattern = regexPattern.replace(/\(\?i\)/g, '');
-        if (!flags.includes('i')) flags += 'i';
+      if (regexPattern.includes("(?i)")) {
+        regexPattern = regexPattern.replace(/\(\?i\)/g, "");
+        if (!flags.includes("i")) flags += "i";
       }
-      if (regexPattern.includes('(?m)')) {
-        regexPattern = regexPattern.replace(/\(\?m\)/g, '');
-        if (!flags.includes('m')) flags += 'm';
+      if (regexPattern.includes("(?m)")) {
+        regexPattern = regexPattern.replace(/\(\?m\)/g, "");
+        if (!flags.includes("m")) flags += "m";
       }
 
       const re = new RegExp(regexPattern, flags);
 
       // 替换 {{user}} 为用户名
-      let replacement = entry.replaceString || '';
+      let replacement = entry.replaceString || "";
       replacement = replacement.replace(/\{\{user\}\}/g, user.name);
 
       // v0.3.0 新增：替换前修剪 (Trim Out)
       // 每行一个正则，在替换前从文本中移除匹配的内容
       if (entry.trimOut) {
-        const trimPatterns = entry.trimOut.split('\n').filter((l) => l.trim());
+        const trimPatterns = entry.trimOut.split("\n").filter((l) => l.trim());
         for (const trimPattern of trimPatterns) {
           try {
             let trimRegex = trimPattern;
-            let trimFlags = 'g';
-            if (
-              trimRegex.startsWith('/') &&
-              trimRegex.lastIndexOf('/') > 0
-            ) {
-              const lastSlash = trimRegex.lastIndexOf('/');
+            let trimFlags = "g";
+            if (trimRegex.startsWith("/") && trimRegex.lastIndexOf("/") > 0) {
+              const lastSlash = trimRegex.lastIndexOf("/");
               const potentialFlags = trimRegex.substring(lastSlash + 1);
               if (/^[gimsuy]*$/.test(potentialFlags)) {
                 trimFlags = potentialFlags;
                 trimRegex = trimRegex.substring(1, lastSlash);
               }
             }
-            result = result.replace(new RegExp(trimRegex, trimFlags), '');
+            result = result.replace(new RegExp(trimRegex, trimFlags), "");
           } catch {
             // 忽略无效的 trim 正则
           }
@@ -895,18 +891,21 @@ export const processRegex = (
       // none: 不处理（默认）
       // raw: 将替换字符串中的 $1, $2 等作为原文输出（先转义）
       // escape: 对匹配内容进行 HTML 转义后替换
-      if (entry.paramReplace === 'raw') {
+      if (entry.paramReplace === "raw") {
         // 转义 $ 符号，使 $1 等变为字面量
-        replacement = replacement.replace(/\$/g, '$$$$');
-      } else if (entry.paramReplace === 'escape') {
+        replacement = replacement.replace(/\$/g, "$$$$");
+      } else if (entry.paramReplace === "escape") {
         // 对 result 中的匹配内容先进行 HTML 转义
         result = result.replace(re, (match, ...groups) => {
           const escaped = escapeHtml(match);
           // replacement 中的 $1 等引用转义后的内容
-          return replacement.replace(/\$(\d+)/g, (_, n) => {
-            const idx = parseInt(n, 10);
-            return idx <= groups.length ? escapeHtml(String(groups[idx - 1] ?? '')) : '';
-          }).replace(/\{\{match\}\}/g, escaped).replace(/\$0/g, escaped);
+          return replacement
+            .replace(/\$(\d+)/g, (_, n) => {
+              const idx = parseInt(n, 10);
+              return idx <= groups.length ? escapeHtml(String(groups[idx - 1] ?? "")) : "";
+            })
+            .replace(/\{\{match\}\}/g, escaped)
+            .replace(/\$0/g, escaped);
         });
         continue; // 已处理，跳过下方的保护逻辑
       }
@@ -915,8 +914,8 @@ export const processRegex = (
       // 如果正则本身在匹配代码块或 HTML，则跳过保护直接替换
       if (
         !/[<>]/.test(regexPattern) &&
-        !regexPattern.includes('```') &&
-        entry.name !== 'Auto Replace {{user}}'
+        !regexPattern.includes("```") &&
+        entry.name !== "Auto Replace {{user}}"
       ) {
         const parts = result.split(PROTECTION_PATTERN);
         result = parts
@@ -928,31 +927,27 @@ export const processRegex = (
             }
             // 对普通文本应用替换
             // 支持 {{match}} 作为 $0 的别名
-            const finalReplacement = replacement.replace(/\{\{match\}\}/g, '$0');
-            if (finalReplacement.includes('$0')) {
+            const finalReplacement = replacement.replace(/\{\{match\}\}/g, "$0");
+            if (finalReplacement.includes("$0")) {
               return part.replace(re, (match, ...groups) => {
-                return finalReplacement
-                  .replace(/\$0/g, match)
-                  .replace(/\$(\d+)/g, (_, n) => {
-                    const idx = parseInt(n, 10);
-                    return idx <= groups.length ? String(groups[idx - 1] ?? '') : '';
-                  });
+                return finalReplacement.replace(/\$0/g, match).replace(/\$(\d+)/g, (_, n) => {
+                  const idx = parseInt(n, 10);
+                  return idx <= groups.length ? String(groups[idx - 1] ?? "") : "";
+                });
               });
             }
             return part.replace(re, finalReplacement);
           })
-          .join('');
+          .join("");
       } else {
         // 正则明确包含 <, > 或 ```，直接替换
-        const finalReplacement = replacement.replace(/\{\{match\}\}/g, '$0');
-        if (finalReplacement.includes('$0')) {
+        const finalReplacement = replacement.replace(/\{\{match\}\}/g, "$0");
+        if (finalReplacement.includes("$0")) {
           result = result.replace(re, (match, ...groups) => {
-            return finalReplacement
-              .replace(/\$0/g, match)
-              .replace(/\$(\d+)/g, (_, n) => {
-                const idx = parseInt(n, 10);
-                return idx <= groups.length ? String(groups[idx - 1] ?? '') : '';
-              });
+            return finalReplacement.replace(/\$0/g, match).replace(/\$(\d+)/g, (_, n) => {
+              const idx = parseInt(n, 10);
+              return idx <= groups.length ? String(groups[idx - 1] ?? "") : "";
+            });
           });
         } else {
           result = result.replace(re, finalReplacement);
@@ -960,7 +955,7 @@ export const processRegex = (
       }
     } catch (e) {
       console.error(
-        `Regex error in entry "${entry.name || 'Unnamed'}":`,
+        `Regex error in entry "${entry.name || "Unnamed"}":`,
         e instanceof Error ? e.message : String(e),
       );
     }
@@ -976,52 +971,54 @@ export const processRegex = (
  */
 function matchTiming(entryTiming: RegexTiming, currentTiming: RegexTiming): boolean {
   if (entryTiming === currentTiming) return true;
-  if (entryTiming === 'send_display' && (currentTiming === 'send' || currentTiming === 'display')) return true;
-  if (entryTiming === 'receive_edit' && (currentTiming === 'receive' || currentTiming === 'receive_edit')) return true;
+  if (entryTiming === "send_display" && (currentTiming === "send" || currentTiming === "display"))
+    return true;
+  if (
+    entryTiming === "receive_edit" &&
+    (currentTiming === "receive" || currentTiming === "receive_edit")
+  )
+    return true;
   return false;
 }
 
 /** HTML 转义 */
 function escapeHtml(text: string): string {
   return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
  * 将旧的 RegexScript[] 迁移为新的 RegexScriptGroup[]
  * 每个旧脚本 → 一个含单条目的组
  */
-export const migrateRegexScripts = (
-  oldScripts: RegexScript[],
-): RegexScriptGroup[] => {
+export const migrateRegexScripts = (oldScripts: RegexScript[]): RegexScriptGroup[] => {
   return oldScripts.map((script) => {
     // 旧 placement → 新 scope
     // 0 = 全部, 1 = User, 2 = AI, 3 = User+AI
-    let scope: RegexScope[] = ['character']; // 默认角色消息
-    if (script.placement === 1) scope = ['user'];
-    else if (script.placement === 2) scope = ['character'];
-    else if (script.placement === 3 || script.placement === 0) scope = ['user', 'character'];
+    let scope: RegexScope[] = ["character"]; // 默认角色消息
+    if (script.placement === 1) scope = ["user"];
+    else if (script.placement === 2) scope = ["character"];
+    else if (script.placement === 3 || script.placement === 0) scope = ["user", "character"];
 
     // 旧 mode → 新 timing
     // 0 = 两者都处理, 1 = 仅显示(markdownOnly), 2 = 仅AI可见(promptOnly)
-    let timing: RegexTiming = 'send_display';
-    if (script.mode === 1) timing = 'display';
-    else if (script.mode === 2) timing = 'send';
-    else timing = 'send_display';
+    let timing: RegexTiming = "send_display";
+    if (script.mode === 1) timing = "display";
+    else if (script.mode === 2) timing = "send";
+    else timing = "send_display";
 
     // 旧 depth → 新 depthRange
-    const depthRange = script.depth > 0
-      ? { min: script.depth, max: Number.MAX_SAFE_INTEGER }
-      : undefined;
+    const depthRange =
+      script.depth > 0 ? { min: script.depth, max: Number.MAX_SAFE_INTEGER } : undefined;
 
     const now = Date.now();
     return {
       id: script.id,
-      name: script.name || '迁移组',
+      name: script.name || "迁移组",
       enabled: true,
       createdAt: now,
       updatedAt: now,
@@ -1033,7 +1030,7 @@ export const migrateRegexScripts = (
           replaceString: script.replaceString,
           scope,
           timing,
-          paramReplace: 'none',
+          paramReplace: "none",
           depthRange,
           enabled: script.enabled !== false,
         },
@@ -1061,9 +1058,7 @@ export const migrateRegexScripts = (
  * @param params - 记忆提取参数
  * @returns Promise<void>（异步提取，不阻塞主流程）
  */
-export const extractMemory = async (
-  params: ExtractMemoryParams,
-): Promise<void> => {
+export const extractMemory = async (params: ExtractMemoryParams): Promise<void> => {
   const {
     messages,
     character,
@@ -1092,7 +1087,7 @@ export const extractMemory = async (
   }
 
   // 获取最新的完整对话轮次（用户 + AI）
-  const lastUserIndex = messages.map((m) => m.role).lastIndexOf('user');
+  const lastUserIndex = messages.map((m) => m.role).lastIndexOf("user");
   if (lastUserIndex === -1) {
     logger.debug("memory", "extractMemory 跳过: 未找到用户消息");
     return;
@@ -1108,8 +1103,11 @@ export const extractMemory = async (
     logger.debug("memory", "extractMemory 跳过: 用户或 assistant 消息对象为空");
     return;
   }
-  if (assistantMessage.role !== 'assistant') {
-    logger.debug("memory", `extractMemory 跳过: 最后一条消息非 assistant (实际 ${assistantMessage.role})`);
+  if (assistantMessage.role !== "assistant") {
+    logger.debug(
+      "memory",
+      `extractMemory 跳过: 最后一条消息非 assistant (实际 ${assistantMessage.role})`,
+    );
     return;
   }
 
@@ -1119,8 +1117,8 @@ export const extractMemory = async (
     // 原因：Fix 1 已确保 assistant 的 content 是纯叙事正文（phase=3 的 content）
     // user 的 content 本身就是用户原始文本，无需剥离 <cot> 标签
     // 之前调用 parseCot 会错误地剥离正文中的 CoT 标签，导致向量记忆切片内容不正确
-    const userContent = userMessage.content || '';
-    const assistantContent = assistantMessage.content || '';
+    const userContent = userMessage.content || "";
+    const assistantContent = assistantMessage.content || "";
 
     if (!userContent.trim() || !assistantContent.trim()) {
       logger.debug("memory", "extractMemory 跳过: 消息内容为空");
@@ -1128,11 +1126,12 @@ export const extractMemory = async (
     }
 
     // 计算当前轮次号（用户消息的序号，从 1 开始）
-    const turnNumber = messages
-      .slice(0, lastUserIndex + 1)
-      .filter((m) => m.role === 'user').length;
+    const turnNumber = messages.slice(0, lastUserIndex + 1).filter((m) => m.role === "user").length;
 
-    logger.info("memory", `extractMemory 启动: turn=${turnNumber} character=${character.uuid} sessionId=${sessionId ?? "无"}`);
+    logger.info(
+      "memory",
+      `extractMemory 启动: turn=${turnNumber} character=${character.uuid} sessionId=${sessionId ?? "无"}`,
+    );
 
     // 使用 buildVectorMemory 生成本轮的向量记忆分片
     // buildVectorMemory 内部会调用嵌入 API 生成向量
@@ -1162,16 +1161,16 @@ export const extractMemory = async (
 
     // 合并已有分片并持久化到 IndexedDB
     // 优先使用会话级存储键，未提供 sessionId 时回退到角色级（向后兼容）
-    const existingShards = await loadVectorMemoryShards(
-      character.uuid,
-      sessionId,
-    );
+    const existingShards = await loadVectorMemoryShards(character.uuid, sessionId);
     // v0.5.1: 按 turn 去重，处理重试/重新生成导致的同轮多次分片冗余
-    const dedupedExisting = existingShards.filter(s => s.turn !== turnNumber);
+    const dedupedExisting = existingShards.filter((s) => s.turn !== turnNumber);
     const allShards = [...dedupedExisting, ...adjustedShards];
 
     await saveVectorMemoryShards(character.uuid, allShards, sessionId);
-    logger.info("memory", `extractMemory 完成: 新增=${adjustedShards.length}个 总计=${allShards.length}个 turn=${turnNumber}`);
+    logger.info(
+      "memory",
+      `extractMemory 完成: 新增=${adjustedShards.length}个 总计=${allShards.length}个 turn=${turnNumber}`,
+    );
   } catch (e) {
     // v0.6.4-fix: 重新 throw，让外层 chat-slice.ts 的 .catch 能捕获到并 toast.error 通知用户
     // 之前只 logger.warn 不 throw，导致 401 等错误被静默吞掉，外层 .catch 永远不触发

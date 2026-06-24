@@ -62,12 +62,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "~/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "~/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "~/components/ui/sheet";
 import {
   Empty,
   EmptyHeader,
@@ -76,10 +71,7 @@ import {
   EmptyDescription,
   EmptyContent,
 } from "~/components/ui/empty";
-import {
-  pressable,
-  pressableSubtle,
-} from "~/lib/motion-presets";
+import { pressable, pressableSubtle } from "~/lib/motion-presets";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
 
@@ -178,10 +170,7 @@ function testRegex(
     let flags = "g";
 
     // 解析 /pattern/flags 格式
-    if (
-      regexPattern.startsWith("/") &&
-      regexPattern.lastIndexOf("/") > 0
-    ) {
+    if (regexPattern.startsWith("/") && regexPattern.lastIndexOf("/") > 0) {
       const lastSlash = regexPattern.lastIndexOf("/");
       const potentialFlags = regexPattern.substring(lastSlash + 1);
       if (/^[gimsuy]*$/.test(potentialFlags)) {
@@ -198,12 +187,10 @@ function testRegex(
     if (replacement.includes("$0")) {
       return {
         result: text.replace(re, (match, ...groups) => {
-          return replacement
-            .replace(/\$0/g, match)
-            .replace(/\$(\d+)/g, (_, n) => {
-              const idx = parseInt(n, 10);
-              return idx <= groups.length ? String(groups[idx - 1] ?? "") : "";
-            });
+          return replacement.replace(/\$0/g, match).replace(/\$(\d+)/g, (_, n) => {
+            const idx = parseInt(n, 10);
+            return idx <= groups.length ? String(groups[idx - 1] ?? "") : "";
+          });
         }),
       };
     }
@@ -315,9 +302,7 @@ export default function RegexPage() {
   const handleSaveCharacters = React.useCallback(
     async (group: RegexScriptGroup, charUuids: string[]) => {
       const next = groups.map((x) =>
-        x.id === group.id
-          ? { ...x, enabledForCharacters: charUuids, updatedAt: Date.now() }
-          : x,
+        x.id === group.id ? { ...x, enabledForCharacters: charUuids, updatedAt: Date.now() } : x,
       );
       setGroups(next);
       await persist(next);
@@ -381,9 +366,7 @@ export default function RegexPage() {
       if (!editingGroup) return;
       setEditingGroup({
         ...editingGroup,
-        entries: editingGroup.entries.map((e, i) =>
-          i === index ? { ...e, enabled } : e,
-        ),
+        entries: editingGroup.entries.map((e, i) => (i === index ? { ...e, enabled } : e)),
       });
     },
     [editingGroup],
@@ -412,9 +395,7 @@ export default function RegexPage() {
       const has = prev.scope.includes(scope);
       return {
         ...prev,
-        scope: has
-          ? prev.scope.filter((s) => s !== scope)
-          : [...prev.scope, scope],
+        scope: has ? prev.scope.filter((s) => s !== scope) : [...prev.scope, scope],
       };
     });
   }, []);
@@ -441,11 +422,7 @@ export default function RegexPage() {
   /** 实时测试预览结果 */
   const preview = React.useMemo(() => {
     if (!editingEntry) return null;
-    return testRegex(
-      testText,
-      editingEntry.findRegex,
-      editingEntry.replaceString,
-    );
+    return testRegex(testText, editingEntry.findRegex, editingEntry.replaceString);
   }, [editingEntry, testText]);
 
   /** v0.4.1: 从 PNG 角色卡导入正则脚本 */
@@ -459,7 +436,9 @@ export default function RegexPage() {
         const tempUuid = crypto.randomUUID();
         const imported = extractRegexScriptsFromCard(cardData, tempUuid);
         // v0.7.1: 直接导入时无关联角色，设为全局生效
-        imported.forEach(g => { g.enabledForCharacters = []; });
+        imported.forEach((g) => {
+          g.enabledForCharacters = [];
+        });
         if (imported.length === 0) {
           toast.warning("该角色卡中未检测到正则脚本");
           return;
@@ -532,9 +511,7 @@ export default function RegexPage() {
             <div className="grid grid-cols-1 gap-3 pb-4 lg:grid-cols-2">
               <AnimatePresence mode="popLayout">
                 {groups.map((g, i) => {
-                  const isGlobal =
-                    !g.enabledForCharacters ||
-                    g.enabledForCharacters.length === 0;
+                  const isGlobal = !g.enabledForCharacters || g.enabledForCharacters.length === 0;
                   return (
                     <motion.div
                       key={g.id}
@@ -548,9 +525,7 @@ export default function RegexPage() {
                         <div className="flex items-start gap-3 px-1">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <h3 className="truncate font-medium">
-                                {g.name || "未命名组"}
-                              </h3>
+                              <h3 className="truncate font-medium">{g.name || "未命名组"}</h3>
                               {g.enabled ? (
                                 <Badge variant="secondary" className="text-xs">
                                   启用
@@ -635,78 +610,76 @@ export default function RegexPage() {
           </DialogHeader>
           {editingGroup && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
-            <div className="grid gap-4 py-2">
-              {/* 组名称 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">正则组名称</label>
-                <Input
-                  value={editingGroup.name}
-                  onChange={(e) => updateGroupField("name", e.target.value)}
-                  placeholder="例如：格式化输出组"
-                />
-              </div>
-
-              {/* 组内条目列表 */}
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">组内条目</label>
-                  <Button variant="outline" size="sm" onClick={handleNewEntry}>
-                    <IconPlus className="mr-1 size-4" />
-                    添加条目
-                  </Button>
+              <div className="grid gap-4 py-2">
+                {/* 组名称 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">正则组名称</label>
+                  <Input
+                    value={editingGroup.name}
+                    onChange={(e) => updateGroupField("name", e.target.value)}
+                    placeholder="例如：格式化输出组"
+                  />
                 </div>
-                {editingGroup.entries.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                    暂无条目，点击「添加条目」创建
+
+                {/* 组内条目列表 */}
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">组内条目</label>
+                    <Button variant="outline" size="sm" onClick={handleNewEntry}>
+                      <IconPlus className="mr-1 size-4" />
+                      添加条目
+                    </Button>
                   </div>
-                ) : (
-                  <div className="grid gap-2">
-                    {editingGroup.entries.map((entry, idx) => (
-                      <div
-                        key={entry.id}
-                        className="flex items-center gap-2 rounded-lg border p-2"
-                      >
-                        <Switch
-                          checked={entry.enabled}
-                          onCheckedChange={(v) => handleToggleEntry(idx, v)}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {entry.name || "未命名"}
-                          </p>
-                          <div className="mt-0.5 flex flex-wrap gap-1">
-                            <Badge variant="outline" className="text-xs">
-                              {TIMING_LABELS[entry.timing]}
-                            </Badge>
-                            {entry.scope.map((s) => (
-                              <Badge key={s} variant="outline" className="text-xs">
-                                {SCOPE_LABELS[s]}
+                  {editingGroup.entries.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                      暂无条目，点击「添加条目」创建
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      {editingGroup.entries.map((entry, idx) => (
+                        <div
+                          key={entry.id}
+                          className="flex items-center gap-2 rounded-lg border p-2"
+                        >
+                          <Switch
+                            checked={entry.enabled}
+                            onCheckedChange={(v) => handleToggleEntry(idx, v)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{entry.name || "未命名"}</p>
+                            <div className="mt-0.5 flex flex-wrap gap-1">
+                              <Badge variant="outline" className="text-xs">
+                                {TIMING_LABELS[entry.timing]}
                               </Badge>
-                            ))}
+                              {entry.scope.map((s) => (
+                                <Badge key={s} variant="outline" className="text-xs">
+                                  {SCOPE_LABELS[s]}
+                                </Badge>
+                              ))}
+                            </div>
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="size-7 p-0"
+                            onClick={() => handleEditEntry(entry, idx)}
+                          >
+                            <IconEdit className="size-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="size-7 p-0 text-destructive"
+                            onClick={() => handleDeleteEntry(idx)}
+                          >
+                            <IconTrash className="size-4" />
+                          </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-7 p-0"
-                          onClick={() => handleEditEntry(entry, idx)}
-                        >
-                          <IconEdit className="size-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="size-7 p-0 text-destructive"
-                          onClick={() => handleDeleteEntry(idx)}
-                        >
-                          <IconTrash className="size-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
             </ScrollArea>
           )}
           <DialogFooter>
@@ -724,232 +697,228 @@ export default function RegexPage() {
           <DialogHeader>
             <DialogTitle>{isNewEntry ? "新建条目" : "编辑条目"}</DialogTitle>
             <DialogDescription>
-              配置正则查找替换规则，支持捕获组（$1、$2）和 {'{{match}}'} 变量
+              配置正则查找替换规则，支持捕获组（$1、$2）和 {"{{match}}"} 变量
             </DialogDescription>
           </DialogHeader>
           {editingEntry && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
-            <div className="grid gap-4 py-2">
-              {/* 1. 条目名称 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">条目名称</label>
-                <Input
-                  value={editingEntry.name}
-                  onChange={(e) => updateEntryField("name", e.target.value)}
-                  placeholder="例如：移除思维链"
-                />
-              </div>
-
-              {/* 2. 正则表达式 + 助手按钮 */}
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">正则表达式 (Find Regex)</label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => setShowRegexHelper(true)}
-                  >
-                    <IconWand className="mr-1 size-4" />
-                    正则助手
-                  </Button>
-                </div>
-                <Input
-                  value={editingEntry.findRegex}
-                  onChange={(e) => updateEntryField("findRegex", e.target.value)}
-                  placeholder="/pattern/flags 或直接输入正则"
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  支持 /pattern/flags 格式或直接输入正则。内联修饰符 (?s)(?i)(?m) 兼容
-                </p>
-              </div>
-
-              {/* 3. 替换内容 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">替换内容 (Replace With)</label>
-                <Textarea
-                  value={editingEntry.replaceString}
-                  onChange={(e) => updateEntryField("replaceString", e.target.value)}
-                  placeholder="例如：$1 或 {{match}}（支持捕获组 $1 $2 和 {{match}} 变量）"
-                  rows={3}
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  支持 $1、$2 捕获组引用，{'{{match}}'} 或 $0 表示完整匹配，{'{{user}}'} 替换为用户名
-                </p>
-              </div>
-
-              {/* 4. 替换前修剪 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">替换前修剪 (Trim Out)</label>
-                <Textarea
-                  value={editingEntry.trimOut ?? ""}
-                  onChange={(e) => updateEntryField("trimOut", e.target.value)}
-                  placeholder="每行一个正则，替换前从文本中移除匹配内容（可选）"
-                  rows={2}
-                  className="font-mono text-xs"
-                />
-                <p className="text-xs text-muted-foreground">
-                  在执行主替换前，先移除文本中匹配这些正则的内容。每行一个正则
-                </p>
-              </div>
-
-              {/* 5. 作用范围（多选） */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">作用范围</label>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.keys(SCOPE_LABELS) as RegexScope[]).map((s) => {
-                    const active = editingEntry.scope.includes(s);
-                    return (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => toggleScope(s)}
-                        className={cn(
-                          "rounded-md border px-3 py-1.5 text-xs transition-colors",
-                          active
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background hover:bg-muted",
-                        )}
-                      >
-                        {SCOPE_LABELS[s]}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  选择正则作用于哪些消息类型。可多选
-                </p>
-              </div>
-
-              {/* 6. 执行时机 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">执行时机</label>
-                <Select
-                  value={editingEntry.timing}
-                  onValueChange={(v) => updateEntryField("timing", v as RegexTiming)}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(TIMING_LABELS) as RegexTiming[]).map((t) => (
-                      <SelectItem key={t} value={t}>
-                        {TIMING_LABELS[t]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  显示时：仅影响前端显示；发送时：影响发送给 AI 的内容；接收时：影响 AI 回复处理
-                </p>
-              </div>
-
-              {/* 7. 参数替换 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">参数替换</label>
-                <Select
-                  value={editingEntry.paramReplace}
-                  onValueChange={(v) =>
-                    updateEntryField("paramReplace", v as RegexParamReplace)
-                  }
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(Object.keys(PARAM_REPLACE_LABELS) as RegexParamReplace[]).map((p) => (
-                      <SelectItem key={p} value={p}>
-                        {PARAM_REPLACE_LABELS[p]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  不替换：正常使用 $1 等捕获组；原文替换：$1 作为字面量输出；转义替换：对匹配内容 HTML 转义
-                </p>
-              </div>
-
-              {/* 8. 消息深度 */}
-              <div className="grid gap-2">
-                <label className="text-sm font-medium">消息深度范围</label>
-                <div className="flex items-center gap-2">
+              <div className="grid gap-4 py-2">
+                {/* 1. 条目名称 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">条目名称</label>
                   <Input
-                    type="number"
-                    min={0}
-                    value={editingEntry.depthRange?.min ?? ""}
-                    onChange={(e) => {
-                      const min = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                      const max = editingEntry.depthRange?.max;
-                      updateEntryField(
-                        "depthRange",
-                        min !== undefined || max !== undefined
-                          ? { min: min ?? 0, max: max ?? Number.MAX_SAFE_INTEGER }
-                          : undefined,
-                      );
-                    }}
-                    placeholder="最小"
-                    className="w-24"
-                  />
-                  <span className="text-muted-foreground">~</span>
-                  <Input
-                    type="number"
-                    min={0}
-                    value={
-                      editingEntry.depthRange?.max === Number.MAX_SAFE_INTEGER ||
-                      editingEntry.depthRange?.max === undefined
-                        ? ""
-                        : editingEntry.depthRange.max
-                    }
-                    onChange={(e) => {
-                      const max = e.target.value ? parseInt(e.target.value, 10) : undefined;
-                      const min = editingEntry.depthRange?.min ?? 0;
-                      updateEntryField(
-                        "depthRange",
-                        max !== undefined
-                          ? { min, max }
-                          : { min, max: Number.MAX_SAFE_INTEGER },
-                      );
-                    }}
-                    placeholder="最大（留空不限制）"
-                    className="w-40"
+                    value={editingEntry.name}
+                    onChange={(e) => updateEntryField("name", e.target.value)}
+                    placeholder="例如：移除思维链"
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  仅对指定深度范围内的消息生效。留空则不限制
-                </p>
-              </div>
 
-              {/* 正则测试预览 */}
-              <div className="grid gap-2 rounded-lg border bg-muted/30 p-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <IconPlay className="size-4" />
-                  正则测试
-                </div>
-                <Input
-                  value={testText}
-                  onChange={(e) => setTestText(e.target.value)}
-                  placeholder="输入测试文本..."
-                />
-                {testText && preview && (
-                  <div className="grid gap-1">
-                    {preview.error ? (
-                      <p className="text-xs text-destructive">
-                        正则错误：{preview.error}
-                      </p>
-                    ) : (
-                      <div className="rounded-md border bg-background p-2">
-                        <p className="mb-1 text-xs text-muted-foreground">结果</p>
-                        <p className="whitespace-pre-wrap break-words font-mono text-xs">
-                          {preview.result || "(空)"}
-                        </p>
-                      </div>
-                    )}
+                {/* 2. 正则表达式 + 助手按钮 */}
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">正则表达式 (Find Regex)</label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => setShowRegexHelper(true)}
+                    >
+                      <IconWand className="mr-1 size-4" />
+                      正则助手
+                    </Button>
                   </div>
-                )}
+                  <Input
+                    value={editingEntry.findRegex}
+                    onChange={(e) => updateEntryField("findRegex", e.target.value)}
+                    placeholder="/pattern/flags 或直接输入正则"
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    支持 /pattern/flags 格式或直接输入正则。内联修饰符 (?s)(?i)(?m) 兼容
+                  </p>
+                </div>
+
+                {/* 3. 替换内容 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">替换内容 (Replace With)</label>
+                  <Textarea
+                    value={editingEntry.replaceString}
+                    onChange={(e) => updateEntryField("replaceString", e.target.value)}
+                    placeholder="例如：$1 或 {{match}}（支持捕获组 $1 $2 和 {{match}} 变量）"
+                    rows={3}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    支持 $1、$2 捕获组引用，{"{{match}}"} 或 $0 表示完整匹配，{"{{user}}"}{" "}
+                    替换为用户名
+                  </p>
+                </div>
+
+                {/* 4. 替换前修剪 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">替换前修剪 (Trim Out)</label>
+                  <Textarea
+                    value={editingEntry.trimOut ?? ""}
+                    onChange={(e) => updateEntryField("trimOut", e.target.value)}
+                    placeholder="每行一个正则，替换前从文本中移除匹配内容（可选）"
+                    rows={2}
+                    className="font-mono text-xs"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    在执行主替换前，先移除文本中匹配这些正则的内容。每行一个正则
+                  </p>
+                </div>
+
+                {/* 5. 作用范围（多选） */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">作用范围</label>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(SCOPE_LABELS) as RegexScope[]).map((s) => {
+                      const active = editingEntry.scope.includes(s);
+                      return (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => toggleScope(s)}
+                          className={cn(
+                            "rounded-md border px-3 py-1.5 text-xs transition-colors",
+                            active
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-border bg-background hover:bg-muted",
+                          )}
+                        >
+                          {SCOPE_LABELS[s]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    选择正则作用于哪些消息类型。可多选
+                  </p>
+                </div>
+
+                {/* 6. 执行时机 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">执行时机</label>
+                  <Select
+                    value={editingEntry.timing}
+                    onValueChange={(v) => updateEntryField("timing", v as RegexTiming)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(TIMING_LABELS) as RegexTiming[]).map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {TIMING_LABELS[t]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    显示时：仅影响前端显示；发送时：影响发送给 AI 的内容；接收时：影响 AI 回复处理
+                  </p>
+                </div>
+
+                {/* 7. 参数替换 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">参数替换</label>
+                  <Select
+                    value={editingEntry.paramReplace}
+                    onValueChange={(v) => updateEntryField("paramReplace", v as RegexParamReplace)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(PARAM_REPLACE_LABELS) as RegexParamReplace[]).map((p) => (
+                        <SelectItem key={p} value={p}>
+                          {PARAM_REPLACE_LABELS[p]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    不替换：正常使用 $1 等捕获组；原文替换：$1 作为字面量输出；转义替换：对匹配内容
+                    HTML 转义
+                  </p>
+                </div>
+
+                {/* 8. 消息深度 */}
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium">消息深度范围</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={editingEntry.depthRange?.min ?? ""}
+                      onChange={(e) => {
+                        const min = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                        const max = editingEntry.depthRange?.max;
+                        updateEntryField(
+                          "depthRange",
+                          min !== undefined || max !== undefined
+                            ? { min: min ?? 0, max: max ?? Number.MAX_SAFE_INTEGER }
+                            : undefined,
+                        );
+                      }}
+                      placeholder="最小"
+                      className="w-24"
+                    />
+                    <span className="text-muted-foreground">~</span>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={
+                        editingEntry.depthRange?.max === Number.MAX_SAFE_INTEGER ||
+                        editingEntry.depthRange?.max === undefined
+                          ? ""
+                          : editingEntry.depthRange.max
+                      }
+                      onChange={(e) => {
+                        const max = e.target.value ? parseInt(e.target.value, 10) : undefined;
+                        const min = editingEntry.depthRange?.min ?? 0;
+                        updateEntryField(
+                          "depthRange",
+                          max !== undefined ? { min, max } : { min, max: Number.MAX_SAFE_INTEGER },
+                        );
+                      }}
+                      placeholder="最大（留空不限制）"
+                      className="w-40"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    仅对指定深度范围内的消息生效。留空则不限制
+                  </p>
+                </div>
+
+                {/* 正则测试预览 */}
+                <div className="grid gap-2 rounded-lg border bg-muted/30 p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <IconPlay className="size-4" />
+                    正则测试
+                  </div>
+                  <Input
+                    value={testText}
+                    onChange={(e) => setTestText(e.target.value)}
+                    placeholder="输入测试文本..."
+                  />
+                  {testText && preview && (
+                    <div className="grid gap-1">
+                      {preview.error ? (
+                        <p className="text-xs text-destructive">正则错误：{preview.error}</p>
+                      ) : (
+                        <div className="rounded-md border bg-background p-2">
+                          <p className="mb-1 text-xs text-muted-foreground">结果</p>
+                          <p className="whitespace-pre-wrap break-words font-mono text-xs">
+                            {preview.result || "(空)"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
             </ScrollArea>
           )}
           <DialogFooter>
@@ -971,9 +940,7 @@ export default function RegexPage() {
             </SheetTitle>
           </SheetHeader>
           <div className="grid gap-2 p-4">
-            <p className="text-sm text-muted-foreground">
-              选择一个预设，一键填入正则表达式
-            </p>
+            <p className="text-sm text-muted-foreground">选择一个预设，一键填入正则表达式</p>
             {REGEX_PRESETS.map((preset) => (
               <button
                 key={preset.label}
@@ -984,14 +951,10 @@ export default function RegexPage() {
                 <div>
                   <p className="text-sm font-medium">{preset.label}</p>
                   {preset.value && (
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                      {preset.value}
-                    </p>
+                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">{preset.value}</p>
                   )}
                   {preset.needsInput && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      点击后输入标签名称
-                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">点击后输入标签名称</p>
                   )}
                 </div>
                 <IconCopyEdit className="size-4 text-muted-foreground" />
@@ -1002,19 +965,14 @@ export default function RegexPage() {
       </Sheet>
 
       {/* 角色卡绑定弹窗 */}
-      <Dialog
-        open={!!showCharDialog}
-        onOpenChange={(o) => !o && setShowCharDialog(null)}
-      >
+      <Dialog open={!!showCharDialog} onOpenChange={(o) => !o && setShowCharDialog(null)}>
         <DialogContent className="max-h-[80vh] min-w-0 overflow-hidden max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <IconUserGroup className="size-4" />
               角色卡绑定
             </DialogTitle>
-            <DialogDescription>
-              选择启用此正则组的角色卡（不选则全局启用）
-            </DialogDescription>
+            <DialogDescription>选择启用此正则组的角色卡（不选则全局启用）</DialogDescription>
           </DialogHeader>
           {showCharDialog && (
             <RegexCharBindingContent
@@ -1098,14 +1056,8 @@ function RegexCharBindingContent({
                     whileTap={{ scale: 0.99 }}
                     className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/10 bg-background/40 p-2 backdrop-blur-sm transition-colors hover:bg-muted/50"
                   >
-                    <motion.div
-                      layout
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        onCheckedChange={() => handleToggle(c.uuid)}
-                      />
+                    <motion.div layout transition={{ type: "spring", stiffness: 500, damping: 30 }}>
+                      <Checkbox checked={checked} onCheckedChange={() => handleToggle(c.uuid)} />
                     </motion.div>
                     <span className="text-sm">{c.name}</span>
                   </motion.label>
@@ -1118,19 +1070,14 @@ function RegexCharBindingContent({
       <DialogFooter>
         <div className="flex w-full items-center justify-between">
           <span className="text-xs text-muted-foreground">
-            {selected.size === 0
-              ? "全局启用（所有角色）"
-              : `已选 ${selected.size} 个角色`}
+            {selected.size === 0 ? "全局启用（所有角色）" : `已选 ${selected.size} 个角色`}
           </span>
           <div className="flex gap-2">
             <Button variant="outline" onClick={onCancel}>
               <IconClose className="mr-1 size-3.5" />
               取消
             </Button>
-            <Button
-              onClick={() => onSave(group, Array.from(selected))}
-              {...pressable}
-            >
+            <Button onClick={() => onSave(group, Array.from(selected))} {...pressable}>
               <IconCheck className="mr-1 size-3.5" />
               确定
             </Button>

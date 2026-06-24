@@ -53,18 +53,11 @@ function AppHeader({
       {/* 顶部渐变光晕（液态玻璃质感增强） */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       {/* 菜单按钮（仅移动端显示） */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="md:hidden"
-        onClick={onMenuClick}
-      >
+      <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
         <IconMenu className="size-5" />
       </Button>
       {/* 标题 */}
-      {title && (
-        <h1 className="flex-1 truncate text-base font-semibold drop-shadow-sm">{title}</h1>
-      )}
+      {title && <h1 className="flex-1 truncate text-base font-semibold drop-shadow-sm">{title}</h1>}
       {/* 右侧操作区 */}
       {actions && <div className="flex items-center gap-1">{actions}</div>}
     </header>
@@ -95,12 +88,7 @@ export function LuzzyLayout({
           onMenuClick={toggleSideMenu}
           className={headerClassName}
         />
-        <main
-          className={cn(
-            "flex-1 overflow-hidden min-h-0 min-w-0",
-            contentClassName,
-          )}
-        >
+        <main className={cn("flex-1 overflow-hidden min-h-0 min-w-0", contentClassName)}>
           {children}
         </main>
       </div>

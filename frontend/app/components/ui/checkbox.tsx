@@ -1,10 +1,10 @@
 "use client"
 
 import * as React from "react"
-import { CheckIcon } from "lucide-react"
 import { Checkbox as CheckboxPrimitive } from "radix-ui"
 
 import { cn } from "~/lib/utils"
+import { IconCheck } from "~/components/luzzy/luzzy-icons"
 
 function Checkbox({
   className,
@@ -23,7 +23,7 @@ function Checkbox({
         data-slot="checkbox-indicator"
         className="grid place-content-center text-current transition-none"
       >
-        <CheckIcon className="size-3.5" />
+        <IconCheck className="size-3.5" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )

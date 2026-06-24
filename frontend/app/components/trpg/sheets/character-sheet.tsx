@@ -37,13 +37,7 @@ import {
 import { useAppStore } from "~/stores";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { springSoft } from "~/lib/motion-presets";
-import type {
-  AbilityName,
-  SkillName,
-  TrpgCharacter,
-  GameNpc,
-  NpcAttitude,
-} from "~/types/trpg";
+import type { AbilityName, SkillName, TrpgCharacter, GameNpc, NpcAttitude } from "~/types/trpg";
 
 // ============================================================================
 // 主组件
@@ -84,168 +78,160 @@ export function CharacterSheet() {
       {/* ===== 自己 Tab ===== */}
       {tab === "self" && character && (
         <ScrollArea className="flex-1">
-      {/* ===== 角色头部 ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={springSoft}
-        className="flex flex-col items-center gap-2 p-4"
-      >
-        <div className="flex size-16 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5">
-          <IconCharacter className="size-8 text-primary" />
-        </div>
-        <div className="text-center">
-          <h2 className="text-lg font-semibold text-foreground">
-            {character.name}
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            {character.race} · {character.class} · Lv.{character.level}
-          </p>
-        </div>
-      </motion.div>
-
-      {/* ===== HP/AC/XP 状态条 ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...springSoft, delay: 0.05 }}
-        className="grid grid-cols-3 gap-2 px-4"
-      >
-        <StatusCard
-          icon={<IconHeart className="size-3.5" />}
-          label="HP"
-          value={`${character.hp.current}/${character.hp.max}`}
-          color="text-red-500"
-        />
-        <StatusCard
-          icon={<IconShield className="size-3.5" />}
-          label="AC"
-          value={String(character.ac)}
-          color="text-blue-500"
-        />
-        <StatusCard
-          icon={<IconLevel className="size-3.5" />}
-          label="XP"
-          value={String(character.xp)}
-          color="text-amber-500"
-        />
-      </motion.div>
-
-      {/* ===== 六维属性 ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...springSoft, delay: 0.1 }}
-        className="space-y-2 p-4"
-      >
-        <SectionTitle icon={<IconStar className="size-3.5" />} title="六维属性" />
-        <div className="grid grid-cols-3 gap-2">
-          <AbilityCard name="str" label="力量" value={character.abilities.str} />
-          <AbilityCard name="dex" label="敏捷" value={character.abilities.dex} />
-          <AbilityCard name="con" label="体质" value={character.abilities.con} />
-          <AbilityCard name="int" label="智力" value={character.abilities.int} />
-          <AbilityCard name="wis" label="感知" value={character.abilities.wis} />
-          <AbilityCard name="cha" label="魅力" value={character.abilities.cha} />
-        </div>
-      </motion.div>
-
-      {/* ===== 技能 ===== */}
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ ...springSoft, delay: 0.15 }}
-        className="space-y-2 px-4 pb-4"
-      >
-        <SectionTitle icon={<IconBook className="size-3.5" />} title="技能" />
-        <div className="grid grid-cols-2 gap-1">
-          {SKILL_LIST.map((skill) => (
-            <SkillRow
-              key={skill.name}
-              skill={skill}
-              proficient={character.proficientSkills.includes(skill.name)}
-              expertise={character.expertiseSkills.includes(skill.name)}
-              abilityValue={character.abilities[skill.ability]}
-            />
-          ))}
-        </div>
-      </motion.div>
-
-      {/* ===== 状态 ===== */}
-      {character.conditions.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...springSoft, delay: 0.2 }}
-          className="space-y-2 px-4 pb-4"
-        >
-          <SectionTitle
-            icon={<IconExclamation className="size-3.5" />}
-            title="状态"
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {character.conditions.map((cond) => (
-              <span
-                key={cond}
-                className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400"
-              >
-                {cond}
-              </span>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* ===== 职业特性 ===== */}
-      {character.classFeatures.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...springSoft, delay: 0.25 }}
-          className="space-y-2 px-4 pb-4"
-        >
-          <SectionTitle
-            icon={<IconSword className="size-3.5" />}
-            title="职业特性"
-          />
-          <div className="space-y-1">
-            {character.classFeatures.map((feat, i) => (
-              <div
-                key={i}
-                className="rounded-md border border-border/20 bg-muted/10 px-2.5 py-1.5 text-xs text-muted-foreground"
-              >
-                {feat}
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
-
-      {/* ===== 背景 ===== */}
-      {(character.background || character.alignment) && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ ...springSoft, delay: 0.3 }}
-          className="space-y-2 px-4 pb-4"
-        >
-          <SectionTitle icon={<IconBook className="size-3.5" />} title="背景" />
-          <div className="space-y-1.5 rounded-md border border-border/20 bg-muted/10 p-2.5">
-            {character.alignment && (
-              <div className="flex items-center gap-1.5 text-xs">
-                <IconCrown className="size-3 text-amber-500" />
-                <span className="text-muted-foreground">阵营:</span>
-                <span className="text-foreground">{character.alignment}</span>
-              </div>
-            )}
-            {character.background && (
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                {character.background}
+          {/* ===== 角色头部 ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={springSoft}
+            className="flex flex-col items-center gap-2 p-4"
+          >
+            <div className="flex size-16 items-center justify-center rounded-full border-2 border-primary/20 bg-primary/5">
+              <IconCharacter className="size-8 text-primary" />
+            </div>
+            <div className="text-center">
+              <h2 className="text-lg font-semibold text-foreground">{character.name}</h2>
+              <p className="text-xs text-muted-foreground">
+                {character.race} · {character.class} · Lv.{character.level}
               </p>
-            )}
-          </div>
-        </motion.div>
-      )}
-      </ScrollArea>
+            </div>
+          </motion.div>
+
+          {/* ===== HP/AC/XP 状态条 ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...springSoft, delay: 0.05 }}
+            className="grid grid-cols-3 gap-2 px-4"
+          >
+            <StatusCard
+              icon={<IconHeart className="size-3.5" />}
+              label="HP"
+              value={`${character.hp.current}/${character.hp.max}`}
+              color="text-red-500"
+            />
+            <StatusCard
+              icon={<IconShield className="size-3.5" />}
+              label="AC"
+              value={String(character.ac)}
+              color="text-blue-500"
+            />
+            <StatusCard
+              icon={<IconLevel className="size-3.5" />}
+              label="XP"
+              value={String(character.xp)}
+              color="text-amber-500"
+            />
+          </motion.div>
+
+          {/* ===== 六维属性 ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...springSoft, delay: 0.1 }}
+            className="space-y-2 p-4"
+          >
+            <SectionTitle icon={<IconStar className="size-3.5" />} title="六维属性" />
+            <div className="grid grid-cols-3 gap-2">
+              <AbilityCard name="str" label="力量" value={character.abilities.str} />
+              <AbilityCard name="dex" label="敏捷" value={character.abilities.dex} />
+              <AbilityCard name="con" label="体质" value={character.abilities.con} />
+              <AbilityCard name="int" label="智力" value={character.abilities.int} />
+              <AbilityCard name="wis" label="感知" value={character.abilities.wis} />
+              <AbilityCard name="cha" label="魅力" value={character.abilities.cha} />
+            </div>
+          </motion.div>
+
+          {/* ===== 技能 ===== */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...springSoft, delay: 0.15 }}
+            className="space-y-2 px-4 pb-4"
+          >
+            <SectionTitle icon={<IconBook className="size-3.5" />} title="技能" />
+            <div className="grid grid-cols-2 gap-1">
+              {SKILL_LIST.map((skill) => (
+                <SkillRow
+                  key={skill.name}
+                  skill={skill}
+                  proficient={character.proficientSkills.includes(skill.name)}
+                  expertise={character.expertiseSkills.includes(skill.name)}
+                  abilityValue={character.abilities[skill.ability]}
+                />
+              ))}
+            </div>
+          </motion.div>
+
+          {/* ===== 状态 ===== */}
+          {character.conditions.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springSoft, delay: 0.2 }}
+              className="space-y-2 px-4 pb-4"
+            >
+              <SectionTitle icon={<IconExclamation className="size-3.5" />} title="状态" />
+              <div className="flex flex-wrap gap-1.5">
+                {character.conditions.map((cond) => (
+                  <span
+                    key={cond}
+                    className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-xs text-amber-600 dark:text-amber-400"
+                  >
+                    {cond}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ===== 职业特性 ===== */}
+          {character.classFeatures.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springSoft, delay: 0.25 }}
+              className="space-y-2 px-4 pb-4"
+            >
+              <SectionTitle icon={<IconSword className="size-3.5" />} title="职业特性" />
+              <div className="space-y-1">
+                {character.classFeatures.map((feat, i) => (
+                  <div
+                    key={i}
+                    className="rounded-md border border-border/20 bg-muted/10 px-2.5 py-1.5 text-xs text-muted-foreground"
+                  >
+                    {feat}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ===== 背景 ===== */}
+          {(character.background || character.alignment) && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ ...springSoft, delay: 0.3 }}
+              className="space-y-2 px-4 pb-4"
+            >
+              <SectionTitle icon={<IconBook className="size-3.5" />} title="背景" />
+              <div className="space-y-1.5 rounded-md border border-border/20 bg-muted/10 p-2.5">
+                {character.alignment && (
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <IconCrown className="size-3 text-amber-500" />
+                    <span className="text-muted-foreground">阵营:</span>
+                    <span className="text-foreground">{character.alignment}</span>
+                  </div>
+                )}
+                {character.background && (
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    {character.background}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </ScrollArea>
       )}
 
       {/* ===== NPC Tab ===== */}
@@ -293,9 +279,7 @@ function StatusCard({
       transition={springSoft}
       className="flex flex-col items-center gap-0.5 rounded-lg border border-border/20 bg-background/40 p-2"
     >
-      <div className={`flex items-center gap-1 ${color}`}>
-        {icon}
-      </div>
+      <div className={`flex items-center gap-1 ${color}`}>{icon}</div>
       <span className="text-[10px] text-muted-foreground">{label}</span>
       <span className="text-sm font-bold text-foreground">{value}</span>
     </motion.div>
@@ -306,15 +290,7 @@ function StatusCard({
 // 属性卡片
 // ============================================================================
 
-function AbilityCard({
-  name,
-  label,
-  value,
-}: {
-  name: AbilityName;
-  label: string;
-  value: number;
-}) {
+function AbilityCard({ name, label, value }: { name: AbilityName; label: string; value: number }) {
   const modifier = Math.floor((value - 10) / 2);
   const modStr = modifier >= 0 ? `+${modifier}` : `${modifier}`;
 
@@ -371,9 +347,7 @@ function SkillRow({
         <span className="size-3" />
       )}
       <span className="min-w-0 flex-1 truncate">{skill.label}</span>
-      <span className="font-mono text-[10px]">
-        {modifier >= 0 ? `+${modifier}` : modifier}
-      </span>
+      <span className="font-mono text-[10px]">{modifier >= 0 ? `+${modifier}` : modifier}</span>
     </div>
   );
 }
@@ -382,13 +356,7 @@ function SkillRow({
 // 区块标题
 // ============================================================================
 
-function SectionTitle({
-  icon,
-  title,
-}: {
-  icon: React.ReactNode;
-  title: string;
-}) {
+function SectionTitle({ icon, title }: { icon: React.ReactNode; title: string }) {
   return (
     <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
       <span className="text-primary">{icon}</span>
@@ -431,9 +399,7 @@ function EmptyCharacter() {
     <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-center">
       <IconCharacter className="size-10 text-muted-foreground/40" />
       <p className="text-sm text-muted-foreground">未加载存档</p>
-      <p className="text-xs text-muted-foreground/60">
-        请先创建或加载一个存档
-      </p>
+      <p className="text-xs text-muted-foreground/60">请先创建或加载一个存档</p>
     </div>
   );
 }
@@ -460,9 +426,7 @@ function TabButton({
       whileTap={{ scale: 0.95 }}
       transition={springSoft}
       className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-        active
-          ? "bg-primary/10 text-primary"
-          : "text-muted-foreground hover:text-foreground"
+        active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
       }`}
     >
       {icon}
@@ -477,9 +441,15 @@ function TabButton({
 
 const ATTITUDE_INFO: Record<NpcAttitude, { label: string; className: string }> = {
   hostile: { label: "敌对", className: "bg-red-500/10 text-red-600 dark:text-red-400" },
-  unfriendly: { label: "不友善", className: "bg-orange-500/10 text-orange-600 dark:text-orange-400" },
+  unfriendly: {
+    label: "不友善",
+    className: "bg-orange-500/10 text-orange-600 dark:text-orange-400",
+  },
   neutral: { label: "中立", className: "bg-muted/30 text-muted-foreground" },
-  friendly: { label: "友善", className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  friendly: {
+    label: "友善",
+    className: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  },
   helpful: { label: "乐于助人", className: "bg-green-500/10 text-green-600 dark:text-green-400" },
 };
 
@@ -487,21 +457,13 @@ const ATTITUDE_INFO: Record<NpcAttitude, { label: string; className: string }> =
 // NPC 列表视图
 // ============================================================================
 
-function NpcListView({
-  npcs,
-  onSelect,
-}: {
-  npcs: GameNpc[];
-  onSelect: (id: string) => void;
-}) {
+function NpcListView({ npcs, onSelect }: { npcs: GameNpc[]; onSelect: (id: string) => void }) {
   if (npcs.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
         <IconUserGroup className="size-10 text-muted-foreground/40" />
         <p className="text-sm text-muted-foreground">暂无 NPC</p>
-        <p className="text-xs text-muted-foreground/60">
-          NPC 将在游戏进程中出现
-        </p>
+        <p className="text-xs text-muted-foreground/60">NPC 将在游戏进程中出现</p>
       </div>
     );
   }
@@ -576,20 +538,12 @@ function NpcListItem({
 // NPC 详情弹层（渐进式解锁：未揭示字段显示 ???）
 // ============================================================================
 
-function NpcDetailModal({
-  npc,
-  onClose,
-}: {
-  npc: GameNpc;
-  onClose: () => void;
-}) {
+function NpcDetailModal({ npc, onClose }: { npc: GameNpc; onClose: () => void }) {
   const revealed = new Set(npc.revealedFields);
   const isRevealed = (key: string) => revealed.has(key);
   const attitude = ATTITUDE_INFO[npc.attitude] ?? ATTITUDE_INFO.neutral;
   const hpPct =
-    npc.hp.max > 0
-      ? Math.max(0, Math.min(100, (npc.hp.current / npc.hp.max) * 100))
-      : 0;
+    npc.hp.max > 0 ? Math.max(0, Math.min(100, (npc.hp.current / npc.hp.max) * 100)) : 0;
 
   return (
     <motion.div
@@ -615,9 +569,7 @@ function NpcDetailModal({
               <IconCharacter className="size-5 text-primary" />
             </div>
             <div>
-              <h3 className="text-base font-semibold text-foreground">
-                {npc.name}
-              </h3>
+              <h3 className="text-base font-semibold text-foreground">{npc.name}</h3>
               <p className="text-[11px] text-muted-foreground">
                 {isRevealed("gender") ? npc.gender : "???"} ·{" "}
                 {isRevealed("age") ? `${npc.age}岁` : "???"}
@@ -697,9 +649,7 @@ function NpcDetailModal({
                 >
                   <span className="text-muted-foreground">{key}</span>
                   {revealedField ? (
-                    <span className="max-w-[60%] truncate text-foreground">
-                      {value}
-                    </span>
+                    <span className="max-w-[60%] truncate text-foreground">{value}</span>
                   ) : (
                     <span className="flex items-center gap-1 text-muted-foreground/60">
                       <IconLock className="size-3" />

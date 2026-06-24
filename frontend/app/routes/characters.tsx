@@ -30,7 +30,15 @@ import {
 } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
-import type { Character, WorldInfoEntry, RegexScriptGroup, UiTemplate, MemorySettings, ApiSettings, ApiProvider } from "~/types/luzzy";
+import type {
+  Character,
+  WorldInfoEntry,
+  RegexScriptGroup,
+  UiTemplate,
+  MemorySettings,
+  ApiSettings,
+  ApiProvider,
+} from "~/types/luzzy";
 import { logger } from "~/services/logger";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { SwipeCard } from "~/components/luzzy/swipe-card";
@@ -66,11 +74,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import {
-  springEnter,
-  pressableSubtle,
-  pressable,
-} from "~/lib/motion-presets";
+import { springEnter, pressableSubtle, pressable } from "~/lib/motion-presets";
 import { getItem, setItem } from "~/services/storage";
 // v0.4.1: 角色卡解析与提取函数已抽取为公共服务
 import {
@@ -237,9 +241,7 @@ function writePngTextChunk(pngBytes: Uint8Array, keyword: string, text: string):
   const ihdrEnd = 33;
   const before = pngBytes.subarray(0, ihdrEnd);
   const after = pngBytes.subarray(ihdrEnd);
-  const newPng = new Uint8Array(
-    before.length + 4 + 4 + chunkData.length + 4 + after.length,
-  );
+  const newPng = new Uint8Array(before.length + 4 + 4 + chunkData.length + 4 + after.length);
   let offset = 0;
   newPng.set(before, offset);
   offset += before.length;
@@ -439,9 +441,7 @@ export default function CharactersPage() {
 
     // 标签筛选
     if (selectedTags.length > 0) {
-      result = result.filter((c) =>
-        selectedTags.every((tag) => c.tags.includes(tag)),
-      );
+      result = result.filter((c) => selectedTags.every((tag) => c.tags.includes(tag)));
     }
 
     // 排序
@@ -467,10 +467,7 @@ export default function CharactersPage() {
   }, []);
 
   // v0.4.4: 鹿溪角色保护 - 禁止编辑/删除/分享
-  const isLuxiCharacter = React.useCallback(
-    (c: Character) => c.name === LUXI_CHARACTER_NAME,
-    [],
-  );
+  const isLuxiCharacter = React.useCallback((c: Character) => c.name === LUXI_CHARACTER_NAME, []);
 
   /** 打开编辑弹窗 */
   const handleEdit = React.useCallback((c: Character) => {
@@ -560,20 +557,13 @@ export default function CharactersPage() {
           "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC";
 
         // 2. 通过 extensions.worldInfoId 过滤关联的世界书条目
-        const worldInfoId = c.extensions?.worldInfoId as
-          | string
-          | null
-          | undefined;
+        const worldInfoId = c.extensions?.worldInfoId as string | null | undefined;
         const boundWorldInfoEntries = worldInfoId
           ? worldInfoEntries.filter((e) => e.bookId === worldInfoId)
           : [];
 
         // 3. 调用 writePngCharacterCard 生成 PNG Blob
-        const pngBlob = await writePngCharacterCard(
-          avatarDataUrl,
-          c,
-          boundWorldInfoEntries,
-        );
+        const pngBlob = await writePngCharacterCard(avatarDataUrl, c, boundWorldInfoEntries);
 
         // 4. 根据运行环境选择保存方式
         // v0.4.5: 方案 D - 原生平台使用 NativeBridge 写入临时文件后唤起系统分享面板
@@ -581,12 +571,17 @@ export default function CharactersPage() {
           // Android: 使用 NativeBridge 写入临时文件,然后唤起分享
           const base64Data = await blobToBase64(pngBlob);
           const fileName = `${c.name || "character"}.png`;
-          const { uri } = await writeFile("EXTERNAL", `Pictures/LUZZY/${fileName}`, base64Data, true);
+          const { uri } = await writeFile(
+            "EXTERNAL",
+            `Pictures/LUZZY/${fileName}`,
+            base64Data,
+            true,
+          );
           if (uri) {
-            await shareFile(uri, c.name || '角色卡', '导出角色卡');
-            toast.success('已唤起分享');
+            await shareFile(uri, c.name || "角色卡", "导出角色卡");
+            toast.success("已唤起分享");
           } else {
-            toast.error('导出失败:无法创建文件');
+            toast.error("导出失败:无法创建文件");
           }
         } else {
           // Web: 回退到 <a download> 下载
@@ -624,26 +619,31 @@ export default function CharactersPage() {
         // 无会话则自动新建（v0.3.5: 注入角色卡开场白）
         createSession(c.uuid, c.name, c.firstMessage);
         // 同步消息列表（开场白已由 createSession 预置）
-        const newSession = useAppStore.getState().sessions.find(
-          (s) => s.characterId === c.uuid && s.messages.length > 0
-        );
+        const newSession = useAppStore
+          .getState()
+          .sessions.find((s) => s.characterId === c.uuid && s.messages.length > 0);
         setMessages(newSession?.messages ?? []);
       }
       navigate("/");
     },
-    [setCurrentCharacterUuid, setCurrentCharacter, sessions, switchSession, setMessages, createSession, navigate],
+    [
+      setCurrentCharacterUuid,
+      setCurrentCharacter,
+      sessions,
+      switchSession,
+      setMessages,
+      createSession,
+      navigate,
+    ],
   );
 
   /** v0.3.4: 点击头像预览大图 */
-  const handleAvatarClick = React.useCallback(
-    (e: React.MouseEvent, c: Character) => {
-      e.stopPropagation();
-      if (c.avatar) {
-        setPreviewAvatar(c.avatar);
-      }
-    },
-    [],
-  );
+  const handleAvatarClick = React.useCallback((e: React.MouseEvent, c: Character) => {
+    e.stopPropagation();
+    if (c.avatar) {
+      setPreviewAvatar(c.avatar);
+    }
+  }, []);
 
   /**
    * v0.7.3-fix: 处理导入角色卡的额外资源（世界书、正则脚本、UI模板、头像）
@@ -675,11 +675,13 @@ export default function CharactersPage() {
         try {
           const existing = (await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo")) ?? [];
           await setItem("worldInfo", "worldInfo", [...existing, ...worldInfoEntries]);
-          const updatedCharacters = useAppStore.getState().characters.map(c =>
-            c.uuid === characterUuid
-              ? { ...c, extensions: { ...c.extensions, worldInfoId: characterUuid } }
-              : c
-          );
+          const updatedCharacters = useAppStore
+            .getState()
+            .characters.map((c) =>
+              c.uuid === characterUuid
+                ? { ...c, extensions: { ...c.extensions, worldInfoId: characterUuid } }
+                : c,
+            );
           useAppStore.setState({ characters: updatedCharacters });
           await useAppStore.getState().saveCharacters();
           toast.success(`已自动关联 ${worldInfoEntries.length} 条世界书`);
@@ -693,10 +695,7 @@ export default function CharactersPage() {
                 return;
               }
               const st = useAppStore.getState();
-              const allProviders: ApiProvider[] = [
-                ...BUILTIN_PROVIDERS,
-                ...st.customApiProviders,
-              ];
+              const allProviders: ApiProvider[] = [...BUILTIN_PROVIDERS, ...st.customApiProviders];
               const apiSettings: ApiSettings = {
                 apiUrl: st.apiUrl,
                 apiKey: st.apiKey,
@@ -748,10 +747,11 @@ export default function CharactersPage() {
       const importedUiTemplates = extractUiTemplatesFromCard(cardData, characterUuid);
       if (importedUiTemplates.length > 0) {
         try {
-          const existingTemplates = (await getItem<UiTemplate[]>("uiTemplates", "uiTemplates")) ?? [];
+          const existingTemplates =
+            (await getItem<UiTemplate[]>("uiTemplates", "uiTemplates")) ?? [];
           const merged = [...existingTemplates];
           for (const t of importedUiTemplates) {
-            if (!merged.some(et => et.name === t.name && et.content === t.content)) {
+            if (!merged.some((et) => et.name === t.name && et.content === t.content)) {
               merged.push(t);
             }
           }
@@ -868,23 +868,20 @@ export default function CharactersPage() {
   );
 
   /** 更新自定义背景字段（opacity/blur） */
-  const updateBackgroundField = React.useCallback(
-    (key: "opacity" | "blur", value: number) => {
-      setEditing((prev) => {
-        if (!prev) return prev;
-        const current = prev.customBackground ?? {
-          image: "",
-          opacity: 80,
-          blur: 0,
-        };
-        return {
-          ...prev,
-          customBackground: { ...current, [key]: value },
-        };
-      });
-    },
-    [],
-  );
+  const updateBackgroundField = React.useCallback((key: "opacity" | "blur", value: number) => {
+    setEditing((prev) => {
+      if (!prev) return prev;
+      const current = prev.customBackground ?? {
+        image: "",
+        opacity: 80,
+        blur: 0,
+      };
+      return {
+        ...prev,
+        customBackground: { ...current, [key]: value },
+      };
+    });
+  }, []);
 
   /** 编辑表单字段更新 */
   const updateField = React.useCallback(
@@ -1015,9 +1012,7 @@ export default function CharactersPage() {
                   <IconCharacter className="size-6" />
                 </EmptyMedia>
                 <EmptyTitle>
-                  {searchQuery || selectedTags.length > 0
-                    ? "未找到匹配的角色卡"
-                    : "还没有角色卡"}
+                  {searchQuery || selectedTags.length > 0 ? "未找到匹配的角色卡" : "还没有角色卡"}
                 </EmptyTitle>
                 <EmptyDescription>
                   {searchQuery || selectedTags.length > 0
@@ -1169,355 +1164,365 @@ export default function CharactersPage() {
         <DialogContent className="max-h-[85vh] min-w-0 overflow-hidden max-w-2xl">
           <DialogHeader>
             <DialogTitle>{isNew ? "新建角色卡" : "编辑角色卡"}</DialogTitle>
-            <DialogDescription>
-              填写角色卡信息，支持 SillyTavern 兼容格式
-            </DialogDescription>
+            <DialogDescription>填写角色卡信息，支持 SillyTavern 兼容格式</DialogDescription>
           </DialogHeader>
           {editing && (
             <ScrollArea className="flex-1 min-h-0 pr-2">
-            <div className="grid min-w-0 gap-4 py-2">
-              {/* 名称 */}
-              <div className="grid min-w-0 gap-2">
-                <label className="text-sm font-medium">名称</label>
-                <Input
-                  value={editing.name}
-                  onChange={(e) => updateField("name", e.target.value)}
-                  placeholder="角色名称"
-                  className="max-w-full"
-                  inputMode="text"
-                />
-              </div>
+              <div className="grid min-w-0 gap-4 py-2">
+                {/* 名称 */}
+                <div className="grid min-w-0 gap-2">
+                  <label className="text-sm font-medium">名称</label>
+                  <Input
+                    value={editing.name}
+                    onChange={(e) => updateField("name", e.target.value)}
+                    placeholder="角色名称"
+                    className="max-w-full"
+                    inputMode="text"
+                  />
+                </div>
 
-              {/* 头像上传（呼出文件管理） */}
-              <div className="grid min-w-0 gap-2">
-                <label className="text-sm font-medium">头像</label>
-                <div className="flex min-w-0 items-center gap-3">
-                  <Avatar className="size-16 shrink-0 rounded-lg">
-                    <AvatarImage src={editing.avatar} alt={editing.name} />
-                    <AvatarFallback className="rounded-lg">
-                      <IconUser className="size-6" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex min-w-0 flex-col gap-2">
+                {/* 头像上传（呼出文件管理） */}
+                <div className="grid min-w-0 gap-2">
+                  <label className="text-sm font-medium">头像</label>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Avatar className="size-16 shrink-0 rounded-lg">
+                      <AvatarImage src={editing.avatar} alt={editing.name} />
+                      <AvatarFallback className="rounded-lg">
+                        <IconUser className="size-6" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => avatarInputRef.current?.click()}
+                      >
+                        <IconImage className="mr-2 size-4" />
+                        选择头像
+                      </Button>
+                      {editing.avatar && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground"
+                          onClick={() => updateField("avatar", "")}
+                        >
+                          移除头像
+                        </Button>
+                      )}
+                    </div>
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAvatarUpload}
+                    />
+                  </div>
+                </div>
+
+                {/* 背景与性格（提示词） */}
+                <div className="grid min-w-0 gap-2">
+                  <label className="text-sm font-medium">背景与性格（提示词）</label>
+                  <Textarea
+                    value={editing.description}
+                    onChange={(e) => updateField("description", e.target.value)}
+                    placeholder="角色的背景设定、性格特征、行为规范等"
+                    rows={6}
+                    className="max-w-full"
+                    style={
+                      detectNonCjkContent(editing.description) ? NON_CJK_FONT_STYLE : undefined
+                    }
+                  />
+                </div>
+
+                {/* 对话示例（气泡样式，v0.3.1 新增） */}
+                <div className="grid min-w-0 gap-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-medium">对话示例</label>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => avatarInputRef.current?.click()}
+                      onClick={() => {
+                        const examples = [...(editing.dialogueExamples ?? [])];
+                        examples.push({ agent: "", user: "" });
+                        updateField("dialogueExamples", examples);
+                      }}
                     >
-                      <IconImage className="mr-2 size-4" />
-                      选择头像
+                      <IconPlus className="mr-1.5 size-4" />
+                      新增对话组
                     </Button>
-                    {editing.avatar && (
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    上方为用户（user）输入，下方为角色（agent）回复。对话示例会注入到提示词中供模型参考
+                  </p>
+                  {(editing.dialogueExamples ?? []).length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
+                      暂无对话示例。点击「新增对话组」添加示例对话
+                    </div>
+                  ) : (
+                    <div className="min-w-0 space-y-3">
+                      {(editing.dialogueExamples ?? []).map((ex, idx) => (
+                        <div
+                          key={idx}
+                          className="min-w-0 space-y-1.5 rounded-lg border border-border/20 bg-card/30 p-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground">
+                              对话组 {idx + 1}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-6 text-destructive"
+                              onClick={() => {
+                                const examples = [...(editing.dialogueExamples ?? [])];
+                                examples.splice(idx, 1);
+                                updateField("dialogueExamples", examples);
+                              }}
+                            >
+                              <IconClose className="size-4" />
+                            </Button>
+                          </div>
+                          {/* v0.3.4: User 气泡在上（符合对话时序：先用户提问） */}
+                          <div className="flex justify-end">
+                            <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-muted px-3 py-2">
+                              <div className="mb-1 text-right text-xs font-medium text-muted-foreground">
+                                用户
+                              </div>
+                              <textarea
+                                value={ex.user}
+                                onChange={(e) => {
+                                  const examples = [...(editing.dialogueExamples ?? [])];
+                                  examples[idx] = { ...examples[idx], user: e.target.value };
+                                  updateField("dialogueExamples", examples);
+                                }}
+                                placeholder="用户的输入示例..."
+                                rows={2}
+                                className="w-full min-w-0 resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
+                              />
+                            </div>
+                          </div>
+                          {/* v0.3.4: Agent 气泡在下（角色回复） */}
+                          <div className="flex justify-start">
+                            <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-primary/10 px-3 py-2">
+                              <div className="mb-1 text-xs font-medium text-primary">角色</div>
+                              <textarea
+                                value={ex.agent}
+                                onChange={(e) => {
+                                  const examples = [...(editing.dialogueExamples ?? [])];
+                                  examples[idx] = { ...examples[idx], agent: e.target.value };
+                                  updateField("dialogueExamples", examples);
+                                }}
+                                placeholder="角色的回复示例..."
+                                rows={2}
+                                className="w-full min-w-0 resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
+                                style={
+                                  detectNonCjkContent(ex.agent) ? NON_CJK_FONT_STYLE : undefined
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 世界书启用选项 */}
+                <div className="grid min-w-0 gap-2">
+                  <label className="text-sm font-medium">世界书启用</label>
+                  <Select
+                    value={(editing.extensions?.worldInfoId as string) ?? "none"}
+                    onValueChange={(v) =>
+                      updateField("extensions", {
+                        ...editing.extensions,
+                        worldInfoId: v === "none" ? undefined : v,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="不启用世界书" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">不启用世界书</SelectItem>
+                      {/* v0.4.1: 按 bookId 分组列出世界书,而非单个条目 */}
+                      {worldInfoBooks.map((b) => (
+                        <SelectItem key={b.bookId} value={b.bookId}>
+                          {b.bookName} ({b.count} 条)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 初始消息（默认为空） */}
+                <div className="grid min-w-0 gap-2">
+                  <label className="text-sm font-medium">初始消息（默认为空）</label>
+                  <Textarea
+                    value={editing.firstMessage}
+                    onChange={(e) => updateField("firstMessage", e.target.value)}
+                    placeholder="角色的第一条消息（留空则不发送）"
+                    rows={3}
+                    className="max-w-full"
+                    style={
+                      detectNonCjkContent(editing.firstMessage) ? NON_CJK_FONT_STYLE : undefined
+                    }
+                  />
+                </div>
+
+                {/* 标签 */}
+                <div className="grid min-w-0 gap-2">
+                  <label className="text-sm font-medium">标签（逗号分隔）</label>
+                  <Input
+                    value={editing.tags.join(", ")}
+                    onChange={(e) =>
+                      updateField(
+                        "tags",
+                        e.target.value
+                          .split(/[,，]/)
+                          .map((t) => t.trim())
+                          .filter(Boolean),
+                      )
+                    }
+                    placeholder="标签1, 标签2"
+                    className="max-w-full"
+                    inputMode="text"
+                  />
+                </div>
+
+                {/* 创作者与版本 */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid min-w-0 gap-2">
+                    <label className="text-sm font-medium">创作者</label>
+                    <Input
+                      value={editing.creator}
+                      onChange={(e) => updateField("creator", e.target.value)}
+                      placeholder="创作者名称"
+                      className="max-w-full"
+                      inputMode="text"
+                    />
+                  </div>
+                  <div className="grid min-w-0 gap-2">
+                    <label className="text-sm font-medium">版本</label>
+                    <Input
+                      value={editing.characterVersion}
+                      onChange={(e) => updateField("characterVersion", e.target.value)}
+                      placeholder="1.0"
+                      className="max-w-full"
+                      inputMode="text"
+                    />
+                  </div>
+                </div>
+
+                {/* 收藏开关 */}
+                <div className="flex min-w-0 items-center justify-between rounded-lg border border-border/20 bg-card/50 p-3">
+                  <div className="flex items-center gap-2">
+                    <IconStar className="size-4 text-yellow-400" />
+                    <span className="text-sm font-medium">收藏</span>
+                  </div>
+                  <Switch
+                    checked={!!editing.favorite}
+                    onCheckedChange={(v) => updateField("favorite", v)}
+                  />
+                </div>
+
+                {/* 自定义背景（v0.3.1 移至最下方，全宽预览） */}
+                <div className="grid min-w-0 gap-2">
+                  <div className="flex min-w-0 items-center justify-between">
+                    <label className="text-sm font-medium">自定义背景</label>
+                    <div className="flex min-w-0 gap-2">
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="text-xs text-muted-foreground"
-                        onClick={() => updateField("avatar", "")}
+                        onClick={() => backgroundInputRef.current?.click()}
                       >
-                        移除头像
+                        <IconImage className="mr-1.5 size-4" />
+                        选择背景
                       </Button>
+                      {editing.customBackground?.image && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-destructive"
+                          onClick={() => updateField("customBackground", undefined)}
+                        >
+                          移除背景
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    为聊天页设置专属背景图。留空则使用默认背景
+                  </p>
+                  {/* 全宽预览区，保持图片比例 */}
+                  <div
+                    className="relative w-full min-w-0 overflow-hidden rounded-lg border bg-muted"
+                    style={{ minHeight: "120px" }}
+                  >
+                    {editing.customBackground?.image ? (
+                      <img
+                        src={editing.customBackground.image}
+                        alt="背景预览"
+                        className="w-full object-contain"
+                        style={{
+                          opacity: (editing.customBackground.opacity ?? 80) / 100,
+                          filter: `blur(${editing.customBackground.blur ?? 0}px)`,
+                          maxHeight: "240px",
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-[120px] w-full items-center justify-center text-muted-foreground">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <IconImage className="size-8" />
+                          <span className="text-xs">未设置背景</span>
+                        </div>
+                      </div>
                     )}
                   </div>
                   <input
-                    ref={avatarInputRef}
+                    ref={backgroundInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={handleAvatarUpload}
+                    onChange={handleBackgroundUpload}
                   />
-                </div>
-              </div>
-
-              {/* 背景与性格（提示词） */}
-              <div className="grid min-w-0 gap-2">
-                <label className="text-sm font-medium">背景与性格（提示词）</label>
-                <Textarea
-                  value={editing.description}
-                  onChange={(e) => updateField("description", e.target.value)}
-                  placeholder="角色的背景设定、性格特征、行为规范等"
-                  rows={6}
-                  className="max-w-full"
-                  style={detectNonCjkContent(editing.description) ? NON_CJK_FONT_STYLE : undefined}
-                />
-              </div>
-
-              {/* 对话示例（气泡样式，v0.3.1 新增） */}
-              <div className="grid min-w-0 gap-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">对话示例</label>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const examples = [...(editing.dialogueExamples ?? [])];
-                      examples.push({ agent: "", user: "" });
-                      updateField("dialogueExamples", examples);
-                    }}
-                  >
-                    <IconPlus className="mr-1.5 size-4" />
-                    新增对话组
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  上方为用户（user）输入，下方为角色（agent）回复。对话示例会注入到提示词中供模型参考
-                </p>
-                {(editing.dialogueExamples ?? []).length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
-                    暂无对话示例。点击「新增对话组」添加示例对话
-                  </div>
-                ) : (
-                  <div className="min-w-0 space-y-3">
-                    {(editing.dialogueExamples ?? []).map((ex, idx) => (
-                      <div key={idx} className="min-w-0 space-y-1.5 rounded-lg border border-border/20 bg-card/30 p-3">
+                  {editing.customBackground?.image && (
+                    <div className="grid min-w-0 gap-3 pt-1">
+                      <div className="grid min-w-0 gap-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-medium text-muted-foreground">对话组 {idx + 1}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-6 text-destructive"
-                            onClick={() => {
-                              const examples = [...(editing.dialogueExamples ?? [])];
-                              examples.splice(idx, 1);
-                              updateField("dialogueExamples", examples);
-                            }}
-                          >
-                            <IconClose className="size-4" />
-                          </Button>
+                          <span className="text-xs text-muted-foreground">透明度</span>
+                          <span className="text-xs font-mono">
+                            {editing.customBackground.opacity ?? 80}%
+                          </span>
                         </div>
-                        {/* v0.3.4: User 气泡在上（符合对话时序：先用户提问） */}
-                        <div className="flex justify-end">
-                          <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-muted px-3 py-2">
-                            <div className="mb-1 text-right text-xs font-medium text-muted-foreground">用户</div>
-                            <textarea
-                              value={ex.user}
-                              onChange={(e) => {
-                                const examples = [...(editing.dialogueExamples ?? [])];
-                                examples[idx] = { ...examples[idx], user: e.target.value };
-                                updateField("dialogueExamples", examples);
-                              }}
-                              placeholder="用户的输入示例..."
-                              rows={2}
-                              className="w-full min-w-0 resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
-                            />
-                          </div>
-                        </div>
-                        {/* v0.3.4: Agent 气泡在下（角色回复） */}
-                        <div className="flex justify-start">
-                          <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-primary/10 px-3 py-2">
-                            <div className="mb-1 text-xs font-medium text-primary">角色</div>
-                            <textarea
-                              value={ex.agent}
-                              onChange={(e) => {
-                                const examples = [...(editing.dialogueExamples ?? [])];
-                                examples[idx] = { ...examples[idx], agent: e.target.value };
-                                updateField("dialogueExamples", examples);
-                              }}
-                              placeholder="角色的回复示例..."
-                              rows={2}
-                              className="w-full min-w-0 resize-none border-0 bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground/50"
-                              style={detectNonCjkContent(ex.agent) ? NON_CJK_FONT_STYLE : undefined}
-                            />
-                          </div>
-                        </div>
+                        <Slider
+                          min={0}
+                          max={100}
+                          step={1}
+                          value={[editing.customBackground.opacity ?? 80]}
+                          onValueChange={(vals) => updateBackgroundField("opacity", vals[0] ?? 80)}
+                        />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* 世界书启用选项 */}
-              <div className="grid min-w-0 gap-2">
-                <label className="text-sm font-medium">世界书启用</label>
-                <Select
-                  value={editing.extensions?.worldInfoId as string ?? "none"}
-                  onValueChange={(v) =>
-                    updateField("extensions", {
-                      ...editing.extensions,
-                      worldInfoId: v === "none" ? undefined : v,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="不启用世界书" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">不启用世界书</SelectItem>
-                    {/* v0.4.1: 按 bookId 分组列出世界书,而非单个条目 */}
-                    {worldInfoBooks.map((b) => (
-                      <SelectItem key={b.bookId} value={b.bookId}>
-                        {b.bookName} ({b.count} 条)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 初始消息（默认为空） */}
-              <div className="grid min-w-0 gap-2">
-                <label className="text-sm font-medium">初始消息（默认为空）</label>
-                <Textarea
-                  value={editing.firstMessage}
-                  onChange={(e) => updateField("firstMessage", e.target.value)}
-                  placeholder="角色的第一条消息（留空则不发送）"
-                  rows={3}
-                  className="max-w-full"
-                  style={detectNonCjkContent(editing.firstMessage) ? NON_CJK_FONT_STYLE : undefined}
-                />
-              </div>
-
-              {/* 标签 */}
-              <div className="grid min-w-0 gap-2">
-                <label className="text-sm font-medium">标签（逗号分隔）</label>
-                <Input
-                  value={editing.tags.join(", ")}
-                  onChange={(e) =>
-                    updateField(
-                      "tags",
-                      e.target.value
-                        .split(/[,，]/)
-                        .map((t) => t.trim())
-                        .filter(Boolean),
-                    )
-                  }
-                  placeholder="标签1, 标签2"
-                  className="max-w-full"
-                  inputMode="text"
-                />
-              </div>
-
-              {/* 创作者与版本 */}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="grid min-w-0 gap-2">
-                  <label className="text-sm font-medium">创作者</label>
-                  <Input
-                    value={editing.creator}
-                    onChange={(e) => updateField("creator", e.target.value)}
-                    placeholder="创作者名称"
-                    className="max-w-full"
-                    inputMode="text"
-                  />
-                </div>
-                <div className="grid min-w-0 gap-2">
-                  <label className="text-sm font-medium">版本</label>
-                  <Input
-                    value={editing.characterVersion}
-                    onChange={(e) => updateField("characterVersion", e.target.value)}
-                    placeholder="1.0"
-                    className="max-w-full"
-                    inputMode="text"
-                  />
-                </div>
-              </div>
-
-              {/* 收藏开关 */}
-              <div className="flex min-w-0 items-center justify-between rounded-lg border border-border/20 bg-card/50 p-3">
-                <div className="flex items-center gap-2">
-                  <IconStar className="size-4 text-yellow-400" />
-                  <span className="text-sm font-medium">收藏</span>
-                </div>
-                <Switch
-                  checked={!!editing.favorite}
-                  onCheckedChange={(v) => updateField("favorite", v)}
-                />
-              </div>
-
-              {/* 自定义背景（v0.3.1 移至最下方，全宽预览） */}
-              <div className="grid min-w-0 gap-2">
-                <div className="flex min-w-0 items-center justify-between">
-                  <label className="text-sm font-medium">自定义背景</label>
-                  <div className="flex min-w-0 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => backgroundInputRef.current?.click()}
-                    >
-                      <IconImage className="mr-1.5 size-4" />
-                      选择背景
-                    </Button>
-                    {editing.customBackground?.image && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-destructive"
-                        onClick={() => updateField("customBackground", undefined)}
-                      >
-                        移除背景
-                      </Button>
-                    )}
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  为聊天页设置专属背景图。留空则使用默认背景
-                </p>
-                {/* 全宽预览区，保持图片比例 */}
-                <div className="relative w-full min-w-0 overflow-hidden rounded-lg border bg-muted" style={{ minHeight: "120px" }}>
-                  {editing.customBackground?.image ? (
-                    <img
-                      src={editing.customBackground.image}
-                      alt="背景预览"
-                      className="w-full object-contain"
-                      style={{
-                        opacity: (editing.customBackground.opacity ?? 80) / 100,
-                        filter: `blur(${editing.customBackground.blur ?? 0}px)`,
-                        maxHeight: "240px",
-                      }}
-                    />
-                  ) : (
-                    <div className="flex h-[120px] w-full items-center justify-center text-muted-foreground">
-                      <div className="flex flex-col items-center gap-1.5">
-                        <IconImage className="size-8" />
-                        <span className="text-xs">未设置背景</span>
+                      <div className="grid gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">模糊度</span>
+                          <span className="text-xs font-mono">
+                            {editing.customBackground.blur ?? 0}px
+                          </span>
+                        </div>
+                        <Slider
+                          min={0}
+                          max={20}
+                          step={1}
+                          value={[editing.customBackground.blur ?? 0]}
+                          onValueChange={(vals) => updateBackgroundField("blur", vals[0] ?? 0)}
+                        />
                       </div>
                     </div>
                   )}
                 </div>
-                <input
-                  ref={backgroundInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleBackgroundUpload}
-                />
-                {editing.customBackground?.image && (
-                  <div className="grid min-w-0 gap-3 pt-1">
-                    <div className="grid min-w-0 gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">透明度</span>
-                        <span className="text-xs font-mono">
-                          {editing.customBackground.opacity ?? 80}%
-                        </span>
-                      </div>
-                      <Slider
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={[editing.customBackground.opacity ?? 80]}
-                        onValueChange={(vals) =>
-                          updateBackgroundField("opacity", vals[0] ?? 80)
-                        }
-                      />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">模糊度</span>
-                        <span className="text-xs font-mono">
-                          {editing.customBackground.blur ?? 0}px
-                        </span>
-                      </div>
-                      <Slider
-                        min={0}
-                        max={20}
-                        step={1}
-                        value={[editing.customBackground.blur ?? 0]}
-                        onValueChange={(vals) =>
-                          updateBackgroundField("blur", vals[0] ?? 0)
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
-            </div>
             </ScrollArea>
           )}
           <DialogFooter>
@@ -1549,4 +1554,3 @@ export default function CharactersPage() {
     </LuzzyLayout>
   );
 }
-

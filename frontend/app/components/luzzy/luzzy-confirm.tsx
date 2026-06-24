@@ -45,8 +45,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   });
 
   const confirm = React.useCallback((options: ConfirmOptions | string) => {
-    const opts: ConfirmOptions =
-      typeof options === "string" ? { description: options } : options;
+    const opts: ConfirmOptions = typeof options === "string" ? { description: options } : options;
     return new Promise<boolean>((resolve) => {
       setState({
         open: true,
@@ -61,15 +60,12 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const handleClose = React.useCallback(
-    (result: boolean) => {
-      setState((prev) => {
-        prev.resolve?.(result);
-        return { ...prev, open: false, resolve: undefined };
-      });
-    },
-    []
-  );
+  const handleClose = React.useCallback((result: boolean) => {
+    setState((prev) => {
+      prev.resolve?.(result);
+      return { ...prev, open: false, resolve: undefined };
+    });
+  }, []);
 
   return (
     <ConfirmContext.Provider value={{ confirm }}>
@@ -88,11 +84,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                     : "bg-primary/10 text-primary"
                 }`}
               >
-                {state.destructive ? (
-                  <IconTrash size={20} />
-                ) : (
-                  <IconExclamation size={20} />
-                )}
+                {state.destructive ? <IconTrash size={20} /> : <IconExclamation size={20} />}
               </motion.div>
             )}
             <DialogTitle className="text-base">{state.title}</DialogTitle>
@@ -114,11 +106,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               className="w-full max-w-[10rem] gap-2 py-2.5"
               onClick={() => handleClose(true)}
             >
-              {state.destructive ? (
-                <IconTrash size={16} />
-              ) : (
-                <IconCheck size={16} />
-              )}
+              {state.destructive ? <IconTrash size={16} /> : <IconCheck size={16} />}
               {state.confirmText}
             </Button>
           </div>

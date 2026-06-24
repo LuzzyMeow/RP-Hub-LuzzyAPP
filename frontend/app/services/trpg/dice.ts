@@ -4,7 +4,7 @@
  * 基于 D&D 5e SRD 5.2.1 (CC-BY-4.0)
  */
 
-import type { DiceResult, DamageResult } from '~/types/trpg';
+import type { DiceResult, DamageResult } from "~/types/trpg";
 
 // ============================================================================
 // 基础随机
@@ -67,7 +67,7 @@ export function d20Check(
 
   const total = raw + bonus;
   const success = total >= dc;
-  const critical = raw === 20 ? 'success' : raw === 1 ? 'failure' : 'none';
+  const critical = raw === 20 ? "success" : raw === 1 ? "failure" : "none";
 
   return { roll: raw, bonus, total, dc, success, critical, rolls };
 }
@@ -85,12 +85,15 @@ function parseDiceExpression(expression: string): {
   sides: number;
   modifier: number;
 } {
-  const match = expression.trim().toLowerCase().match(/(\d+)d(\d+)\s*([+-]\s*\d+)?/);
+  const match = expression
+    .trim()
+    .toLowerCase()
+    .match(/(\d+)d(\d+)\s*([+-]\s*\d+)?/);
   if (!match) return { count: 1, sides: 4, modifier: 0 };
 
   const count = parseInt(match[1], 10);
   const sides = parseInt(match[2], 10);
-  const modifier = match[3] ? parseInt(match[3].replace(/\s/g, ''), 10) : 0;
+  const modifier = match[3] ? parseInt(match[3].replace(/\s/g, ""), 10) : 0;
 
   return { count, sides, modifier };
 }
@@ -131,14 +134,14 @@ export function rollInitiative(dexModifier: number): number {
 /** 死亡豁免检定（d20 无加值） */
 export function rollDeathSave(): {
   roll: number;
-  result: 'success' | 'failure' | 'critical_success' | 'critical_failure';
+  result: "success" | "failure" | "critical_success" | "critical_failure";
 } {
   const roll = randomInt(1, 20);
 
-  if (roll === 20) return { roll, result: 'critical_success' };
-  if (roll === 1) return { roll, result: 'critical_failure' };
-  if (roll >= 10) return { roll, result: 'success' };
-  return { roll, result: 'failure' };
+  if (roll === 20) return { roll, result: "critical_success" };
+  if (roll === 1) return { roll, result: "critical_failure" };
+  if (roll >= 10) return { roll, result: "success" };
+  return { roll, result: "failure" };
 }
 
 // ============================================================================

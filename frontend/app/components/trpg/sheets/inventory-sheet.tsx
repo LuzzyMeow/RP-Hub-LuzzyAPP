@@ -89,11 +89,14 @@ export function InventorySheet() {
 
       {/* 货币 */}
       <div className="grid grid-cols-4 gap-2 px-4 pb-2">
-        {(['cp', 'sp', 'gp', 'pp'] as const).map((cur) => {
+        {(["cp", "sp", "gp", "pp"] as const).map((cur) => {
           const value = (trpgSave?.gameState.world?.[cur] as number) ?? 0;
-          const labels = { cp: '铜币', sp: '银币', gp: '金币', pp: '铂币' };
+          const labels = { cp: "铜币", sp: "银币", gp: "金币", pp: "铂币" };
           return (
-            <div key={cur} className="flex flex-col items-center rounded-md border border-border/20 bg-muted/10 p-1.5">
+            <div
+              key={cur}
+              className="flex flex-col items-center rounded-md border border-border/20 bg-muted/10 p-1.5"
+            >
               <IconCoin className="size-3 text-amber-500/70" />
               <span className="text-[9px] text-muted-foreground">{labels[cur]}</span>
               <span className="text-xs font-bold text-foreground">{value}</span>
@@ -112,15 +115,11 @@ export function InventorySheet() {
             <IconBackpack className="size-4 text-primary" />
             <span>背包</span>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {inventory.length} 件物品
-          </span>
+          <span className="text-xs text-muted-foreground">{inventory.length} 件物品</span>
         </div>
 
         {inventory.length === 0 ? (
-          <div className="py-6 text-center text-xs text-muted-foreground">
-            背包空空如也
-          </div>
+          <div className="py-6 text-center text-xs text-muted-foreground">背包空空如也</div>
         ) : (
           <AnimatePresence mode="popLayout">
             {/* 武器 */}
@@ -194,14 +193,10 @@ function EquipmentSlot({
       animate={{ opacity: 1, y: 0 }}
       transition={springSoft}
       className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-center ${
-        value
-          ? "border-primary/20 bg-primary/5"
-          : "border-border/20 bg-muted/10"
+        value ? "border-primary/20 bg-primary/5" : "border-border/20 bg-muted/10"
       }`}
     >
-      <div className={value ? "text-primary" : "text-muted-foreground/40"}>
-        {icon}
-      </div>
+      <div className={value ? "text-primary" : "text-muted-foreground/40"}>{icon}</div>
       <span className="text-[10px] text-muted-foreground">{label}</span>
       <span
         className={`line-clamp-1 text-xs font-medium ${
@@ -320,9 +315,7 @@ function ItemCard({ item }: { item: InventoryItem }) {
                 <div className="flex items-center gap-1 text-[11px]">
                   <IconShield className="size-3 text-muted-foreground" />
                   <span className="text-muted-foreground">AC:</span>
-                  <span className="font-mono text-foreground">
-                    +{item.acBonus}
-                  </span>
+                  <span className="font-mono text-foreground">+{item.acBonus}</span>
                 </div>
               )}
               {item.effect && (
@@ -395,9 +388,7 @@ function EmptyInventory() {
     <div className="flex h-full flex-col items-center justify-center gap-2 py-12 text-center">
       <IconChest className="size-10 text-muted-foreground/40" />
       <p className="text-sm text-muted-foreground">未加载存档</p>
-      <p className="text-xs text-muted-foreground/60">
-        请先创建或加载一个存档
-      </p>
+      <p className="text-xs text-muted-foreground/60">请先创建或加载一个存档</p>
     </div>
   );
 }
