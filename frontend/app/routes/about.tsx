@@ -22,6 +22,7 @@ import {
   IconShare,
 } from "~/components/luzzy/luzzy-icons";
 
+import { LuzzyAuroraBackground } from "~/components/luzzy/luzzy-aurora-background";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
@@ -43,7 +44,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.6.5";
+const APP_VERSION = "v0.7.0";
 
 /** v0.5.8: 关于页动态文案轮播 */
 const ABOUT_PHRASES = [
@@ -285,8 +286,9 @@ export default function AboutPage() {
 
   return (
     <LuzzyLayout title="关于">
-      <div className="h-full w-full overflow-y-auto overflow-x-hidden">
-        <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden p-4">
+      <div className="relative h-full w-full overflow-y-auto overflow-x-hidden">
+        <LuzzyAuroraBackground />
+        <div className="relative z-10 mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden p-4">
           {/* LOGO 和版本信息 */}
           <motion.div
             initial={{ opacity: 0, y: 12 }}
@@ -297,15 +299,38 @@ export default function AboutPage() {
               <img src="/icons/icon-192.png" alt="LUZZY" className="size-full object-cover" />
             </div>
             <div className="text-center">
-              <h1 className="text-2xl font-bold tracking-tight">LUZZY</h1>
+              <motion.h1
+                className="text-2xl font-bold tracking-tight"
+                animate={{ scale: [1, 1.02, 1] }}
+                transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <span className="bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                  LUZZY
+                </span>
+              </motion.h1>
               <p className="mt-1 h-5 text-sm text-muted-foreground">
                 <AnimatePresence mode="wait">
                   <motion.span
                     key={phraseIndex}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -4 }}
-                    transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
+                    initial={{
+                      opacity: 0,
+                      y: 8,
+                      filter: "blur(0px)",
+                      letterSpacing: "0.3em",
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                      filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
+                      letterSpacing: "0.05em",
+                    }}
+                    exit={{
+                      opacity: 0,
+                      y: -8,
+                      filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
+                      letterSpacing: "0.3em",
+                    }}
+                    transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
                   >
                     {ABOUT_PHRASES[phraseIndex]}
                   </motion.span>

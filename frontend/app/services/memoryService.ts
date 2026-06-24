@@ -475,7 +475,7 @@ const groupMessagesByTurn = (
     if (currentTurn > 0 && userContent !== null && assistantParts.length > 0) {
       turns.push({
         turn: currentTurn,
-        content: `${userContent}\n\n${assistantParts.join('\n\n')}`,
+        content: `[用户消息]\n${userContent}\n\n---\n\n[角色回复]\n${assistantParts.join('\n\n')}`,
       });
     }
     userContent = null;
@@ -643,19 +643,40 @@ export const searchVectorMemoryWithScore = async (
     providerKeys,
   );
 
+  // 维度不匹配检测（用户切换嵌入模型会导致旧分片维度与新查询维度不一致）
+  if (shards.length > 0 && queryVector.length !== shards[0].embedding.length) {
+    logger.warn(
+      "memory",
+      `searchVectorMemoryWithScore 维度不匹配: 查询向量长度=${queryVector.length} 分片向量长度=${shards[0].embedding.length}（可能是切换了嵌入模型，建议重建向量记忆）`,
+    );
+  }
+
   // 计算相似度并过滤无效结果（-Infinity 表示维度不匹配等错误，需过滤）
   const scored = shards
     .map((shard) => ({
       shard,
-      score: cosineSimilarity(queryVector, shard.embedding),
+      score:
+        queryVector.length === shard.embedding.length
+          ? cosineSimilarity(queryVector, shard.embedding)
+          : -Infinity,
     }))
     .filter((item) => Number.isFinite(item.score));
 
+  // 应用相似度阈值过滤（低于阈值的分片不参与召回）
+  const threshold = settings.similarityThreshold ?? 0;
+  const filteredScored = scored.filter(
+    (item) => Number.isFinite(item.score) && item.score >= threshold,
+  );
+
   // 按相似度降序排序
-  scored.sort((a, b) => b.score - a.score);
+  filteredScored.sort((a, b) => b.score - a.score);
 
   const topK = Math.max(1, settings.vectorTopK ?? 15);
-  return scored.slice(0, topK);
+  logger.debug(
+    "memory",
+    `searchVectorMemoryWithScore: 分片总数=${shards.length} 通过过滤=${filteredScored.length} 返回=${Math.min(filteredScored.length, topK)}`,
+  );
+  return filteredScored.slice(0, topK);
 };
 
 // ============================================================================

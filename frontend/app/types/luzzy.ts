@@ -24,6 +24,8 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
   /** 记忆召回结果 */
   memoryRecalls?: MemoryRecall[];
+  /** v0.7.0: 世界书召回结果（被动预执行） */
+  worldInfoRecalls?: WorldInfoRecall[];
   /** 生成耗时（毫秒） */
   generationTime?: number;
   /** 所属分支 ID（重试分支支持） */
@@ -106,6 +108,14 @@ export interface MemoryRecall {
   content: string;
   score: number;
   turn: number;
+}
+
+/** 世界书召回结果（v0.7.0: 被动预执行世界书检索） */
+export interface WorldInfoRecall {
+  id: string;
+  entryName: string;
+  content: string;
+  score: number;
 }
 
 /** 角色卡 */

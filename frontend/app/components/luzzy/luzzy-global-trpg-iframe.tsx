@@ -17,7 +17,7 @@ import { useLocation } from "react-router";
 // TRPG 模式内嵌网页 URL
 // v0.5.0: 添加版本参数作为缓存破坏标记，每次 app 升级强制刷新 WebView 缓存
 const TRPG_BASE_URL = "https://aisandboxgame.com/";
-const TRPG_IFRAME_URL = `${TRPG_BASE_URL}?_v=0.6.5`;
+const TRPG_IFRAME_URL = `${TRPG_BASE_URL}?_v=0.7.0`;
 const TRPG_IFRAME_STORAGE_KEY = "trpg_iframe_loaded";
 
 export function GlobalTrpgIframe() {

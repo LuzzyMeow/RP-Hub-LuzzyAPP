@@ -256,6 +256,9 @@
 .luzzy-translation-highlight .markdown dd,
 .luzzy-translation-highlight .markdown dt {
   color: var(--translation-color, inherit);
+  text-shadow:
+    0 0 8px color-mix(in srgb, var(--translation-color, currentColor) 35%, transparent),
+    0 0 16px color-mix(in srgb, var(--translation-color, currentColor) 15%, transparent);
 }
 
 .luzzy-translation-highlight .markdown del {

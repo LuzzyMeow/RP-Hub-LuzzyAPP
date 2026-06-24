@@ -32,7 +32,7 @@ import {
   IconPlay,
 } from "~/components/luzzy/luzzy-icons";
 
-import type { ChatMessage, MemoryRecall } from "~/types/luzzy";
+import type { ChatMessage, MemoryRecall, WorldInfoRecall } from "~/types/luzzy";
 import { cn } from "~/lib/utils";
 import { copyTextToClipboard } from "~/lib/clipboard";
 import { toast } from "sonner";
@@ -122,6 +122,67 @@ function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
   );
 }
 
+/** 世界书召回折叠区（v0.7.0: 世界书被动预执行召回结果） */
+function WorldInfoRecallsCard({ recalls }: { recalls: WorldInfoRecall[] }) {
+  const [expanded, setExpanded] = React.useState(true);
+
+  const handleToggle = () => setExpanded((prev) => !prev);
+
+  return (
+    <div className="rounded-md border border-muted bg-muted/20 text-sm">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/40"
+        onClick={handleToggle}
+        aria-expanded={expanded}
+      >
+        <IconBook className="size-3.5 shrink-0" />
+        <span>世界书召回（{recalls.length}）</span>
+        <motion.div
+          animate={{ rotate: expanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="ml-auto shrink-0"
+        >
+          <IconArrowDown className="size-3.5" />
+        </motion.div>
+      </button>
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+            className="overflow-hidden border-t border-muted"
+          >
+            <div className="space-y-1.5 px-3 py-2">
+              {recalls.map((recall) => {
+                const preview =
+                  recall.content.length > 100
+                    ? recall.content.slice(0, 100) + "..."
+                    : recall.content;
+                return (
+                  <div key={recall.id} className="rounded bg-background/50 p-1.5 text-xs">
+                    <div className="mb-1 flex items-center gap-2">
+                      <Badge variant="secondary" className="shrink-0 text-[10px]">
+                        相似度 {(recall.score * 100).toFixed(1)}%
+                      </Badge>
+                      <span className="min-w-0 truncate font-medium text-muted-foreground">
+                        {recall.entryName}
+                      </span>
+                    </div>
+                    <p className="text-muted-foreground">{preview}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 /** 思考链（CoT）可折叠卡片（v0.4.6-UI 重构：glassmorphism 一级卡片） */
 function CotCard({
   cot,
@@ -156,12 +217,14 @@ function CotCard({
 
   // 步骤计数：优先取 agentSteps 中的非 thinking 步骤 + CoT 中的思考步骤
   const toolStepCount = React.useMemo(
-    () =>
-      agentSteps?.some((s) =>
-        ["tool_call", "tool_result", "memory_inject", "knowledge_call"].includes(s.type),
-      )
-        ? 1
-        : 0,
+    () => {
+      const toolLikeTypes = ["tool_call", "tool_result", "memory_inject", "knowledge_call"];
+      const toolCallSteps = agentSteps?.filter((s) => toolLikeTypes.includes(s.type)) ?? [];
+      const uniqueToolNames = new Set(
+        toolCallSteps.map((s) => s.title).filter(Boolean)
+      );
+      return uniqueToolNames.size;
+    },
     [agentSteps],
   );
   const thinkingStepCount = React.useMemo(
@@ -598,6 +661,11 @@ function LuzzyChatMessageImpl({
         )}
         */}
 
+        {/* v0.7.0: 世界书召回（被动预执行结果） */}
+        {!isUser && message.worldInfoRecalls && message.worldInfoRecalls.length > 0 && (
+          <WorldInfoRecallsCard recalls={message.worldInfoRecalls} />
+        )}
+
         {/* 消息正文 */}
         <div
           data-luzzy-message-bubble
@@ -845,6 +913,8 @@ export const LuzzyChatMessage = React.memo(
     if (prev.message.translatedContent !== next.message.translatedContent) return false;
     if (prev.message.translationLanguage !== next.message.translationLanguage) return false;
     if (prev.message.memoryRecalls !== next.message.memoryRecalls) return false;
+    // v0.7.0: 世界书召回结果引用变化则重渲染
+    if (prev.message.worldInfoRecalls !== next.message.worldInfoRecalls) return false;
     if (prev.message.tokenUsage !== next.message.tokenUsage) return false;
     if (prev.message.role !== next.message.role) return false;
     // 生成状态变化则重渲染
