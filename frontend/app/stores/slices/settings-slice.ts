@@ -870,12 +870,11 @@ export const createSettingsSlice: StateCreator<
                 // v0.7.2-fix: 过滤掉已删除的旧类型（如 world-search），防止 tools.tsx 渲染崩溃
                 const persisted = (data.builtinToolConfigs as BuiltinToolConfig[])
                   .filter((c) => VALID_BUILTIN_TOOL_TYPES.has(c.type));
-                // 合并：以持久化数据为基础，补全缺失的默认配置项
-                const persistedTypes = new Set(persisted.map((c) => c.type));
-                const missing = DEFAULT_BUILTIN_TOOL_CONFIGS.filter(
-                  (c) => !persistedTypes.has(c.type),
-                );
-                return [...persisted, ...missing];
+                // v0.7.3-fix: 以默认配置为基础，合并持久化数据，确保新字段自动补全
+                return DEFAULT_BUILTIN_TOOL_CONFIGS.map((defaultConfig) => {
+                  const persistedConfig = persisted.find((c) => c.type === defaultConfig.type);
+                  return persistedConfig ? { ...defaultConfig, ...persistedConfig } : { ...defaultConfig };
+                });
               })()
             : state.builtinToolConfigs,
         splashShown:

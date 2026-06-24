@@ -351,7 +351,6 @@ export default function CharactersPage() {
   const updateCharacter = useAppStore((s) => s.updateCharacter);
   const deleteCharacter = useAppStore((s) => s.deleteCharacter);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
-  const importCharacter = useAppStore((s) => s.importCharacter);
   const importCharacterFromCard = useAppStore((s) => s.importCharacterFromCard);
   const searchCharacters = useAppStore((s) => s.searchCharacters);
   const confirm = useConfirm();
@@ -646,138 +645,158 @@ export default function CharactersPage() {
     [],
   );
 
+  /**
+   * v0.7.3-fix: 处理导入角色卡的额外资源（世界书、正则脚本、UI模板、头像）
+   * 统一处理 PNG 和 JSON 格式导入后的资源提取与向量生成
+   */
+  const processImportedExtras = React.useCallback(
+    async (cardData: unknown, characterUuid: string, characterName: string, avatarFile?: File) => {
+      // 1. 头像处理（仅 PNG 有文件）
+      if (avatarFile) {
+        try {
+          const avatarDataUrl = await fileToDataUrl(avatarFile);
+          useAppStore.getState().updateCharacter(characterUuid, {
+            avatar: avatarDataUrl,
+            customBackground: {
+              image: avatarDataUrl,
+              opacity: 80,
+              blur: 0,
+            },
+          });
+          await useAppStore.getState().saveCharacters();
+        } catch (avatarErr) {
+          console.warn("[Characters] 头像设置失败:", avatarErr);
+        }
+      }
+
+      // 2. 提取并保存世界书条目
+      const worldInfoEntries = extractWorldInfoFromCard(cardData, characterUuid, characterName);
+      if (worldInfoEntries.length > 0) {
+        try {
+          const existing = (await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo")) ?? [];
+          await setItem("worldInfo", "worldInfo", [...existing, ...worldInfoEntries]);
+          const updatedCharacters = useAppStore.getState().characters.map(c =>
+            c.uuid === characterUuid
+              ? { ...c, extensions: { ...c.extensions, worldInfoId: characterUuid } }
+              : c
+          );
+          useAppStore.setState({ characters: updatedCharacters });
+          await useAppStore.getState().saveCharacters();
+          toast.success(`已自动关联 ${worldInfoEntries.length} 条世界书`);
+
+          // v0.7.3-fix: 导入世界书后自动触发向量嵌入生成（统一逻辑）
+          void (async () => {
+            try {
+              const memorySettings = await getItem<MemorySettings>("memory", "memorySettings");
+              if (!memorySettings || !memorySettings.embeddingModel?.trim()) {
+                logger.debug("world", "角色卡导入: 嵌入模型未配置，跳过世界书向量生成");
+                return;
+              }
+              const st = useAppStore.getState();
+              const allProviders: ApiProvider[] = [
+                ...BUILTIN_PROVIDERS,
+                ...st.customApiProviders,
+              ];
+              const apiSettings: ApiSettings = {
+                apiUrl: st.apiUrl,
+                apiKey: st.apiKey,
+                modelName: st.modelName,
+                stream: st.stream,
+                enableThinking: false,
+                customRequestBody: st.customRequestBody,
+              };
+              const count = worldInfoEntries.filter(
+                (e) => e.content?.trim() && (!e.embedding || e.embedding.length === 0),
+              ).length;
+              if (count > 0) {
+                toast.info(`正在为 ${count} 条世界书条目生成嵌入向量...`);
+              }
+              const result = await generateWorldInfoEmbeddings(
+                worldInfoEntries,
+                memorySettings,
+                apiSettings,
+                allProviders,
+                st.apiProviderKeys,
+              );
+              if (result.failed > 0) {
+                toast.error(`${result.failed} 条世界书条目嵌入生成失败，请检查嵌入模型配置`);
+              } else if (result.success > 0) {
+                toast.success(`已为 ${result.success} 条世界书条目生成嵌入向量`);
+              }
+            } catch (embErr) {
+              logger.warn("world", `角色卡导入: 世界书向量生成失败: ${(embErr as Error).message}`);
+              toast.error(`世界书向量生成失败：${(embErr as Error).message}`);
+            }
+          })();
+        } catch (wiErr) {
+          console.warn("[Characters] 世界书导入失败:", wiErr);
+        }
+      }
+
+      // 3. 提取并保存正则脚本
+      const regexGroups = extractRegexScriptsFromCard(cardData, characterUuid);
+      if (regexGroups.length > 0) {
+        try {
+          const existing = (await getItem<RegexScriptGroup[]>("regexScripts", "regexGroups")) ?? [];
+          await setItem("regexScripts", "regexGroups", [...existing, ...regexGroups]);
+        } catch (regexErr) {
+          console.warn("[Characters] 正则脚本导入失败:", regexErr);
+        }
+      }
+
+      // 4. 提取并保存 UI 模板
+      const importedUiTemplates = extractUiTemplatesFromCard(cardData, characterUuid);
+      if (importedUiTemplates.length > 0) {
+        try {
+          const existingTemplates = (await getItem<UiTemplate[]>("uiTemplates", "uiTemplates")) ?? [];
+          const merged = [...existingTemplates];
+          for (const t of importedUiTemplates) {
+            if (!merged.some(et => et.name === t.name && et.content === t.content)) {
+              merged.push(t);
+            }
+          }
+          await setItem("uiTemplates", "uiTemplates", merged);
+          toast.success(`已导入 ${importedUiTemplates.length} 个 UI 模板`);
+        } catch (uiTplErr) {
+          console.warn("[Characters] UI 模板导入失败:", uiTplErr);
+        }
+      }
+    },
+    [],
+  );
+
   /** 导入文件（PNG 或 JSON） */
   const handleImportFile = React.useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       try {
+        let cardData: unknown;
+        let isPng = false;
+
         if (file.name.toLowerCase().endsWith(".png")) {
-          const cardData = await parsePngCharacterCard(file);
-
-          // v0.3.0 新增：PNG 图片本身作为角色头像
-          // 先导入角色卡获取 uuid，再更新头像
-          await importCharacterFromCard(cardData);
-
-          // 获取刚导入的角色（最后一个）
-          const latestCharacter = useAppStore.getState().characters.slice(-1)[0];
-          if (latestCharacter) {
-            // 将 PNG 文件转为 data URL 作为头像
-            try {
-              const avatarDataUrl = await fileToDataUrl(file);
-              useAppStore.getState().updateCharacter(latestCharacter.uuid, {
-                avatar: avatarDataUrl,
-                // v0.3.0 新增：PNG 默认作为聊天页背景（透明度 80，模糊 0）
-                customBackground: {
-                  image: avatarDataUrl,
-                  opacity: 80,
-                  blur: 0,
-                },
-              });
-              await useAppStore.getState().saveCharacters();
-            } catch (avatarErr) {
-              console.warn("[Characters] 头像设置失败:", avatarErr);
-            }
-
-            // 提取并保存世界书条目
-            // v0.4.1: 传入角色名,使世界书名称默认为 `${characterName}的世界书`
-            const worldInfoEntries = extractWorldInfoFromCard(cardData, latestCharacter.uuid, latestCharacter.name);
-            if (worldInfoEntries.length > 0) {
-              try {
-                const existing = (await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo")) ?? [];
-                await setItem("worldInfo", "worldInfo", [...existing, ...worldInfoEntries]);
-                // v0.3.2: 自动关联世界书到角色（bookId 已设为 characterUuid）
-                const updatedCharacters = useAppStore.getState().characters.map(c =>
-                  c.uuid === latestCharacter.uuid
-                    ? { ...c, extensions: { ...c.extensions, worldInfoId: latestCharacter.uuid } }
-                    : c
-                );
-                useAppStore.setState({ characters: updatedCharacters });
-                await useAppStore.getState().saveCharacters();
-                toast.success(`已自动关联 ${worldInfoEntries.length} 条世界书`);
-
-                // v0.7.2-fix: 导入世界书后自动触发向量嵌入生成
-                void (async () => {
-                  try {
-                    const memorySettings = await getItem<MemorySettings>("memory", "memorySettings");
-                    if (!memorySettings || !memorySettings.embeddingModel?.trim()) {
-                      logger.debug("world", "角色卡导入: 嵌入模型未配置，跳过世界书向量生成");
-                      return;
-                    }
-                    const st = useAppStore.getState();
-                    const allProviders: ApiProvider[] = [
-                      ...BUILTIN_PROVIDERS,
-                      ...st.customApiProviders,
-                    ];
-                    const apiSettings: ApiSettings = {
-                      apiUrl: st.apiUrl,
-                      apiKey: st.apiKey,
-                      modelName: st.modelName,
-                      stream: st.stream,
-                      enableThinking: false,
-                      customRequestBody: st.customRequestBody,
-                    };
-                    const count = worldInfoEntries.filter(
-                      (e) => e.content?.trim() && (!e.embedding || e.embedding.length === 0),
-                    ).length;
-                    if (count > 0) {
-                      toast.info(`正在为 ${count} 条世界书条目生成嵌入向量...`);
-                    }
-                    const result = await generateWorldInfoEmbeddings(
-                      worldInfoEntries,
-                      memorySettings,
-                      apiSettings,
-                      allProviders,
-                      st.apiProviderKeys,
-                    );
-                    if (result.failed > 0) {
-                      toast.error(`${result.failed} 条世界书条目嵌入生成失败，请检查嵌入模型配置`);
-                    } else if (result.success > 0) {
-                      toast.success(`已为 ${result.success} 条世界书条目生成嵌入向量`);
-                    }
-                  } catch (embErr) {
-                    logger.warn("world", `角色卡导入: 世界书向量生成失败: ${(embErr as Error).message}`);
-                    toast.error(`世界书向量生成失败：${(embErr as Error).message}`);
-                  }
-                })();
-              } catch (wiErr) {
-                console.warn("[Characters] 世界书导入失败:", wiErr);
-              }
-            }
-
-            // 提取并保存正则脚本（v0.3.0: 使用 RegexScriptGroup[] 结构）
-            const regexGroups = extractRegexScriptsFromCard(cardData, latestCharacter.uuid);
-            if (regexGroups.length > 0) {
-              try {
-                const existing = (await getItem<RegexScriptGroup[]>("regexScripts", "regexGroups")) ?? [];
-                await setItem("regexScripts", "regexGroups", [...existing, ...regexGroups]);
-              } catch (regexErr) {
-                console.warn("[Characters] 正则脚本导入失败:", regexErr);
-              }
-            }
-
-            // v0.7.1: 提取并保存 UI 模板
-            const importedUiTemplates = extractUiTemplatesFromCard(cardData, latestCharacter.uuid);
-            if (importedUiTemplates.length > 0) {
-              try {
-                const existingTemplates = (await getItem<UiTemplate[]>("uiTemplates", "uiTemplates")) ?? [];
-                const merged = [...existingTemplates];
-                for (const t of importedUiTemplates) {
-                  if (!merged.some(et => et.name === t.name && et.content === t.content)) {
-                    merged.push(t);
-                  }
-                }
-                await setItem("uiTemplates", "uiTemplates", merged);
-                toast.success(`已导入 ${importedUiTemplates.length} 个 UI 模板`);
-              } catch (uiTplErr) {
-                console.warn("[Characters] UI 模板导入失败:", uiTplErr);
-              }
-            }
-          }
+          cardData = await parsePngCharacterCard(file);
+          isPng = true;
         } else {
           const text = await file.text();
-          await importCharacter(text);
+          cardData = JSON.parse(text);
         }
+
+        // 统一导入角色卡
+        await importCharacterFromCard(cardData);
+
+        // 获取刚导入的角色（最后一个）
+        const latestCharacter = useAppStore.getState().characters.slice(-1)[0];
+        if (latestCharacter) {
+          // 统一处理额外资源（世界书、正则、UI模板、向量生成）
+          await processImportedExtras(
+            cardData,
+            latestCharacter.uuid,
+            latestCharacter.name,
+            isPng ? file : undefined,
+          );
+        }
+
         const latestChar = useAppStore.getState().characters.slice(-1)[0];
         logger.info("user", `导入角色卡: ${latestChar?.name ?? "未知"}`);
         toast.success("角色卡导入成功");
@@ -787,7 +806,7 @@ export default function CharactersPage() {
         e.target.value = "";
       }
     },
-    [importCharacter, importCharacterFromCard],
+    [importCharacterFromCard, processImportedExtras],
   );
 
   /** 头像上传（v0.3.4: 裁剪为顶部居中正方形） */

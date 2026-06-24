@@ -1398,8 +1398,13 @@ function BuiltinToolsTab() {
     null,
   );
 
+  // v0.7.3-fix: 防御性过滤：只保留有效的工具类型，防止旧数据/无效type导致崩溃
+  const validConfigs = React.useMemo(() => {
+    return builtinToolConfigs.filter((c) => BUILTIN_TOOL_RANGES[c.type] != null);
+  }, [builtinToolConfigs]);
+
   const editingConfig = editingType
-    ? builtinToolConfigs.find((c) => c.type === editingType)
+    ? validConfigs.find((c) => c.type === editingType)
     : null;
 
   return (
@@ -1409,9 +1414,11 @@ function BuiltinToolsTab() {
           {/* v0.5.1: 工具全局模式已废弃，默认所有已启用工具在请求1对AI可见 */}
 
           {/* 内置工具列表 */}
-          {builtinToolConfigs.map((config, i) => {
+          {validConfigs.map((config, i) => {
             const toolType = config.type;
-            const range = BUILTIN_TOOL_RANGES[toolType];
+            const range = BUILTIN_TOOL_RANGES[toolType] ?? { min: 3, max: 12 };
+            const label = BUILTIN_TOOL_LABELS[toolType] ?? toolType;
+            const description = BUILTIN_TOOL_DESCRIPTIONS[toolType] ?? "";
             return (
               <motion.div
                 key={toolType}
@@ -1440,7 +1447,7 @@ function BuiltinToolsTab() {
                           <IconGlobe className="size-4 text-primary" />
                         )}
                         <h3 className="font-medium">
-                          {BUILTIN_TOOL_LABELS[toolType]}
+                          {label}
                         </h3>
                                               {/* v0.3.0 新增：anysearch 官方文档链接 */}
                         {toolType === "anysearch" && (
@@ -1463,7 +1470,7 @@ function BuiltinToolsTab() {
                         )}
                       </div>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {BUILTIN_TOOL_DESCRIPTIONS[toolType]}
+                        {description}
                       </p>
                     </div>
                     <Switch
@@ -1580,7 +1587,7 @@ function BuiltinToolsTab() {
           <DialogHeader>
             <DialogTitle>
               角色卡绑定 -{" "}
-              {editingType && BUILTIN_TOOL_LABELS[editingType]}
+              {editingType && (BUILTIN_TOOL_LABELS[editingType] ?? editingType)}
             </DialogTitle>
             <DialogDescription>
               选择启用此工具的角色卡，不选则全局启用

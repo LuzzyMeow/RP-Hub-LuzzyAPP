@@ -14,7 +14,7 @@
 
 import * as React from "react";
 import type { Route } from "./+types/trpg";
-import { IconLink, IconInfo } from "~/components/luzzy/luzzy-icons";
+import { IconLink, IconInfo, IconExclamation } from "~/components/luzzy/luzzy-icons";
 
 import { useAppStore } from "~/stores";
 import { LuzzyLayout } from "~/components/luzzy/luzzy-layout";
@@ -110,90 +110,100 @@ export default function TrpgPage() {
           </DialogHeader>
           <div className="flex-1 min-h-0 overflow-y-auto py-2 pr-2">
             <div className="space-y-3 text-sm leading-relaxed">
-              {/* v0.4.2: 重写说明弹窗,明确支持三种 API 配置场景 */}
+              {/* 核心提示：必须使用代理 */}
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                <p className="font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                  <IconExclamation className="size-4" />
+                  重要提示
+                </p>
+                <p className="mt-1.5 text-foreground">
+                  TRPG 模式<strong>必须通过本地代理</strong>才能正常工作（解决 Android WebView CORS 限制与火山方舟自动注入问题）。
+                </p>
+                <p className="mt-1 text-muted-foreground text-xs">
+                  本地代理地址：<code className="bg-muted/50 px-1 rounded">http://localhost:18527</code>（应用启动时自动运行）
+                </p>
+              </div>
+
+              {/* 配置说明 */}
               <div className="rounded-lg border border-border/50 bg-muted/30 p-3">
-                <p className="font-medium text-foreground">工作原理</p>
-                <ul className="mt-2 space-y-1.5 text-muted-foreground">
+                <p className="font-medium text-foreground">快速配置</p>
+                <ul className="mt-2 space-y-2 text-muted-foreground">
                   <li>
-                    • TRPG 模式会使用你在
-                    <span className="font-medium text-foreground">设置页面</span>
-                    配置的
-                    <span className="font-medium text-foreground">自定义供应商</span>
-                    进行 API 请求。
+                    <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold mr-1.5">1</span>
+                    前往 <span className="font-medium text-foreground">设置 → API 连接与服务</span>，新增一个<strong>自定义供应商</strong>
                   </li>
                   <li>
-                    • 仅识别
-                    <span className="font-medium text-foreground">自定义供应商</span>
-                    的模型名称，其他内置供应商不会被调用。
+                    <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold mr-1.5">2</span>
+                    根据你使用的模型，填写对应的 API 地址（见下方两种场景）
                   </li>
                   <li>
-                    • 真正起作用的是自定义供应商的
-                    <span className="font-medium text-foreground">模型名称</span>
-                    ，请确保已正确填写。
+                    <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold mr-1.5">3</span>
+                    在 TRPG 网页内选择该模型即可开始游戏
                   </li>
                 </ul>
               </div>
 
-              {/* 场景一:火山方舟编码计划(自动转发) */}
+              {/* 场景一：火山方舟编码计划 */}
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                 <p className="font-medium text-foreground flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold">1</span>
-                  场景一：火山方舟编码计划（自动转发）
-                </p>
-                <ol className="mt-2 space-y-1 text-muted-foreground">
-                  <li>1. 前往 <span className="font-medium text-foreground">设置 → API 连接与服务</span></li>
-                  <li>2. 新增一个自定义供应商</li>
-                  <li>3. 填写火山方舟编码计划的模型名称（如 doubao-...）</li>
-                  <li>4. API 地址填占位符（如 <code className="text-xs bg-muted/50 px-1 rounded">http://localhost:18527/v3</code>）</li>
-                  <li>5. API Key 填占位符，由本地代理自动注入</li>
-                  <li>6. 返回 TRPG 页面即可开始游戏</li>
-                </ol>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  提示：本地代理服务器运行于 localhost:18527，检测到 /v3 前缀自动转发至火山方舟 API（ark.cn-beijing.volces.com/api/coding/v3）。
-                </p>
-              </div>
-
-              {/* 场景二:其他供应商需转发 */}
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
-                <p className="font-medium text-foreground flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold">2</span>
-                  场景二：其他供应商需转发（绕过 CORS）
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold">A</span>
+                  使用火山方舟编码计划模型
                 </p>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  适用：供应商 API 不支持 CORS，或 Android WebView 无法直接访问的场景。
+                  适用于 doubao 等火山方舟编码计划模型，API Key 由代理自动注入
                 </p>
-                <ol className="mt-2 space-y-1 text-muted-foreground">
-                  <li>1. 前往 <span className="font-medium text-foreground">设置 → API 连接与服务</span></li>
-                  <li>2. 新增自定义供应商，填写真实 API 地址与 Key</li>
-                  <li>3. 在 TRPG 网页内配置 API 地址为：</li>
-                </ol>
-                <div className="mt-1.5 rounded bg-muted/50 p-2 text-xs">
-                  <code className="break-all">http://localhost:18527/v1?_target=https://你的供应商地址</code>
+                <div className="mt-2 space-y-1.5">
+                  <div>
+                    <span className="text-xs font-medium text-foreground">API 地址填写：</span>
+                    <div className="mt-0.5 rounded bg-muted/50 p-2 text-xs font-mono break-all">
+                      http://localhost:18527/v3
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-foreground">API Key：</span>
+                    <span className="text-xs text-muted-foreground ml-1">随意填写（代理自动注入真实 Key）</span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-foreground">模型名称：</span>
+                    <span className="text-xs text-muted-foreground ml-1">填写火山方舟模型名（如 doubao-1.5-pro-32k）</span>
+                  </div>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  示例：DeepSeek → <code className="text-xs bg-muted/50 px-1 rounded">http://localhost:18527/v1?_target=https://api.deepseek.com/v1</code>
-                </p>
               </div>
 
-              {/* 场景三:其他供应商无需转发 */}
+              {/* 场景二：其他供应商 */}
               <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
                 <p className="font-medium text-foreground flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold">3</span>
-                  场景三：其他供应商无需转发（直连）
+                  <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary/15 text-primary text-[10px] font-bold">B</span>
+                  使用其他供应商（DeepSeek、GPT、Claude 等）
                 </p>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  适用：供应商 API 支持 CORS，或在浏览器（Web 版）运行 TRPG 模式。
+                  适用于所有需要绕过 CORS 的第三方 API，代理会转发请求
                 </p>
-                <ol className="mt-2 space-y-1 text-muted-foreground">
-                  <li>1. 前往 <span className="font-medium text-foreground">设置 → API 连接与服务</span></li>
-                  <li>2. 新增自定义供应商，填写真实 API 地址与 Key</li>
-                  <li>3. 在 TRPG 网页内直接填写供应商的真实 API 地址</li>
-                  <li>4. 无需通过 localhost:18527 代理</li>
-                </ol>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  注意：Android WebView 内 iframe 默认走本地代理；若供应商支持 CORS，可在 TRPG 网页内直接配置真实地址绕过代理。
-                </p>
+                <div className="mt-2 space-y-1.5">
+                  <div>
+                    <span className="text-xs font-medium text-foreground">API 地址填写：</span>
+                    <div className="mt-0.5 rounded bg-muted/50 p-2 text-xs font-mono break-all">
+                      http://localhost:18527/v1?_target=你的真实API地址
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    示例（DeepSeek）：
+                    <code className="bg-muted/50 px-1 rounded ml-1 break-all">http://localhost:18527/v1?_target=https://api.deepseek.com/v1</code>
+                  </p>
+                  <div>
+                    <span className="text-xs font-medium text-foreground">API Key：</span>
+                    <span className="text-xs text-muted-foreground ml-1">填写该供应商的真实 API Key</span>
+                  </div>
+                  <div>
+                    <span className="text-xs font-medium text-foreground">模型名称：</span>
+                    <span className="text-xs text-muted-foreground ml-1">填写该供应商支持的模型名</span>
+                  </div>
+                </div>
               </div>
+
+              <p className="text-xs text-muted-foreground pt-1">
+                💡 提示：TRPG 模式仅识别<strong>自定义供应商</strong>的模型，内置供应商（如官方豆包、DeepSeek 内置配置）不会被调用。
+              </p>
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-2 shrink-0 pt-3 border-t border-border/40">

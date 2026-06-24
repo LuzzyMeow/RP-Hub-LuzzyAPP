@@ -340,9 +340,8 @@ export default function WorldInfoPage() {
         const data = await getItem<WorldInfoEntry[]>("worldInfo", STORAGE_KEY);
         if (data) {
           setEntries(data);
-          // 默认展开所有世界书
-          const groups = groupByBook(data);
-          setExpandedBooks(new Set(groups.map((g) => g.bookId)));
+          // v0.7.3: 默认收起所有世界书，不自动展开
+          setExpandedBooks(new Set());
         }
       } catch (e) {
         toast.error("加载世界书失败：" + (e as Error).message);
