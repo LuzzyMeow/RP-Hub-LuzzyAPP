@@ -76,34 +76,25 @@ const MENU_GROUPS: MenuGroup[] = [
 ];
 
 /** 侧边栏内容 */
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+const SidebarContent = React.memo(function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav className="flex h-full flex-col gap-1 p-3">
       {/* 菜单分组列表 */}
       <div className="flex flex-1 flex-col gap-2 overflow-y-auto">
-        {MENU_GROUPS.map((group, groupIndex) => {
-          // 计算该组之前所有项目的数量，用于动画延迟连续递增
-          const prevCount = MENU_GROUPS.slice(0, groupIndex).reduce(
-            (sum, g) => sum + g.items.length,
-            0,
-          );
+        {MENU_GROUPS.map((group) => {
           return (
             <div key={group.label} className="flex flex-col gap-1">
               <div className="px-3 py-1.5 text-xs font-medium text-muted-foreground/60">
                 {group.label}
               </div>
-              {group.items.map((item, itemIndex) => {
+              {group.items.map((item) => {
                 const Icon = item.icon;
-                const animIndex = prevCount + itemIndex;
                 return (
                   <motion.div
                     key={item.to}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{
-                      delay: animIndex * 0.02,
-                      duration: 0.15,
-                    }}
+                    transition={{ duration: 0.15 }}
                   >
                     <NavLink
                       to={item.to}
@@ -132,12 +123,17 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </div>
     </nav>
   );
-}
+});
 
 /** 移动端抽屉式侧边栏 */
 function MobileSidebar() {
   const sideMenuOpen = useUIStore((state) => state.sideMenuOpen);
   const setSideMenuOpen = useUIStore((state) => state.setSideMenuOpen);
+
+  // v0.8.7-fix: useCallback 稳定引用，避免破坏 SidebarContent 的 memo
+  const handleNavigate = React.useCallback(() => {
+    setSideMenuOpen(false);
+  }, [setSideMenuOpen]);
 
   return (
     <AnimatePresence>
@@ -166,7 +162,7 @@ function MobileSidebar() {
                 <IconClose className="size-4" />
               </Button>
             </div>
-            <SidebarContent onNavigate={() => setSideMenuOpen(false)} />
+            <SidebarContent onNavigate={handleNavigate} />
           </motion.aside>
         </>
       )}

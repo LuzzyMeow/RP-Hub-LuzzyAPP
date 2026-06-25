@@ -65,7 +65,8 @@ function AppHeader({
 }
 
 /** LUZZY 布局 */
-export function LuzzyLayout({
+// v0.8.7-fix: React.memo 隔离页面状态变化对侧边栏的影响
+export const LuzzyLayout = React.memo(function LuzzyLayout({
   children,
   title,
   actions,
@@ -94,4 +95,4 @@ export function LuzzyLayout({
       </div>
     </div>
   );
-}
+});

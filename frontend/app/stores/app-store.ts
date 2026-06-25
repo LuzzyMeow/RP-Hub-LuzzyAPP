@@ -56,7 +56,7 @@ const PERSIST_KEYS = [
   "activeProfileId",
   "defaultProfileActive",
   "defaultProfileData",
-  "sideMenuOpen",
+  // v0.8.7-fix: sideMenuOpen 不持久化 — 临时 UI 状态，每次启动应为关闭，避免切换时同步写入 localStorage 阻塞动画
   // v0.2.0 新增
   "translationSettings",
   "toolGlobalSettings",

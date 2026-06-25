@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.8.8
+
+### 🎯 侧边栏菜单动画专项性能修复
+
+> v0.8.7 发布后用户反馈侧边栏切换动画仍有延迟，专项检查发现 6 处问题，核心根因是 `sideMenuOpen` 状态被持久化到 localStorage，每次切换触发同步 I/O 阻塞动画首帧。
+
+- **P0 致命：`sideMenuOpen` 从持久化列表移除**：Zustand persist 中间件在每次状态变化时同步写入 localStorage（`JSON.stringify` + `setItem`），在动画启动关键帧阻塞主线程 5-50ms。侧边栏开关是临时 UI 状态，不应跨会话持久化
+- **P1：`SidebarContent` 包裹 React.memo**：13 个菜单项的容器组件未包裹 memo，每次 `MobileSidebar` 重渲染都会重新渲染所有菜单项
+- **P1：`onNavigate` 改用 useCallback**：内联箭头函数 `() => setSideMenuOpen(false)` 每次渲染创建新引用，破坏 memo 比较
+- **P1：`useIsMobile` 初始值同步检测**：原初始值为 `undefined`，首次渲染返回 `false`（桌面端），`useEffect` 后变为 `true`（移动端），导致 `LuzzySidebar` 卸载 `DesktopSidebar` 并挂载 `MobileSidebar` 的闪烁
+- **P2：菜单项交错动画简化**：移除 13 个 `delay: animIndex * 0.02` 交错延迟，改为统一淡入，减少动画实例数量
+- **P2：`LuzzyLayout` 包裹 React.memo**：隔离页面状态变化（如流式输出）对侧边栏的影响
+
+### 📦 工程变更
+
+- Android `versionCode` 50→51，`versionName` 0.8.7→0.8.8
+- 前端版本号同步 v0.8.7→v0.8.8
+- `android-patches/build.gradle` 同步所有修复
+
 ## v0.8.7
 
 ### 🚨 P0 流式更新致命 Bug 修复（11 项）
