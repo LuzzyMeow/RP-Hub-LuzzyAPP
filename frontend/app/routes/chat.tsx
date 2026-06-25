@@ -205,7 +205,13 @@ export default function ChatPage() {
 
   // v0.8.9-fix: 流式期间不使用 useDeferredValue，避免消息列表更新被延迟导致"全部一起出来"
   // 非流式时保留以优化长消息列表滚动性能
-  const deferredMessages = isGenerating ? visibleMessages : React.useDeferredValue(visibleMessages);
+  // v0.8.10-urgent-fix: 必须无条件调用 useDeferredValue 以遵守 React Rules of Hooks。
+  // 原实现 `isGenerating ? visibleMessages : React.useDeferredValue(visibleMessages)` 在
+  // isGenerating 翻转（false→true→false）时 hook 数量变化，React 抛出
+  // "Rendered more/fewer hooks than expected" 导致页面崩溃（ErrorBoundary 捕获白屏）。
+  // 修复：始终调用 useDeferredValue，流式期间用 renderMessages 选择是否使用 deferred 结果。
+  const deferredMessages = React.useDeferredValue(visibleMessages);
+  const renderMessages = isGenerating ? visibleMessages : deferredMessages;
 
   // v0.4.4: 滚动到顶部时加载更多消息
   const handleScroll = React.useCallback(
@@ -701,13 +707,13 @@ export default function ChatPage() {
                       )}
                     </div>
                   )}
-                  {deferredMessages.map((msg, i) => (
-                    <div key={msg.id} id={`msg-${msg.id}`} className={i === deferredMessages.length - 1 && isGenerating ? "" : "cv-auto"}>
+                  {renderMessages.map((msg, i) => (
+                    <div key={msg.id} id={`msg-${msg.id}`} className={i === renderMessages.length - 1 && isGenerating ? "" : "cv-auto"}>
                       <LuzzyChatMessage
                         message={msg}
                         avatarUrl={currentCharacter.avatar}
                         avatarName={currentCharacter.name}
-                        isLast={i === deferredMessages.length - 1}
+                        isLast={i === renderMessages.length - 1}
                         isGenerating={isGenerating}
                         onCopy={handleCopy}
                         onDelete={handleDelete}

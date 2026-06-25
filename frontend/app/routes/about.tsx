@@ -103,6 +103,14 @@ export default function AboutPage() {
   const [phraseIndex, setPhraseIndex] = React.useState(0);
   const logContainerRef = React.useRef<HTMLDivElement>(null);
   const [userScrolledUp, setUserScrolledUp] = React.useState(false);
+  // v0.8.10-urgent-fix: 用 ref 镜像 userScrolledUp，避免 effect 依赖 userScrolledUp。
+  // 原实现 effect 依赖 [displayLogs.length, userScrolledUp]，用户滑回顶部时 userScrolledUp
+  // 从 true→false 触发 effect 执行 el.scrollTop = el.scrollHeight，强制把页面拉回底部，
+  // 与用户滑到顶部的操作冲突，造成白屏闪屏。
+  const userScrolledUpRef = React.useRef(false);
+  React.useEffect(() => {
+    userScrolledUpRef.current = userScrolledUp;
+  }, [userScrolledUp]);
   // v0.8.7-urgent: D10 onScroll rAF 节流 ref
   const scrollRafRef = React.useRef<number | null>(null);
 
@@ -254,13 +262,14 @@ export default function AboutPage() {
   );
 
   // v0.5.8: 日志自动吸附底部
-  // v0.8.10-urgent-fix: 依赖改为 displayLogs.length 而非 filteredLogs 引用，
-  // 避免定时器刷新 filteredLogs 引用变化时强制 scrollTop = scrollHeight 与用户滑到顶部冲突
+  // v0.8.10-urgent-fix: 依赖改为 [displayLogs.length]（仅日志数量增加时吸附），
+  // 用 userScrolledUpRef 读取当前滚动状态，避免 userScrolledUp 在依赖中导致
+  // 滑回顶部时 true→false 触发强制滚动到底部造成闪屏。
   React.useEffect(() => {
     const el = logContainerRef.current;
-    if (!el || userScrolledUp) return;
+    if (!el || userScrolledUpRef.current) return;
     el.scrollTop = el.scrollHeight;
-  }, [displayLogs.length, userScrolledUp]);
+  }, [displayLogs.length]);
 
   // 格式化后的文本（用于复制）
   const formattedLogsText = React.useMemo(

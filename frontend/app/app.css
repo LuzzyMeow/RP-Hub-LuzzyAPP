@@ -269,14 +269,18 @@
 
 /* v0.8.10-urgent-fix: 主题切换双向颜色过渡
  * 根因：原 [data-theme="green"] * 规则仅在翠绿主题激活时提供 transition-duration，
- * 切换 white→green 时翠绿规则立即生效捕获颜色变量变化 → 有动画；
- * 切换 green→white 时翠绿规则同帧移除，瓷白主题无任何 transition → 颜色瞬间 snap → 无动画。
- * 修复：在 :root 上声明颜色相关 transition，确保两个方向切换都经过过渡。
- * 翠绿主题的 [data-theme="green"] * 规则仍会覆盖 transition-timing-function 为 steps(4,end)，
- * 所以 white→green 走 120ms 4步阶梯，green→white 走 220ms ease，双向都有动画。
- * 注意：仅对颜色相关属性生效，不影响 transform/opacity 等布局动画。 */
-:root {
-  transition: background-color 220ms ease, color 220ms ease, border-color 220ms ease;
+ *   切换 white→green 时翠绿规则立即生效捕获颜色变量变化 → 有动画；
+ *   切换 green→white 时翠绿规则同帧移除，瓷白主题无任何 transition → 颜色瞬间 snap → 无动画。
+ *   且原 :root transition 只对 html 元素本身生效，CSS 变量变化不会继承过渡到子元素。
+ * 修复：用 [data-theme] * 选择器（white/green 主题都有 data-theme 属性，双向生效），
+ *   仅对颜色相关属性（background-color/color/border-color/fill/stroke/outline-color）声明 transition，
+ *   不影响 transform/opacity 等布局动画。翠绿主题的 [data-theme="green"] * 仍覆盖 timing/duration。
+ *   white→green：[data-theme] * 提供 220ms ease，[data-theme="green"] * 覆盖为 120ms steps(4)；
+ *   green→white：[data-theme="green"] * 移除，[data-theme] * 仍提供 220ms ease → 平滑过渡。 */
+[data-theme] * {
+  transition-property: background-color, color, border-color, fill, stroke, outline-color;
+  transition-duration: 220ms;
+  transition-timing-function: ease;
 }
 
 /* v0.8.8-fix: 翠绿主题侧边栏动画排除 — 避免 steps(4,end) 让 Framer Motion 的 transform/opacity 动画变成阶梯跳跃 */
