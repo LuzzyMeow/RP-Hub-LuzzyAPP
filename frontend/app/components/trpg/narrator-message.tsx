@@ -37,6 +37,7 @@ import type { TrpgMessage, NarratorSections, ActionOption } from "~/types/trpg";
 import Markdown from "~/components/markdown/markdown";
 import { springSoft, easeFast } from "~/lib/motion-presets";
 import { parseDesignChoices, stripChoicesTags } from "~/services/trpg/designMode";
+import { useAppStore } from "~/stores";
 
 // ============================================================================
 // Props
@@ -52,8 +53,10 @@ interface NarratorMessageProps {
 // 主组件
 // ============================================================================
 
-export function NarratorMessage({ message, onSelectAction }: NarratorMessageProps) {
+export const NarratorMessage = React.memo(function NarratorMessage({ message, onSelectAction }: NarratorMessageProps) {
   const sections = message.narratorSections;
+  // v0.8.7: 获取 TRPG 生成状态，用于思考卡片自动展开跟踪
+  const trpgIsGenerating = useAppStore((s) => s.trpgIsGenerating);
 
   return (
     <motion.div
@@ -65,7 +68,11 @@ export function NarratorMessage({ message, onSelectAction }: NarratorMessageProp
     >
       {/* 思考链折叠区 — v0.8.5: 流式自动展开/正文开始时自动收起 */}
       {message.reasoningContent && (
-        <ThinkingChainCard reasoningContent={message.reasoningContent} hasContent={!!message.content} />
+        <ThinkingChainCard
+          reasoningContent={message.reasoningContent}
+          hasContent={!!message.content}
+          isGenerating={trpgIsGenerating}
+        />
       )}
 
       {/* 工具调用列表 */}
@@ -95,7 +102,7 @@ export function NarratorMessage({ message, onSelectAction }: NarratorMessageProp
       )}
     </motion.div>
   );
-}
+});
 
 // ============================================================================
 // Narrator 7 段视图
@@ -233,8 +240,8 @@ function ActionOptionsGrid({
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ ...springSoft, delay: index * 0.05 }}
-            whileHover={{ scale: 1.02, x: 2 }}
-            whileTap={{ scale: 0.98 }}
+            whileHover={{ scale: 1.02, x: 2, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+            whileTap={{ scale: 0.98, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             className="group flex items-start gap-2 rounded-md border border-border/30 bg-background/40 p-2 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
           >
             <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">
@@ -274,15 +281,12 @@ function ToolCallsList({ toolCalls }: { toolCalls: NonNullable<TrpgMessage["tool
           <IconChevronRight className="size-3" />
         </motion.div>
       </button>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={springSoft}
-            className="overflow-hidden"
-          >
+      {expanded && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <div className="space-y-1 px-2.5 pb-2">
               {toolCalls.map((tc) => (
                 <div key={tc.id} className="rounded border border-border/20 bg-background/30 p-1.5">
@@ -298,9 +302,9 @@ function ToolCallsList({ toolCalls }: { toolCalls: NonNullable<TrpgMessage["tool
                 </div>
               ))}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -312,12 +316,17 @@ function ToolCallsList({ toolCalls }: { toolCalls: NonNullable<TrpgMessage["tool
 function ThinkingChainCard({
   reasoningContent,
   hasContent,
+  isGenerating,
 }: {
   reasoningContent: string;
   hasContent: boolean;
+  isGenerating: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(true);
   const prevHasContentRef = React.useRef(false);
+  const prevIsGeneratingRef = React.useRef(false);
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const userScrolledRef = React.useRef(false);
 
   // 当正文从空→非空时自动收起（agent 开始输出正文）
   React.useEffect(() => {
@@ -328,7 +337,46 @@ function ThinkingChainCard({
     prevHasContentRef.current = hasContent;
   }, [hasContent]);
 
-  const handleToggle = () => setExpanded((prev) => !prev);
+  // v0.8.7: 生成开始时自动展开（跟踪流式输出）
+  React.useEffect(() => {
+    const prevGen = prevIsGeneratingRef.current;
+    if (isGenerating && !prevGen && reasoningContent) {
+      setExpanded(true);
+    }
+    prevIsGeneratingRef.current = isGenerating;
+  }, [isGenerating, reasoningContent]);
+
+  // v0.8.7-fix: rAF 节流 scrollTop，避免每个 chunk 触发强制同步布局
+  const scrollRafRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!isGenerating || !expanded || userScrolledRef.current) return;
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = contentRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [reasoningContent, isGenerating, expanded]);
+
+  // v0.8.7: 用户滚动检测
+  const handleScroll = React.useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
+    userScrolledRef.current = !atBottom;
+  }, []);
+
+  const handleToggle = () => {
+    userScrolledRef.current = false;
+    setExpanded((prev) => !prev);
+  };
   const isThinking = !hasContent && !!reasoningContent;
 
   return (
@@ -336,7 +384,7 @@ function ThinkingChainCard({
       <motion.button
         type="button"
         onClick={handleToggle}
-        whileTap={{ scale: 0.99 }}
+        whileTap={{ scale: 0.99, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
         className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/30"
       >
         <IconBook className={`size-3.5 ${isThinking ? "text-primary" : ""}`} />
@@ -352,23 +400,26 @@ function ThinkingChainCard({
           <IconChevronRight className="size-3" />
         </motion.div>
       </motion.button>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={springSoft}
-            className="overflow-hidden"
-          >
-            <div className="px-2.5 pb-2">
-              <div className="whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">
-                {reasoningContent}
-              </div>
+      {/* v0.8.7-fix: 用 CSS grid 1fr 动画替代 framer-motion height:"auto" + springSoft */}
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{
+          gridTemplateRows: expanded ? "1fr" : "0fr",
+          opacity: expanded ? 1 : 0,
+        }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-2.5 pb-2">
+            <div
+              ref={contentRef}
+              onScroll={handleScroll}
+              className="max-h-60 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground"
+            >
+              {reasoningContent}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -395,7 +446,7 @@ function CollapsibleSection({
       <motion.button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        whileTap={{ scale: 0.99 }}
+        whileTap={{ scale: 0.99, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
         className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/30"
       >
         {icon}
@@ -404,19 +455,16 @@ function CollapsibleSection({
           <IconChevronRight className="size-3" />
         </motion.div>
       </motion.button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={springSoft}
-            className="overflow-hidden"
-          >
+      {open && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <div className="px-2.5 pb-2">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

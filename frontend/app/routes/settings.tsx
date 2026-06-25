@@ -646,11 +646,10 @@ export default function SettingsPage() {
                       </div>
                       {currentModels.length > 0 && (
                         <div className="min-w-0 space-y-1">
-                          <AnimatePresence mode="popLayout">
+                          <AnimatePresence>
                             {currentModels.map((m) => (
                               <motion.div
                                 key={m.id}
-                                layout
                                 {...fadeSlide}
                                 className="group flex min-w-0 items-center gap-2 rounded-md border px-3 py-2"
                               >
@@ -811,11 +810,11 @@ export default function SettingsPage() {
                     variant="outline"
                     className="flex flex-wrap"
                   >
-                    <ToggleGroupItem value="default">默认</ToggleGroupItem>
-                    <ToggleGroupItem value="pixel">像素风格</ToggleGroupItem>
+                    <ToggleGroupItem value="default">瓷白</ToggleGroupItem>
+                    <ToggleGroupItem value="pixel">翠绿</ToggleGroupItem>
                   </ToggleGroup>
                   <p className="text-xs text-muted-foreground">
-                    像素风格采用 TRAE 深色配色与复古游戏动画效果
+                    翠绿采用 TRAE 深色配色与复古游戏动画效果
                   </p>
                 </div>
               </CardContent>
@@ -842,15 +841,12 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <AnimatePresence initial={false}>
-                  {translationSettings.enabled && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                      className="grid min-w-0 gap-4 overflow-hidden"
-                    >
+                {translationSettings.enabled && (
+                  <div
+                    className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                    style={{ gridTemplateRows: "1fr", opacity: 1 }}
+                  >
+                    <div className="overflow-hidden grid min-w-0 gap-4">
                       {/* 目标语言快速选项 */}
                       <div className="grid min-w-0 gap-2">
                         <label className="text-sm font-medium">
@@ -894,7 +890,7 @@ export default function SettingsPage() {
                                 {...pressableSubtle}
                                 onClick={() => handleLanguageChange(opt.value)}
                                 className={cn(
-                                  "rounded-full px-3 py-1 text-xs transition-all active:scale-95",
+                                  "rounded-full px-3 py-1 text-xs transition-transform active:scale-95",
                                   isSelected
                                     ? "bg-primary text-primary-foreground shadow-sm"
                                     : "bg-muted text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -910,7 +906,7 @@ export default function SettingsPage() {
                             {...pressableSubtle}
                             onClick={() => handleLanguageChange("__custom__")}
                             className={cn(
-                              "rounded-full border border-dashed px-3 py-1 text-xs transition-all active:scale-95",
+                              "rounded-full border border-dashed px-3 py-1 text-xs transition-transform active:scale-95",
                               isCustomMode
                                 ? "border-primary bg-primary/10 text-primary"
                                 : "border-border text-muted-foreground hover:border-primary/50 hover:text-primary",
@@ -1039,9 +1035,9 @@ export default function SettingsPage() {
                           )}
                         </div>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>
@@ -1066,15 +1062,12 @@ export default function SettingsPage() {
                   />
                 </div>
 
-                <AnimatePresence initial={false}>
-                  {highlightSettings.enabled && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-                      className="grid min-w-0 gap-4 overflow-hidden"
-                    >
+                {highlightSettings.enabled && (
+                  <div
+                    className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                    style={{ gridTemplateRows: "1fr", opacity: 1 }}
+                  >
+                    <div className="overflow-hidden grid min-w-0 gap-4">
                       {/* 颜色预设 */}
                       <div className="grid min-w-0 gap-2">
                         <label className="text-sm font-medium">高亮颜色</label>
@@ -1085,7 +1078,7 @@ export default function SettingsPage() {
                               type="button"
                               onClick={() => setHighlightSettings({ color: preset.value })}
                               className={cn(
-                                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-all",
+                                "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs transition-transform",
                                 highlightSettings.color === preset.value
                                   ? "border-primary bg-primary/10 text-primary"
                                   : "border-border hover:bg-accent",
@@ -1135,9 +1128,9 @@ export default function SettingsPage() {
                           />
                         </div>
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

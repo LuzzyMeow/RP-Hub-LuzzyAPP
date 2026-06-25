@@ -30,7 +30,8 @@ type LogCategory =
   | "world"
   | "tool"
   | "stream"
-  | "trpg";
+  | "trpg"
+  | "preset";
 export type { LogLevel, LogCategory };
 
 interface LogEntry {

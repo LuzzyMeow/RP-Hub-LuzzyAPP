@@ -120,30 +120,35 @@ export default function ChatPage() {
 
   // 初始化：加载会话列表 + 确保默认角色"鹿溪"存在 + 恢复上次会话状态
   React.useEffect(() => {
+    // v0.8.7-urgent: cancelled 标志，组件卸载后中断异步操作
+    let cancelled = false;
     void loadSessions().then(() => {
+      if (cancelled) return;
       ensureDefaultCharacter().then(async () => {
+        if (cancelled) return;
         const state = useAppStore.getState();
         // v0.3.2: 优先恢复持久化的 currentCharacterUuid
         if (!state.currentCharacter && state.currentCharacterUuid) {
           const char = state.characters.find((c) => c.uuid === state.currentCharacterUuid);
           if (char) {
-            setCurrentCharacter(char);
+            if (!cancelled) setCurrentCharacter(char);
             // v0.3.2: 若有持久化的 currentSessionId，恢复该会话消息
             if (state.currentSessionId) {
               const session = state.sessions.find((s) => s.id === state.currentSessionId);
               if (session && session.messages.length > 0) {
-                setMessages(session.messages);
+                if (!cancelled) setMessages(session.messages);
                 return;
               }
             }
             // 无有效会话则加载角色聊天历史
             await loadChatHistory(char.uuid);
+            if (cancelled) return;
             // v0.4.1: 首次启动时若历史为空且角色有开场白,自动创建默认会话显示开场白
             const currentMessages = useAppStore.getState().messages;
             if (currentMessages.length === 0 && char.firstMessage) {
               const sessionId = createSession(char.uuid, char.name, char.firstMessage);
               const newSession = useAppStore.getState().sessions.find((s) => s.id === sessionId);
-              if (newSession) {
+              if (newSession && !cancelled) {
                 setMessages(newSession.messages);
                 void saveSessions();
               }
@@ -152,6 +157,9 @@ export default function ChatPage() {
         }
       });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [
     ensureDefaultCharacter,
     setCurrentCharacter,
@@ -169,6 +177,21 @@ export default function ChatPage() {
   const PAGE_SIZE = 40;
   const [displayCount, setDisplayCount] = React.useState(PAGE_SIZE);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
+  // v0.8.7-urgent: setTimeout timer refs，组件卸载时清理
+  const scrollLoadTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const switchSessionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jumpMsgTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const jumpHighlightTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // v0.8.7-urgent: 组件卸载时清理所有 setTimeout
+  React.useEffect(() => {
+    return () => {
+      if (scrollLoadTimerRef.current) clearTimeout(scrollLoadTimerRef.current);
+      if (switchSessionTimerRef.current) clearTimeout(switchSessionTimerRef.current);
+      if (jumpMsgTimerRef.current) clearTimeout(jumpMsgTimerRef.current);
+      if (jumpHighlightTimerRef.current) clearTimeout(jumpHighlightTimerRef.current);
+    };
+  }, []);
 
   // v0.4.4: 切换会话时重置分页
   React.useEffect(() => {
@@ -180,6 +203,9 @@ export default function ChatPage() {
     return messages.slice(-displayCount);
   }, [messages, displayCount]);
 
+  // v0.8.7-urgent: useDeferredValue 让 React 在空闲时处理消息列表更新，避免阻塞流式渲染
+  const deferredMessages = React.useDeferredValue(visibleMessages);
+
   // v0.4.4: 滚动到顶部时加载更多消息
   const handleScroll = React.useCallback(
     (e: React.UIEvent<HTMLDivElement>) => {
@@ -190,7 +216,7 @@ export default function ChatPage() {
         const prevScrollTop = target.scrollTop;
 
         // 显示刷新转圈动画 500ms
-        setTimeout(() => {
+        scrollLoadTimerRef.current = setTimeout(() => {
           setDisplayCount((prev) => Math.min(prev + PAGE_SIZE, messages.length));
           // 保持滚动位置(加载历史消息后,视图不跳动)
           requestAnimationFrame(() => {
@@ -371,7 +397,7 @@ export default function ChatPage() {
           setCurrentCharacter(char);
         }
         // v0.4.4: 等待 AnimatePresence 动画完成后滚动到底部
-        setTimeout(() => {
+        switchSessionTimerRef.current = setTimeout(() => {
           scrollToBottom();
         }, 300);
       }
@@ -444,12 +470,12 @@ export default function ChatPage() {
   const handleJumpToMessage = React.useCallback((messageId: string) => {
     setShowSessionList(false);
     // 延迟滚动，等待列表渲染
-    setTimeout(() => {
+    jumpMsgTimerRef.current = setTimeout(() => {
       const el = document.getElementById(`msg-${messageId}`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("ring-2", "ring-primary/50");
-        setTimeout(() => {
+        jumpHighlightTimerRef.current = setTimeout(() => {
           el.classList.remove("ring-2", "ring-primary/50");
         }, 2000);
       }
@@ -548,9 +574,9 @@ export default function ChatPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.05 }}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
+              whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             >
               <Button
                 variant="ghost"
@@ -566,9 +592,9 @@ export default function ChatPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.1 }}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
+              whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             >
               <Button
                 variant="ghost"
@@ -584,9 +610,9 @@ export default function ChatPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.15 }}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.15 }}
+              whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             >
               <Button
                 variant="ghost"
@@ -602,9 +628,9 @@ export default function ChatPage() {
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.2 }}
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.2 }}
+              whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             >
               <Button
                 variant="ghost"
@@ -674,13 +700,13 @@ export default function ChatPage() {
                       )}
                     </div>
                   )}
-                  {visibleMessages.map((msg, i) => (
-                    <div key={msg.id} id={`msg-${msg.id}`}>
+                  {deferredMessages.map((msg, i) => (
+                    <div key={msg.id} id={`msg-${msg.id}`} className="cv-auto">
                       <LuzzyChatMessage
                         message={msg}
                         avatarUrl={currentCharacter.avatar}
                         avatarName={currentCharacter.name}
-                        isLast={i === visibleMessages.length - 1}
+                        isLast={i === deferredMessages.length - 1}
                         isGenerating={isGenerating}
                         onCopy={handleCopy}
                         onDelete={handleDelete}
@@ -702,7 +728,7 @@ export default function ChatPage() {
             <AnimatePresence>
               {showApiConfigWarning && (
                 <motion.div
-                  className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-sm"
+                  className="absolute inset-0 z-20 flex items-center justify-center bg-background/80"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
@@ -710,11 +736,11 @@ export default function ChatPage() {
                   onClick={() => setShowApiConfigWarning(false)}
                 >
                   <motion.div
-                    className="flex flex-col items-center gap-4 rounded-2xl border border-border/30 bg-card p-8 shadow-2xl"
+                    className="flex flex-col items-center gap-4 rounded-2xl border border-border/30 bg-card p-8 shadow-md"
                     initial={{ opacity: 0, y: 20, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 20, scale: 0.95 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex size-14 items-center justify-center rounded-full bg-amber-500/15">
@@ -757,7 +783,7 @@ export default function ChatPage() {
                   initial={{ opacity: 0, y: 10, scale: 0.8 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.8 }}
-                  transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                  transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                 >
                   <Button
                     variant="secondary"

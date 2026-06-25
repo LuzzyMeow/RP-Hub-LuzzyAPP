@@ -218,7 +218,7 @@ export default function ToolsPage() {
                   <motion.div
                     layoutId="tools-tab-indicator"
                     className="absolute inset-0 -z-10 rounded-lg bg-primary/10"
-                    transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                    transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                   />
                 )}
               </motion.button>
@@ -245,7 +245,7 @@ export default function ToolsPage() {
 // SKILL Tab
 // ============================================================================
 
-function SkillTab() {
+const SkillTab = React.memo(function SkillTab() {
   const skills = useAppStore((s) => s.skills);
   const addSkill = useAppStore((s) => s.addSkill);
   const updateSkill = useAppStore((s) => s.updateSkill);
@@ -263,12 +263,17 @@ function SkillTab() {
   const [githubUrl, setGithubUrl] = React.useState("");
   const [skillContent, setSkillContent] = React.useState("");
   const [skillTags, setSkillTags] = React.useState<string[]>([]);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredSkills = React.useDeferredValue(skills);
 
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       await loadSkills();
+      if (cancelled) return;
       setLoaded(true);
     })();
+    return () => { cancelled = true; };
   }, [loadSkills]);
 
   /** 持久化辅助 */
@@ -507,18 +512,17 @@ function SkillTab() {
               新建
             </Button>
           </div>
-          <div className="grid min-w-0 grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
-            <AnimatePresence mode="popLayout">
-              {skills.map((s, i) => (
+          <div className="cv-auto grid min-w-0 grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
+            <AnimatePresence>
+              {deferredSkills.map((s, i) => (
                 <motion.div
                   key={s.id}
-                  layout
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: i * 0.03, duration: 0.2 }}
                 >
-                  <Card className="gap-3 p-4 transition-all hover:shadow-md">
+                  <Card className="gap-3 p-4 transition-shadow hover:shadow-md">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -776,13 +780,13 @@ function SkillTab() {
       </Dialog>
     </div>
   );
-}
+});
 
 // ============================================================================
 // MCP Tab
 // ============================================================================
 
-function McpTab() {
+const McpTab = React.memo(function McpTab() {
   const [tools, setTools] = React.useState<ActiveTool[]>([]);
   const [loaded, setLoaded] = React.useState(false);
   const [editing, setEditing] = React.useState<ActiveTool | null>(null);
@@ -799,19 +803,25 @@ function McpTab() {
 
   const characters = useAppStore((s) => s.characters);
   const confirm = useConfirm();
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredTools = React.useDeferredValue(tools);
 
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         const data = await getItem<ActiveTool[]>("activeTools", "activeTools");
+        if (cancelled) return;
         // 仅显示 MCP 类型
         setTools((data ?? []).filter((t) => t.type === "mcp_http"));
       } catch (e) {
+        if (cancelled) return;
         toast.error("加载 MCP 工具失败：" + (e as Error).message);
       } finally {
-        setLoaded(true);
+        if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   /** 持久化（需读取全部工具再合并 MCP 部分） */
@@ -1057,18 +1067,17 @@ function McpTab() {
               JSON 导入
             </Button>
           </div>
-          <div className="grid min-w-0 grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
-            <AnimatePresence mode="popLayout">
-              {tools.map((t, i) => (
+          <div className="cv-auto grid min-w-0 grid-cols-1 gap-3 pb-4 sm:grid-cols-2">
+            <AnimatePresence>
+              {deferredTools.map((t, i) => (
                 <motion.div
                   key={t.id}
-                  layout
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: i * 0.03, duration: 0.2 }}
                 >
-                  <Card className="gap-3 p-4 transition-all hover:shadow-md">
+                  <Card className="gap-3 p-4 transition-shadow hover:shadow-md">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -1183,7 +1192,7 @@ function McpTab() {
                           <p className="text-muted-foreground">工具清单：</p>
                           {testResult.tools.map((tool, i) => (
                             <div
-                              key={i}
+                              key={tool.name || i} // v0.8.7-urgent: D6 修复 key={i} → key={tool.name}
                               className="rounded border border-border/50 bg-background/50 p-1.5"
                             >
                               <p className="font-mono text-xs font-medium">{tool.name}</p>
@@ -1307,13 +1316,13 @@ function McpTab() {
       </Dialog>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 内置工具 Tab
 // ============================================================================
 
-function BuiltinToolsTab() {
+const BuiltinToolsTab = React.memo(function BuiltinToolsTab() {
   const builtinToolConfigs = useAppStore((s) => s.builtinToolConfigs);
   const updateBuiltinToolConfig = useAppStore((s) => s.updateBuiltinToolConfig);
   const toolGlobalSettings = useAppStore((s) => s.toolGlobalSettings);
@@ -1323,14 +1332,17 @@ function BuiltinToolsTab() {
   // v0.3.3: 从 IndexedDB 加载记忆设置以检查嵌入模型配置状态
   const [hasEmbeddingModel, setHasEmbeddingModel] = React.useState(false);
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         const data = await getItem<MemorySettings>("memory", "memorySettings");
+        if (cancelled) return;
         setHasEmbeddingModel(Boolean(data?.embeddingModel?.trim()));
       } catch {
-        setHasEmbeddingModel(false);
+        if (!cancelled) setHasEmbeddingModel(false);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
   const [editingType, setEditingType] = React.useState<BuiltinToolType | null>(null);
 
@@ -1349,12 +1361,11 @@ function BuiltinToolsTab() {
 
           {/* v0.8.1: Agentic 循环最大步数配置 */}
           <motion.div
-            layout
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Card className="gap-3 p-4 transition-all hover:shadow-md">
+            <Card className="gap-3 p-4 transition-shadow hover:shadow-md">
               <div className="flex items-start gap-2">
                 <IconRefresh className="size-4 shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
@@ -1393,12 +1404,11 @@ function BuiltinToolsTab() {
             return (
               <motion.div
                 key={toolType}
-                layout
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05, duration: 0.2 }}
               >
-                <Card className="gap-3 p-4 transition-all hover:shadow-md">
+                <Card className="gap-3 p-4 transition-shadow hover:shadow-md">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -1438,12 +1448,11 @@ function BuiltinToolsTab() {
                   </div>
 
                   {config.enabled && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="space-y-3 border-t border-border/50 pt-3"
+                    <div
+                      className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                      style={{ gridTemplateRows: "1fr", opacity: 1 }}
                     >
+                      <div className="overflow-hidden space-y-3 border-t border-border/50 pt-3">
                       {/* v0.3.3: 向量记忆工具未配置嵌入模型时的提示 */}
                       {/* v0.3.4: memory-recall 工具同步添加提示 */}
                       {/* v0.4.3: world-recall 工具同步添加提示 */}
@@ -1524,7 +1533,8 @@ function BuiltinToolsTab() {
                             : "全部角色卡"}
                         </Button>
                       </div>
-                    </motion.div>
+                      </div>
+                    </div>
                   )}
                 </Card>
               </motion.div>
@@ -1580,4 +1590,4 @@ function BuiltinToolsTab() {
       </Dialog>
     </div>
   );
-}
+});

@@ -77,7 +77,7 @@ export function BindingDeleteConfirmProvider({ children }: { children: React.Rea
             <motion.div
               initial={{ scale: 0, rotate: -10 }}
               animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
               className="flex size-10 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive"
             >
               <IconTrash size={20} />
@@ -92,7 +92,7 @@ export function BindingDeleteConfirmProvider({ children }: { children: React.Rea
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 25 }}
+            transition={{ delay: 0.1, duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2"
           >
             <IconLink size={16} className="shrink-0 text-primary" />

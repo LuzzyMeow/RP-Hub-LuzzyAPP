@@ -31,7 +31,7 @@ import type { GameLocation, LocationStatus } from "~/types/trpg";
 // 主组件
 // ============================================================================
 
-export function MapSheet() {
+export const MapSheet = React.memo(function MapSheet() {
   const trpgSave = useAppStore((s) => s.trpgSave);
   const locations = trpgSave?.gameState.locations ?? [];
   const currentLocation = trpgSave?.gameState.currentLocation;
@@ -71,7 +71,7 @@ export function MapSheet() {
           <span>当前位置</span>
         </div>
         <motion.div
-          whileHover={{ scale: 1.01 }}
+          whileHover={{ scale: 1.01, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           className="mt-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5"
         >
           <div className="flex size-8 items-center justify-center rounded-full bg-primary/10">
@@ -104,7 +104,7 @@ export function MapSheet() {
         {locations.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">尚未发现任何地点</div>
         ) : (
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence>
             {/* 当前位置（排除已在上方显示的） */}
             {groupedLocations.current.filter((loc) => loc.name !== currentLocation).length > 0 && (
               <LocationGroup
@@ -164,7 +164,7 @@ export function MapSheet() {
       </div>
     </ScrollArea>
   );
-}
+});
 
 // ============================================================================
 // 地标分组
@@ -183,7 +183,6 @@ function LocationGroup({
 }) {
   return (
     <motion.div
-      layout
       variants={listItemAnimation}
       initial="initial"
       animate="animate"
@@ -208,7 +207,7 @@ function LocationGroup({
 // 地标卡片
 // ============================================================================
 
-function LocationCard({
+const LocationCard = React.memo(function LocationCard({
   location,
   variant,
 }: {
@@ -233,7 +232,7 @@ function LocationCard({
 
   return (
     <motion.div
-      whileHover={{ scale: 1.01 }}
+      whileHover={{ scale: 1.01, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       className={`rounded-md border p-2 transition-colors ${variantStyles[variant]}`}
     >
       <div className="flex items-center gap-2">
@@ -276,7 +275,7 @@ function LocationCard({
       )}
     </motion.div>
   );
-}
+});
 
 // ============================================================================
 // 空状态

@@ -88,7 +88,7 @@ function protectUndefinedReferences(): (tree: any) => void {
   };
 }
 
-// Regex patterns for preprocessing
+// v0.8.7-fix: 预编译正则常量，避免每次 preProcess 都 new RegExp()
 const INLINE_LATEX_REGEX = /\\\((.+?)\\\)/g;
 const BLOCK_LATEX_REGEX = /\\\[(.+?)\\\]/gs;
 const CODE_BLOCK_REGEX = /```[\s\S]*?```|`[^`\n]*`/g;
@@ -100,11 +100,24 @@ const QUOTE_HIGHLIGHT_REGEX =
 
 // Preprocess markdown content
 function preProcess(content: string): string {
+  // v0.8.7-fix: 短内容（< 50 字符）且无特殊标记时直接返回，避免正则开销
+  if (
+    content.length < 50 &&
+    !content.includes("\\(") &&
+    !content.includes("\\[") &&
+    !content.includes("```") &&
+    !content.includes('"') &&
+    !content.includes("「")
+  ) {
+    return content;
+  }
+
   // Find all code block positions
   const codeBlocks: { start: number; end: number }[] = [];
   let match;
-  const codeBlockRegex = new RegExp(CODE_BLOCK_REGEX.source, "g");
-  while ((match = codeBlockRegex.exec(content)) !== null) {
+  // v0.8.7-fix: 直接使用预编译常量，重置 lastIndex 避免全局正则状态残留
+  CODE_BLOCK_REGEX.lastIndex = 0;
+  while ((match = CODE_BLOCK_REGEX.exec(content)) !== null) {
     codeBlocks.push({ start: match.index, end: match.index + match[0].length });
   }
 
@@ -114,18 +127,17 @@ function preProcess(content: string): string {
   };
 
   // Replace inline formulas \( ... \) to $ ... $, skip code blocks
-  let result = content.replace(
-    new RegExp(INLINE_LATEX_REGEX.source, "g"),
-    (match, group1, offset) => {
-      if (isInCodeBlock(offset)) {
-        return match;
-      }
-      return `$${group1}$`;
-    },
-  );
+  INLINE_LATEX_REGEX.lastIndex = 0;
+  let result = content.replace(INLINE_LATEX_REGEX, (match, group1, offset) => {
+    if (isInCodeBlock(offset)) {
+      return match;
+    }
+    return `$${group1}$`;
+  });
 
   // Replace block formulas \[ ... \] to $$ ... $$, skip code blocks
-  result = result.replace(new RegExp(BLOCK_LATEX_REGEX.source, "gs"), (match, group1, offset) => {
+  BLOCK_LATEX_REGEX.lastIndex = 0;
+  result = result.replace(BLOCK_LATEX_REGEX, (match, group1, offset) => {
     if (isInCodeBlock(offset)) {
       return match;
     }
@@ -135,8 +147,9 @@ function preProcess(content: string): string {
   // v0.4.3: 多括号高亮，将 "..." 「...」 {...} [...] (...) 等替换为 <span class="luzzy-highlight">...</span>
   // 颜色由 CSS 变量 --luzzy-highlight-color 控制，未设置时使用 inherit（无高亮效果）
   // 新正则有 3 个捕获组：左括号、内容、右括号
+  QUOTE_HIGHLIGHT_REGEX.lastIndex = 0;
   result = result.replace(
-    new RegExp(QUOTE_HIGHLIGHT_REGEX.source, "g"),
+    QUOTE_HIGHLIGHT_REGEX,
     (match, leftBracket, content, rightBracket, offset) => {
       if (isInCodeBlock(offset)) {
         return match;
@@ -168,7 +181,7 @@ function getNodeText(node: React.ReactNode): string {
   return "";
 }
 
-export default function Markdown({
+export default React.memo(function Markdown({
   content,
   className,
   onClickCitation,
@@ -180,9 +193,9 @@ export default function Markdown({
   const workbench = useOptionalWorkbench();
   // LUZZY 的 SettingsSlice 扁平结构无 displaySetting，使用默认值（showLineNumbers/codeBlockAutoWrap 均为 false）
   const displaySetting: { showLineNumbers?: boolean; codeBlockAutoWrap?: boolean } = {};
-  // v0.5.4: 使用 useDeferredValue 延迟 Markdown 解析，避免流式高频更新阻塞主线程
-  // 等价 rikkahub 的 mapLatest + flowOn(Dispatchers.Default) 后台解析模式
-  // 流式期间 content 高频变化时，React 优先处理 UI 交互，空闲时才解析 Markdown
+  // v0.8.7-fix: 恢复 useDeferredValue，避免流式输出每帧全量解析 markdown + Streamdown 重新渲染
+  // useDeferredValue 让 React 在空闲时处理 markdown 解析，不阻塞主线程交互
+  // 配合 chat-slice 的 rAF 节流，实现真正的实时流式渲染（而非伪打字机）
   const deferredContent = React.useDeferredValue(content);
   const processedContent = React.useMemo(() => preProcess(deferredContent), [deferredContent]);
   const handlePreviewCode = React.useCallback(
@@ -301,4 +314,4 @@ export default function Markdown({
       </Streamdown>
     </div>
   );
-}
+});

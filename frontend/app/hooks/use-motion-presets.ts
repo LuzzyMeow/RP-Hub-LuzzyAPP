@@ -26,6 +26,7 @@ import {
   pixelSpringEnter,
   pixelScaleIn,
   pixelSlideInRight,
+  pixelSlideInBottom,
   pixelFadeSlide,
   pixelFadeIn,
   pixelPressable,

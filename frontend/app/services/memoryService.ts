@@ -272,6 +272,23 @@ const resolveEmbeddingProvider = (
     embeddingProviderId = embeddingParse.providerId;
   }
 
+  // v0.8.7: Level 2.5 模糊匹配 — 模型名（不带前缀）匹配已知供应商的嵌入模型时，使用该供应商
+  // 修复 doubao-embedding-vision 等模型名含下划线但无供应商前缀导致 parseModelName 误解析的问题
+  // （parseModelName 会将 "doubao-embedding-vision" 误解析为 providerId="doubao"，但 doubao 不是有效供应商）
+  if (!embeddingProviderId) {
+    const actualModelName = getActualModelName(settings.embeddingModel || "", providers);
+    for (const provider of providers) {
+      const hasMatchingModel = (provider.models ?? []).some(
+        (m) => m.supportsEmbedding && m.name === actualModelName,
+      );
+      if (hasMatchingModel) {
+        embeddingProviderId = provider.id;
+        logger.info("memory", `嵌入供应商模糊匹配命中：${provider.id}（模型 ${actualModelName}）`);
+        break;
+      }
+    }
+  }
+
   // v0.8.2: [移除 Level 3] 不再回退到聊天模型供应商
   // 嵌入与聊天是不同模型/不同供应商/不同 Key，回退到聊天供应商会导致用错误的 URL/Key 请求嵌入模型
 

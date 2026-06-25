@@ -20,6 +20,8 @@ export interface ChatMessage {
   characterId?: string;
   /** 思考链内容 */
   cot?: string;
+  /** v0.8.7: 推理内容（流式输出时的实时思考内容，最终合并到 cot） */
+  reasoningContent?: string;
   /** 工具调用列表 */
   toolCalls?: ToolCall[];
   /** 记忆召回结果 */

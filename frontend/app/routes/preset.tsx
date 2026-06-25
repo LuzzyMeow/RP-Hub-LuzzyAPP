@@ -88,16 +88,21 @@ export default function PresetPage() {
   const [viewMode, setViewMode] = React.useState<ViewMode>("rendered");
   const [showCharDialog, setShowCharDialog] = React.useState<Preset | null>(null);
   const confirm = useConfirm();
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredCustomPresets = React.useDeferredValue(customPresets);
 
   /** 加载自定义预设与内置预设覆盖 */
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         // v0.8.5: 内置预设版本检查 — 版本不匹配时强制清除用户覆盖
         const storedVersion = await getItem<number>("presets", "builtinVersion");
+        if (cancelled) return;
         if (storedVersion !== BUILTIN_PRESET_VERSION) {
           await setItem("presets", "builtinOverrides", {});
           await setItem("presets", "builtinVersion", BUILTIN_PRESET_VERSION);
+          if (cancelled) return;
           setBuiltinOverrides({});
         }
 
@@ -105,14 +110,17 @@ export default function PresetPage() {
           getItem<Preset[]>("presets", "custom"),
           getItem<Record<string, Preset>>("presets", "builtinOverrides"),
         ]);
+        if (cancelled) return;
         setCustomPresets(customData ?? []);
         setBuiltinOverrides(overrideData ?? {});
       } catch (e) {
+        if (cancelled) return;
         toast.error("加载预设失败：" + (e as Error).message);
       } finally {
-        setLoaded(true);
+        if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   /** 持久化自定义预设 */
@@ -337,8 +345,8 @@ export default function PresetPage() {
     (preset: Preset, index: number) => {
       const isGlobal = !preset.enabledForCharacters || preset.enabledForCharacters.length === 0;
       return (
-        <motion.div key={preset.id} layout {...springEnter} custom={index}>
-          <Card className="gap-2 p-4 transition-all hover:shadow-md">
+        <motion.div key={preset.id} {...springEnter} custom={index}>
+          <Card className="gap-2 p-4 transition-shadow hover:shadow-md">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -454,7 +462,7 @@ export default function PresetPage() {
                   内置预设
                 </h2>
                 <div className="grid gap-3">
-                  <AnimatePresence mode="popLayout">
+                  <AnimatePresence>
                     {BUILTIN_PRESET_DEFAULTS.map((p, i) =>
                       renderPresetCard(getBuiltinPreset(p), i),
                     )}
@@ -484,9 +492,9 @@ export default function PresetPage() {
                     </Empty>
                   </Card>
                 ) : (
-                  <div className="grid gap-3">
-                    <AnimatePresence mode="popLayout">
-                      {customPresets
+                  <div className="cv-auto grid gap-3">
+                    <AnimatePresence>
+                      {deferredCustomPresets
                         .filter((p) => p.name !== LUZZY_PRESET_NAME)
                         .map((p, i) => renderPresetCard(p, i))}
                     </AnimatePresence>
@@ -580,11 +588,7 @@ export default function PresetPage() {
                     <motion.div
                       layoutId="preset-view-indicator"
                       className="absolute inset-0 -z-10 rounded-lg bg-primary/10"
-                      transition={{
-                        type: "spring",
-                        stiffness: 400,
-                        damping: 30,
-                      }}
+                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                     />
                   )}
                 </motion.button>
@@ -602,11 +606,7 @@ export default function PresetPage() {
                     <motion.div
                       layoutId="preset-view-indicator"
                       className="absolute inset-0 -z-10 rounded-lg bg-primary/10"
-                      transition={{
-                        type: "spring",
-                        stiffness: 400,
-                        damping: 30,
-                      }}
+                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                     />
                   )}
                 </motion.button>
@@ -666,7 +666,7 @@ interface CharBindingContentProps {
   onCancel: () => void;
 }
 
-function CharBindingContent({ preset, characters, onSave, onCancel }: CharBindingContentProps) {
+const CharBindingContent = React.memo(function CharBindingContent({ preset, characters, onSave, onCancel }: CharBindingContentProps) {
   const [selected, setSelected] = React.useState<Set<string>>(
     new Set(preset.enabledForCharacters ?? []),
   );
@@ -723,4 +723,4 @@ function CharBindingContent({ preset, characters, onSave, onCancel }: CharBindin
       </DialogFooter>
     </>
   );
-}
+});

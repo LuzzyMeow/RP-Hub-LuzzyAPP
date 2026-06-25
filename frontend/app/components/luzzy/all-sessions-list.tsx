@@ -136,6 +136,7 @@ export function AllSessionsList({
     }
     return groups;
   }, [filteredSessions]);
+  const deferredGroupedSessions = React.useDeferredValue(groupedSessions);
 
   /** 打开重命名弹窗 */
   const handleOpenRename = (session: Session) => {
@@ -155,11 +156,11 @@ export function AllSessionsList({
   return (
     <motion.div
       {...springEnter}
-      className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl"
+      className="fixed inset-0 z-50 flex flex-col bg-background"
     >
       {/* 顶部栏 */}
       <header
-        className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/40 px-4 backdrop-blur-xl"
+        className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/80 px-4"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           height: "calc(2.75rem + env(safe-area-inset-top))",
@@ -223,8 +224,8 @@ export function AllSessionsList({
                   <div className="px-1 text-xs font-medium text-muted-foreground/60">
                     {TIME_GROUP_LABELS[group]}（{groupSessions.length}）
                   </div>
-                  <AnimatePresence mode="popLayout">
-                    {groupSessions.map((session) => (
+                  <AnimatePresence>
+                    {deferredGroupedSessions[group].map((session) => (
                       <SessionSwipeItem
                         key={session.id}
                         session={session}
@@ -293,7 +294,7 @@ interface SessionSwipeItemProps {
   onShare: (id: string) => void;
 }
 
-function SessionSwipeItem({
+const SessionSwipeItem = React.memo(function SessionSwipeItem({
   session,
   isActive,
   onSwitch,
@@ -326,7 +327,6 @@ function SessionSwipeItem({
       </div>
       {/* 前景层：原会话内容 */}
       <motion.div
-        layout
         drag="x"
         dragConstraints={{ left: -120, right: 120 }}
         dragElastic={0.15}
@@ -348,7 +348,7 @@ function SessionSwipeItem({
         }}
         {...springEnter}
         className={cn(
-          "group flex items-center gap-3 rounded-xl border border-border/20 bg-card/50 p-3 transition-colors",
+          "group flex items-center gap-3 rounded-xl border border-border/20 bg-card/50 p-3 transition-colors cv-auto",
           isActive ? "border-primary/40 bg-primary/5" : "hover:bg-accent/50",
         )}
       >
@@ -393,4 +393,4 @@ function SessionSwipeItem({
       </motion.div>
     </div>
   );
-}
+});

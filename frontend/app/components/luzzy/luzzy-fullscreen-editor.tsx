@@ -310,7 +310,7 @@ export function LuzzyFullscreenEditor({
           animate={reduceMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
           exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: "100%" }}
           transition={
-            reduceMotion ? { duration: 0.2 } : { type: "spring", stiffness: 300, damping: 30 }
+            reduceMotion ? { duration: 0.2 } : { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
           }
           style={{ paddingTop: "calc(0.5rem + env(safe-area-inset-top))" }}
         >

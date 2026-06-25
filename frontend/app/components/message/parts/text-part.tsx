@@ -1,3 +1,4 @@
+import * as React from "react";
 import Markdown from "~/components/markdown/markdown";
 
 interface TextPartProps {
@@ -6,11 +7,11 @@ interface TextPartProps {
   onClickCitation?: (id: string) => void;
 }
 
-export function TextPart({ text, isAnimating, onClickCitation }: TextPartProps) {
+export const TextPart = React.memo(function TextPart({ text, isAnimating, onClickCitation }: TextPartProps) {
   if (!text) return null;
   return (
     <div data-part="text">
       <Markdown content={text} isAnimating={isAnimating} onClickCitation={onClickCitation} />
     </div>
   );
-}
+});

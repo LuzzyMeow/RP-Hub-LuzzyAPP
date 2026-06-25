@@ -66,7 +66,7 @@ const THINKING_DEPTH_OPTIONS: { value: ThinkingDepth; label: string; description
 ];
 
 /** LUZZY 聊天输入 */
-export function LuzzyChatInput({
+export const LuzzyChatInput = React.memo(function LuzzyChatInput({
   value,
   onChange,
   onSend,
@@ -210,7 +210,7 @@ export function LuzzyChatInput({
         ref={containerRef}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ type: "spring", stiffness: 260, damping: 24 }}
+        transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
           "relative z-20 border-t border-border bg-background shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.08)]",
           className,
@@ -222,9 +222,9 @@ export function LuzzyChatInput({
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.05 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.05 }}
+            whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+            whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           >
             <Button
               size="icon"
@@ -232,7 +232,7 @@ export function LuzzyChatInput({
               onClick={() => setShowFullscreen(true)}
               disabled={disabled}
               title="全屏编辑"
-              className="size-10 shrink-0 rounded-xl border border-border/10 bg-background/40 text-muted-foreground backdrop-blur-sm hover:bg-background/60 hover:text-foreground"
+              className="size-10 shrink-0 rounded-xl border border-border/10 bg-background/80 text-muted-foreground hover:bg-background/60 hover:text-foreground"
             >
               <IconExpand className="size-5" />
             </Button>
@@ -252,9 +252,9 @@ export function LuzzyChatInput({
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.1 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
+            whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+            whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           >
             <Button
               size="icon"
@@ -272,9 +272,9 @@ export function LuzzyChatInput({
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.15 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.15 }}
+            whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+            whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           >
             <Button
               variant="ghost"
@@ -290,9 +290,9 @@ export function LuzzyChatInput({
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.2 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.2 }}
+            whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+            whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           >
             <Button
               variant="ghost"
@@ -311,9 +311,9 @@ export function LuzzyChatInput({
           <motion.div
             initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ type: "spring", stiffness: 400, damping: 25, delay: 0.25 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
+            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1], delay: 0.25 }}
+            whileHover={{ scale: 1.08, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+            whileTap={{ scale: 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           >
             <Button
               variant="ghost"
@@ -535,4 +535,4 @@ export function LuzzyChatInput({
       </Sheet>
     </>
   );
-}
+});

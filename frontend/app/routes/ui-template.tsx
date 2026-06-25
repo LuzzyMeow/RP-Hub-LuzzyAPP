@@ -109,6 +109,8 @@ export default function UiTemplatePage() {
   const [fullscreenOpen, setFullscreenOpen] = React.useState(false);
   // v0.4.1: 从角色卡导入 UI 模板
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredTemplates = React.useDeferredValue(templates);
 
   /** 页面加载时从 storage 读取 */
   React.useEffect(() => {
@@ -319,13 +321,13 @@ export default function UiTemplatePage() {
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <div className="mx-auto max-w-3xl space-y-3 pb-4">
-              <AnimatePresence mode="popLayout">
-                {templates.map((t, i) => {
+            <div className="cv-auto mx-auto max-w-3xl space-y-3 pb-4">
+              <AnimatePresence>
+                {deferredTemplates.map((t, i) => {
                   const isGlobal = !t.enabledForCharacters || t.enabledForCharacters.length === 0;
                   return (
-                    <motion.div key={t.id} layout {...springEnter} custom={i}>
-                      <Card className="gap-2 p-4 transition-all hover:shadow-md">
+                    <motion.div key={t.id} {...springEnter} custom={i}>
+                      <Card className="gap-2 p-4 transition-shadow hover:shadow-md">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-1.5">
@@ -578,7 +580,7 @@ interface CharBindingContentProps {
   onCancel: () => void;
 }
 
-function CharBindingContent({ template, characters, onSave, onCancel }: CharBindingContentProps) {
+const CharBindingContent = React.memo(function CharBindingContent({ template, characters, onSave, onCancel }: CharBindingContentProps) {
   const [selected, setSelected] = React.useState<Set<string>>(
     new Set(template.enabledForCharacters ?? []),
   );
@@ -635,4 +637,4 @@ function CharBindingContent({ template, characters, onSave, onCancel }: CharBind
       </DialogFooter>
     </>
   );
-}
+});

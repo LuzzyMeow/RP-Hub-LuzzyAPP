@@ -1,5 +1,86 @@
 # Changelog
 
+## v0.8.7
+
+### 🚨 P0 流式更新致命 Bug 修复（11 项）
+
+> v0.8.7 首轮性能优化后，深度审查发现流式更新链路存在 11 个致命级 bug，导致思考卡片展开卡死、流式输出卡顿、缓冲区竞态覆盖等问题。
+
+- **agentSteps 引用稳定化失效修复**：`[...agentSteps]` spread 只创建新数组，元素仍是同一引用；直接 mutation 后比较永远为 false，导致步骤内容不更新。改用 `agentSteps.map((s) => ({ ...s }))` 创建全新元素引用
+- **rAF 批量 flush 可取消**：保存 `requestAnimationFrame` 返回的 handle，在请求开始/错误/abort 时 `cancelAnimationFrame`，避免竞态条件下 rAF 回调用旧缓冲内容覆盖最终更新
+- **缓冲区生命周期管理**：新增 `chatClearBuffer()`、`trpgClearBuffer()`、`trpgDesignClearBuffer()` 三个统一清理函数，在请求开始时重置、错误/abort 时清理、流式结束后同步 flush
+- **设计模式同步 flush 真正写入 store**：原实现仅清空缓冲区未执行 flush，导致最后一批流式内容丢失；添加真正的 flush 逻辑
+- **TRPG 游戏模式 findIndex+slice 替代 map**：仅替换目标索引元素，其他消息保持原引用，React.memo 生效
+- **stopTrpgGenerating 真正清理缓冲区**：原实现只设置 `trpgIsGenerating: false`，未清理缓冲区
+- **deferred 渲染一致性**：`isLast` 和 `expandedStep` 改用 `deferredSteps.length` 而非 `allSteps.length`
+- **loadPersistedDesignSession 异步化**：`setTrpgMode` 中同步调用导致渲染阻塞，改为 `setTimeout` 异步加载
+
+### 🔧 P1 交互流畅度修复（16 项）
+
+- **D1 布尔标志避免全文扫描**：`<cot>` 标签检测改用 `hasCotTag`/`hasClosingTag` 布尔标志，避免每次 chunk 都 `includes()` 全文扫描
+- **D2/D3 移除冗余局部对象修改**：流式回调中移除对 `assistantMessage` 的直接 mutation，缓冲区已负责 UI 更新
+- **D4 trpg-slice 重复 set 合并**：设计模式和游戏模式中连续两次 `set`（仅用户消息 + 用户+助手消息）合并为一次
+- **D5 reasoning-part 多余字符移除**：第 28 行多余 `?` 字符
+- **D6 tools.tsx key 修复**：`key={i}` → `key={tool.name || i}`
+- **D7 about.tsx 日志列表 cv-auto**：添加 `content-visibility: auto` 跳过屏幕外渲染
+- **D8 luzzy-aurora-background React.memo**：背景组件包裹 memo 避免不必要重渲染
+- **D9 luzzy-splash 内层 setTimeout 清理**：嵌套定时器未清理，组件卸载后可能回调
+- **D10 about.tsx onScroll rAF 节流**：避免每次滚动都触发 setState
+- **D11 trpg.tsx useDeferredValue**：消息列表添加 deferred 渲染
+- **D12 18 个路由子组件 React.memo**：memory/knowledge-base/preset/regex/tools/trpg 等路由的子组件
+- **D13 9 个列表项组件 React.memo**：all-sessions-list/save-sheet/inventory-sheet/map-sheet/character-sheet/luzzy-agent-steps/luzzy-chat-message 等
+- **D14 内联函数改用 useCallback 工厂模式**：characters/profile/knowledge-base/memory 中 7 处内联函数改为 useCallback 工厂，避免每次渲染创建新闭包破坏 memo
+- **D15 luzzy-thinking-timeline 内联对象优化**：移除每次渲染新建的 `thinkingLikeStep` 对象，直接传递 step 引用
+- **D16 executeWithTimeout setTimeout 清理**：Promise.race 不取消输的 promise，在 finally 中 `clearTimeout`
+
+### 🚀 P2 长列表性能优化（8 项）
+
+- **E1 11 处路由长列表添加 cv-auto**：characters/knowledge-base/world-info/preset/regex/tools/memory/ui-template/profile/trpg 的列表容器添加 `content-visibility: auto`
+- **E2 5 处组件长列表添加 cv-auto**：session-list/character-picker/luzzy-share-dialog/luzzy-agent-steps/luzzy-thinking-timeline
+- **E3 7 处组件长列表添加 useDeferredValue**：session-list/all-sessions-list/character-picker/luzzy-share-dialog/luzzy-agent-steps/luzzy-chat-message（记忆召回 + 世界书召回）
+- **E4 8 处路由长列表添加 useDeferredValue**：memory（4 个变量）/knowledge-base/world-info/preset/regex/tools（2 处）/ui-template/profile
+- **E5 移除未使用的 index prop**：ThinkingNode/ToolNode 接口移除 `index` 字段
+- **E6 移除无效 exit 动画**：父组件未用 AnimatePresence 包裹，exit 永远不触发
+
+### 🧹 P3 代码质量修复（4 项）
+
+- **F1 embeddingFailureNotified 重置**：请求开始时重置标志，避免上次失败后永久不重试
+- **F2 set 守卫完善**：`isThinking`/`isReceiving` 状态切换添加条件判断
+- **F3 loadPersistedDesignSession 异步化**：避免同步 localStorage 读取阻塞渲染
+- **F4 缓冲区清理统一化**：三个清理函数被多处复用，消除重复代码
+
+### 🐛 预先存在 TypeScript 错误修复（5 项）
+
+- **use-motion-presets.ts**：补充 `pixelSlideInBottom` 导入
+- **luzzy.ts**：`ChatMessage` 接口添加 `reasoningContent` 字段
+- **logger.ts**：`LogCategory` 添加 `"preset"` 类别
+- **trpg-slice.ts**：`finalMessages` 未定义变量修复为 `get().trpgMessages`
+
+### 🚀 性能优化（首轮）
+
+- **菜单栏性能优化**：移除遮罩层 `backdrop-blur-sm`（叠加多层 backdrop-filter 导致 GPU 每帧重采样），改用纯色半透明遮罩；修正 `will-change` 用法（从 animate 属性移到 CSS class 预声明）；简化菜单项交错动画（spring → opacity 淡入，延迟 0.04→0.02）
+- **流式输出性能优化**：移除三层人工节流，实现真正的实时流式输出
+  - `apiClient.ts`：移除 Fetch/XHR 路径的 `await nextFrame()` 帧节流（每 10 行等待一帧）
+  - `chat-slice.ts`：移除 16ms `lastUpdateTick` 状态更新节流，每个 chunk 即时更新；parseCot 阈值 8→4
+  - `markdown.tsx`：移除 `useDeferredValue` 延迟渲染（导致内容积压后批量渲染的"伪打字机"效果）
+
+### 🔧 功能修复（首轮）
+
+- **嵌入模型供应商解析修复**：`doubao-embedding-vision` 等模型名含下划线但无供应商前缀时，`parseModelName` 误解析（`doubao` 被当作供应商 ID 但不存在），导致 `resolveEmbeddingProvider` 两级策略均失败。新增 Level 2.5 模糊匹配：模型名（不带前缀）匹配已知供应商的嵌入模型时，自动解析供应商
+- **记忆页手动填写交互修复**：添加显式 `isManualMode` 状态，修复派生状态死循环（点击"手动输入..."后 `embeddingModel` 被设为空/已知名，`isManual` 永远 false，Input 不渲染）；手动模式下新增供应商选择下拉框，支持自定义 model name 和供应商
+- **TRPG 思考卡片自动展开跟踪**：添加 `isGenerating` 状态传递、生成开始时自动展开、流式输出时自动滚动到底部、用户滚动检测、内容区 max-height + overflow-y-auto
+
+### 🎨 UI 优化（首轮）
+
+- **配色方案重命名**：设置页外观设置中"默认"→"瓷白"，"像素风格"→"翠绿"（内部 value 值不变）
+
+### 📦 工程变更
+
+- Android `versionCode` 49→50，`versionName` 0.8.6→0.8.7
+- 前端版本号同步 v0.8.6→v0.8.7
+- `android-patches/build.gradle` 同步所有修复
+- 终极精修版7：覆盖 25+ 个文件，120+ 处修改，39 个 Task（C1-C11 / D1-D16 / E1-E8 / F1-F4）
+
 ## v0.8.6
 
 ### 🚨 P0 根因修复：APK 启动闪退

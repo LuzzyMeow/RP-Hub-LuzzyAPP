@@ -89,7 +89,7 @@ const StatusIndicator: React.FC<{ status: AgentStep["status"] }> = ({ status }) 
 };
 
 /** 单个步骤卡片 */
-const StepCard: React.FC<{ step: AgentStep }> = ({ step }) => {
+const StepCard = React.memo(function StepCard({ step }: { step: AgentStep }) {
   const [expanded, setExpanded] = React.useState(false);
 
   const hasContent = !!step.content?.trim();
@@ -126,46 +126,37 @@ const StepCard: React.FC<{ step: AgentStep }> = ({ step }) => {
             ))}
         </span>
       </button>
-      <AnimatePresence initial={false}>
-        {expanded && hasContent && (
-          <motion.div
-            key={`step-${step.id}`}
-            initial={{ height: 0, opacity: 0 }}
-            animate={{
-              height: "auto",
-              opacity: 1,
-              transition: { duration: 0.2, ease: [0.4, 0, 0.2, 1] },
-            }}
-            exit={{
-              height: 0,
-              opacity: 0,
-              transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] },
-            }}
-            className="overflow-hidden"
-          >
+      {expanded && hasContent && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <div className="border-t border-muted px-3 py-2 text-sm text-muted-foreground">
               <Markdown content={step.content!} />
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+});
 
 export function LuzzyAgentSteps({ steps }: LuzzyAgentStepsProps) {
+  const deferredSteps = React.useDeferredValue(steps);
   if (!steps || steps.length === 0) return null;
 
   return (
     <div className="flex w-full flex-col gap-1.5">
       <AnimatePresence initial={false}>
-        {steps.map((step) => (
+        {deferredSteps.map((step) => (
           <motion.div
             key={step.id}
             initial={{ opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2 }}
+            className="cv-auto"
           >
             <StepCard step={step} />
           </motion.div>

@@ -795,17 +795,11 @@ const sendStreamRequestViaXHR = (params: StreamRequestParams): Promise<StreamReq
       return true;
     };
 
-    // v0.5.4: 异步处理增量数据，每 10 行让出主线程一次，允许浏览器重绘
-    // 解决 Android XHR onprogress 批量触发导致"一下子全部蹦出来"的问题
-    // v0.5.7: setTimeout(0)→setTimeout(16) 确保每行有完整 60fps 帧时间渲染
-    //         每帧最多处理 3 行防止积压导致"突然蹦出"
+    // v0.8.7: 移除人工帧节流，实现真正的实时流式输出
+    // ReadableStream/XHR onprogress 本身已有自然背压，无需 nextFrame 节流
     const processIncrementalAsync = async (): Promise<void> => {
       if (isProcessing) return;
       isProcessing = true;
-
-      // v0.8.5: 提高到 8 行/帧，移除 else 分支的 await nextFrame()，吞吐量 ~480 行/秒
-      const MAX_LINES_PER_FRAME = 8;
-      let linesThisFrame = 0;
 
       while (pendingChunks.length > 0 && !chunkError && !settled) {
         const newChunk = pendingChunks.shift()!;
@@ -822,15 +816,6 @@ const sendStreamRequestViaXHR = (params: StreamRequestParams): Promise<StreamReq
           if (!ok) {
             isProcessing = false;
             return;
-          }
-          linesThisFrame++;
-          // v0.8.5: 仅达到 MAX_LINES_PER_FRAME 后才让出帧，否则继续处理
-          if (linesThisFrame >= MAX_LINES_PER_FRAME) {
-            linesThisFrame = 0;
-            // v0.8.5: 队列积压保护 — 积压超过 50 时不让出帧，直接处理下一批
-            if (pendingChunks.length <= 50) {
-              await nextFrame();
-            }
           }
         }
       }
@@ -1068,9 +1053,6 @@ const sendStreamRequestViaFetch = async (
   // 流式响应：逐块读取并解析 SSE
   const decoder = new TextDecoder();
   let buffer = "";
-  // v0.8.5: 提高到 10 行/帧，移除 else 分支的 await nextFrame()，吞吐量 ~600 行/秒
-  let fetchLinesThisFrame = 0;
-  const FETCH_MAX_LINES_PER_FRAME = 10;
 
   try {
     while (true) {
@@ -1100,12 +1082,6 @@ const sendStreamRequestViaFetch = async (
             throw e;
           }
           console.warn("Error parsing stream chunk:", e);
-        }
-        // v0.8.5: 仅达到 FETCH_MAX_LINES_PER_FRAME 后才让出帧，否则继续处理
-        fetchLinesThisFrame++;
-        if (fetchLinesThisFrame >= FETCH_MAX_LINES_PER_FRAME) {
-          fetchLinesThisFrame = 0;
-          await nextFrame();
         }
       }
     }

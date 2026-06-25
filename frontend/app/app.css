@@ -353,6 +353,17 @@
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+  /* v0.8.7-urgent: content-visibility 优化长列表性能 */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 100px;
+  }
+  .contain-content {
+    contain: content;
+  }
+  .contain-layout-style-paint {
+    contain: layout style paint;
+  }
 }
 
 /* Global scrollbar style, matching ScrollArea (radix) appearance */

@@ -83,6 +83,7 @@ export function CharacterPicker({
     }
     return result;
   }, [characters, selectedTags, searchQuery]);
+  const deferredFiltered = React.useDeferredValue(filtered);
 
   /** v0.3.5: 切换标签选中状态 */
   const toggleTag = React.useCallback((tag: string) => {
@@ -107,20 +108,19 @@ export function CharacterPicker({
         {/* v0.3.5: 标签筛选条 */}
         {allTags.length > 0 && (
           <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {allTags.map((tag) => {
                 const isActive = selectedTags.includes(tag);
                 return (
                   <motion.button
                     key={tag}
-                    layout
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                    transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                     onClick={() => toggleTag(tag)}
                     className={cn(
-                      "shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-all active:scale-95",
+                      "shrink-0 rounded-full px-2.5 py-0.5 text-xs transition-transform active:scale-95",
                       isActive
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground hover:bg-accent",
@@ -133,7 +133,6 @@ export function CharacterPicker({
             </AnimatePresence>
             {selectedTags.length > 0 && (
               <motion.button
-                layout
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 onClick={() => setSelectedTags([])}
@@ -149,18 +148,17 @@ export function CharacterPicker({
       {/* 角色卡列表 */}
       <ScrollArea className="min-h-0 flex-1">
         <div className="flex flex-col gap-1 p-2">
-          <AnimatePresence mode="popLayout">
-            {filtered.map((char) => (
+          <AnimatePresence>
+            {deferredFiltered.map((char) => (
               <motion.button
                 key={char.uuid}
-                layout
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ type: "spring", stiffness: 300, damping: 24 }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                 onClick={() => onSelect(char.uuid)}
                 className={cn(
-                  "flex items-center gap-2 rounded-lg p-2 text-left text-sm transition-all",
+                  "cv-auto flex items-center gap-2 rounded-lg p-2 text-left text-sm transition-transform",
                   "hover:bg-accent active:scale-[0.98]",
                   currentUuid === char.uuid ? "bg-primary/10 ring-1 ring-primary" : "",
                 )}

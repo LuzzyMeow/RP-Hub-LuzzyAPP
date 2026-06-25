@@ -77,7 +77,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <motion.div
                 initial={{ scale: 0, rotate: -10 }}
                 animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
                 className={`flex size-10 shrink-0 items-center justify-center rounded-full ${
                   state.destructive
                     ? "bg-destructive/10 text-destructive"

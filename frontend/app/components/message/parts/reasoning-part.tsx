@@ -8,7 +8,7 @@ interface ReasoningPartProps {
   isFinished?: boolean;
 }
 
-export function ReasoningPart({ reasoning, isFinished = true }: ReasoningPartProps) {
+export const ReasoningPart = React.memo(function ReasoningPart({ reasoning, isFinished = true }: ReasoningPartProps) {
   const [expanded, setExpanded] = React.useState(false);
 
   if (!reasoning) return null;
@@ -25,7 +25,8 @@ export function ReasoningPart({ reasoning, isFinished = true }: ReasoningPartPro
         ) : (
           <IconChevronRight className="h-4 w-4" />
         )}
-        <Think className="h-4 w-4" />?<span>{isFinished ? "Thinking" : "Thinking..."}</span>
+        <Think className="h-4 w-4" />
+        <span>{isFinished ? "Thinking" : "Thinking..."}</span>
       </button>
       {expanded && (
         <div className="border-t border-muted px-3 py-2 text-sm text-muted-foreground">
@@ -34,4 +35,4 @@ export function ReasoningPart({ reasoning, isFinished = true }: ReasoningPartPro
       )}
     </div>
   );
-}
+});

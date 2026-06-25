@@ -74,10 +74,10 @@ const ACCEPTED_FILE_TYPES = ".png,.jpg,.jpeg,.gif,.webp,.md,.txt";
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 /** 文件类型图标 */
-function FileTypeIcon({ type }: { type: KnowledgeBaseFile["type"] }) {
+const FileTypeIcon = React.memo(function FileTypeIcon({ type }: { type: KnowledgeBaseFile["type"] }) {
   if (type === "image") return <IconImage className="size-4 text-primary" />;
   return <IconFile className="size-4 text-muted-foreground" />;
-}
+});
 
 /** 格式化文件大小 */
 function formatSize(bytes: number): string {
@@ -123,6 +123,12 @@ export default function KnowledgeBasePage() {
   // 当前查看的文件夹（知识库 ID）
   const [currentKbId, setCurrentKbId] = React.useState<string | null>(null);
 
+  // v0.8.7-urgent: D14 内联函数改用 useCallback 工厂模式，避免每次渲染创建新闭包破坏子组件 memo
+  const makeSelectKbHandler = React.useCallback(
+    (kbId: string) => () => setCurrentKbId(kbId),
+    [],
+  );
+
   // 编辑状态
   const [editingKb, setEditingKb] = React.useState<KnowledgeBase | null>(null);
   const [isNewKb, setIsNewKb] = React.useState(false);
@@ -145,19 +151,23 @@ export default function KnowledgeBasePage() {
 
   /** 加载知识库与记忆设置 */
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       await loadKnowledgeBases();
+      if (cancelled) return;
       try {
         const memSettings = await getItem<{
           embeddingModel?: string;
           enabled?: boolean;
         }>("memory", MEMORY_SETTINGS_KEY);
+        if (cancelled) return;
         setHasEmbeddingModel(!!memSettings?.embeddingModel?.trim() && !!memSettings?.enabled);
       } catch {
-        setHasEmbeddingModel(false);
+        if (!cancelled) setHasEmbeddingModel(false);
       }
-      setLoaded(true);
+      if (!cancelled) setLoaded(true);
     })();
+    return () => { cancelled = true; };
   }, [loadKnowledgeBases]);
 
   /** 当前查看的知识库 */
@@ -188,6 +198,8 @@ export default function KnowledgeBasePage() {
     }
     return list;
   }, [knowledgeBases, searchQuery, selectedTags]);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredFilteredKbs = React.useDeferredValue(filteredKbs);
 
   /** 新建知识库 */
   const handleNew = React.useCallback(() => {
@@ -471,9 +483,9 @@ export default function KnowledgeBasePage() {
           ) : (
             <ScrollArea className="flex-1">
               <div className="mx-auto max-w-3xl space-y-2 pb-4">
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence>
                   {currentKb.files.map((file, i) => (
-                    <motion.div key={file.id} layout {...springEnter} custom={i}>
+                    <motion.div key={file.id} {...springEnter} custom={i}>
                       <Card className="flex items-center gap-3 p-3 transition-colors hover:bg-muted/30">
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted/50">
                           <FileTypeIcon type={file.type} />
@@ -717,16 +729,16 @@ export default function KnowledgeBasePage() {
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <div className="mx-auto max-w-3xl space-y-3 pb-4">
-              <AnimatePresence mode="popLayout">
-                {filteredKbs.map((kb, i) => {
+            <div className="cv-auto mx-auto max-w-3xl space-y-3 pb-4">
+              <AnimatePresence>
+                {deferredFilteredKbs.map((kb, i) => {
                   const isGlobal = !kb.enabledForCharacters || kb.enabledForCharacters.length === 0;
                   return (
-                    <motion.div key={kb.id} layout {...springEnter} custom={i}>
-                      <Card className="gap-2 p-4 transition-all hover:shadow-md">
+                    <motion.div key={kb.id} {...springEnter} custom={i}>
+                      <Card className="gap-2 p-4 transition-shadow hover:shadow-md">
                         <div
                           className="flex cursor-pointer items-start gap-3"
-                          onClick={() => setCurrentKbId(kb.id)}
+                          onClick={makeSelectKbHandler(kb.id)}
                         >
                           <div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10">
                             <IconFolder className="size-5 text-primary" />
@@ -907,7 +919,7 @@ interface CharBindingContentProps {
   onCancel: () => void;
 }
 
-function CharBindingContent({ kb, characters, onSave, onCancel }: CharBindingContentProps) {
+const CharBindingContent = React.memo(function CharBindingContent({ kb, characters, onSave, onCancel }: CharBindingContentProps) {
   const [selected, setSelected] = React.useState<Set<string>>(
     new Set(kb.enabledForCharacters ?? []),
   );
@@ -964,4 +976,4 @@ function CharBindingContent({ kb, characters, onSave, onCancel }: CharBindingCon
       </DialogFooter>
     </>
   );
-}
+});

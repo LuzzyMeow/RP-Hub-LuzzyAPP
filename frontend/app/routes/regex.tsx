@@ -213,21 +213,27 @@ export default function RegexPage() {
   const [showRegexHelper, setShowRegexHelper] = React.useState(false);
   const [showCharDialog, setShowCharDialog] = React.useState<RegexScriptGroup | null>(null);
   const confirm = useConfirm();
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredGroups = React.useDeferredValue(groups);
   // v0.4.1: 从角色卡导入正则脚本
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   /** 页面加载时从 storage 读取 */
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         const data = await getItem<RegexScriptGroup[]>(STORAGE_STORE, STORAGE_KEY);
+        if (cancelled) return;
         if (data) setGroups(data);
       } catch (e) {
+        if (cancelled) return;
         toast.error("加载失败：" + (e as Error).message);
       } finally {
-        setLoaded(true);
+        if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   /** 变更时保存到 storage */
@@ -508,20 +514,19 @@ export default function RegexPage() {
         ) : (
           /* 正则组列表 */
           <ScrollArea className="flex-1">
-            <div className="grid grid-cols-1 gap-3 pb-4 lg:grid-cols-2">
-              <AnimatePresence mode="popLayout">
-                {groups.map((g, i) => {
+            <div className="cv-auto grid grid-cols-1 gap-3 pb-4 lg:grid-cols-2">
+              <AnimatePresence>
+                {deferredGroups.map((g, i) => {
                   const isGlobal = !g.enabledForCharacters || g.enabledForCharacters.length === 0;
                   return (
                     <motion.div
                       key={g.id}
-                      layout
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       transition={{ delay: i * 0.03, duration: 0.2 }}
                     >
-                      <Card className="group gap-3 p-3 transition-all hover:shadow-md">
+                      <Card className="group gap-3 p-3 transition-shadow hover:shadow-md">
                         <div className="flex items-start gap-3 px-1">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
@@ -999,7 +1004,7 @@ interface RegexCharBindingContentProps {
   onCancel: () => void;
 }
 
-function RegexCharBindingContent({
+const RegexCharBindingContent = React.memo(function RegexCharBindingContent({
   group,
   characters,
   onSave,
@@ -1036,27 +1041,21 @@ function RegexCharBindingContent({
               暂无角色卡
             </motion.div>
           ) : (
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {characters.map((c, idx) => {
                 const checked = selected.has(c.uuid);
                 return (
                   <motion.label
                     key={c.uuid}
-                    layout
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 8 }}
-                    transition={{
-                      delay: idx * 0.02,
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30,
-                    }}
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/10 bg-background/40 p-2 backdrop-blur-sm transition-colors hover:bg-muted/50"
+                    transition={{ delay: idx * 0.02, duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                    whileHover={{ scale: 1.01, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+                    whileTap={{ scale: 0.99, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+                    className="flex cursor-pointer items-center gap-2 rounded-lg border border-border/10 bg-muted/50 p-2 transition-colors hover:bg-muted/50"
                   >
-                    <motion.div layout transition={{ type: "spring", stiffness: 500, damping: 30 }}>
+                    <motion.div transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}>
                       <Checkbox checked={checked} onCheckedChange={() => handleToggle(c.uuid)} />
                     </motion.div>
                     <span className="text-sm">{c.name}</span>
@@ -1086,4 +1085,4 @@ function RegexCharBindingContent({
       </DialogFooter>
     </>
   );
-}
+});

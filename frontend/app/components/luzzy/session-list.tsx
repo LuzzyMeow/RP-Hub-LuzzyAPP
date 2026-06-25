@@ -93,15 +93,16 @@ export function SessionList({
       return userText.includes(query) || assistantText.includes(query);
     });
   }, [turns, searchQuery]);
+  const deferredFilteredTurns = React.useDeferredValue(filteredTurns);
 
   return (
     <motion.div
       {...springEnter}
-      className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl"
+      className="fixed inset-0 z-50 flex flex-col bg-background"
     >
       {/* 顶部栏 */}
       <header
-        className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/40 px-4 backdrop-blur-xl"
+        className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/80 px-4"
         style={{
           paddingTop: "env(safe-area-inset-top)",
           height: "calc(2.75rem + env(safe-area-inset-top))",
@@ -145,7 +146,7 @@ export function SessionList({
       {/* 轮次列表 */}
       <ScrollArea className="flex-1">
         <div className="flex flex-col gap-2 p-3">
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence>
             {filteredTurns.length === 0 ? (
               <motion.div
                 {...springEnter}
@@ -155,15 +156,14 @@ export function SessionList({
                 <p className="text-sm">{searchQuery ? "未找到匹配的对话" : "暂无对话记录"}</p>
               </motion.div>
             ) : (
-              filteredTurns.map((turn) => (
+              deferredFilteredTurns.map((turn) => (
                 <motion.button
                   key={turn.userMessage.id}
-                  layout
                   {...springEnter}
                   {...pressableSubtle}
                   onClick={() => onJumpToMessage(turn.userMessage.id)}
                   className={cn(
-                    "flex flex-col gap-1 rounded-xl border border-border/20 bg-card/50 p-3 text-left",
+                    "cv-auto flex flex-col gap-1 rounded-xl border border-border/20 bg-card/50 p-3 text-left",
                     "transition-colors hover:bg-accent/50",
                   )}
                 >

@@ -85,6 +85,7 @@ export function LuzzyShareDialog({ open, onOpenChange, session, messages }: Shar
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [step, setStep] = React.useState<ShareStep>("format");
   const [exporting, setExporting] = React.useState(false);
+  const deferredMessages = React.useDeferredValue(messages);
 
   // v0.3.5: 获取用户名和角色名用于占位符替换
   const userName = useAppStore((s) => s.user.name) || "用户";
@@ -401,16 +402,15 @@ export function LuzzyShareDialog({ open, onOpenChange, session, messages }: Shar
               </DialogHeader>
               <ScrollArea className="flex-1 min-h-0">
                 <div className="flex flex-col gap-2 py-2">
-                  {messages.map((m) => {
+                  {deferredMessages.map((m) => {
                     const checked = selectedIds.has(m.id);
                     const isUser = m.role === "user";
                     return (
                       <motion.label
                         key={m.id}
-                        layout
                         {...springEnter}
                         className={cn(
-                          "flex cursor-pointer gap-3 rounded-lg border p-2 transition-colors",
+                          "cv-auto flex cursor-pointer gap-3 rounded-lg border p-2 transition-colors",
                           checked
                             ? "border-primary/40 bg-primary/5"
                             : "border-border hover:bg-accent/50",

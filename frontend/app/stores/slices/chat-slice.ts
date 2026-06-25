@@ -163,6 +163,59 @@ const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
 // v0.8.5: 嵌入模型失败一次性提示标志（防止 fire-and-forget 重复 toast）
 let embeddingFailureNotified = false;
 
+// v0.8.7-urgent: chat 流式更新缓冲区 — rAF 批量 flush，避免每 chunk 触发 set
+// 修复致命 bug：原实现每个 chunk 直接 get().updateMessage()，触发 store 更新 + React 重渲染
+// 参考实现：trpg-slice.ts 的 trpgScheduleFlush
+const chatStreamBuffer = {
+  msgId: "" as string,
+  content: "" as string,
+  reasoningContent: "" as string,
+  agentSteps: null as AgentStep[] | null,
+  hasUpdate: false,
+};
+let chatFlushScheduled = false;
+// v0.8.7-urgent: 保存 rAF handle 以便取消（E7）
+let chatFlushRafId: number | null = null;
+
+/**
+ * 调度 chat 流式 flush — 使用 rAF 批量更新，避免每 chunk 触发 set
+ * agentSteps 仅在数组长度变化时才传递新引用（避免每 chunk 重建数组）
+ */
+function chatScheduleFlush(get: () => AppStoreState): void {
+  if (chatFlushScheduled) return;
+  chatFlushScheduled = true;
+  chatFlushRafId = requestAnimationFrame(() => {
+    chatFlushRafId = null;
+    chatFlushScheduled = false;
+    if (!chatStreamBuffer.hasUpdate) return;
+    const updateMessage = get().updateMessage;
+    const update: Partial<ChatMessage> = { loading: false };
+    if (chatStreamBuffer.content) update.content = chatStreamBuffer.content;
+    if (chatStreamBuffer.reasoningContent) update.reasoningContent = chatStreamBuffer.reasoningContent;
+    // 仅在 agentSteps 实际变化时才更新引用（避免每 chunk 重建数组）
+    if (chatStreamBuffer.agentSteps) update.agentSteps = chatStreamBuffer.agentSteps;
+    updateMessage(chatStreamBuffer.msgId, update);
+    chatStreamBuffer.hasUpdate = false;
+    chatStreamBuffer.content = "";
+    chatStreamBuffer.reasoningContent = "";
+    chatStreamBuffer.agentSteps = null;
+  });
+}
+
+/** v0.8.7-urgent: 清理 chat 缓冲区并取消 pending rAF（C2/C3/E7 共用） */
+function chatClearBuffer(): void {
+  if (chatFlushRafId !== null) {
+    cancelAnimationFrame(chatFlushRafId);
+    chatFlushRafId = null;
+  }
+  chatFlushScheduled = false;
+  chatStreamBuffer.hasUpdate = false;
+  chatStreamBuffer.content = "";
+  chatStreamBuffer.reasoningContent = "";
+  chatStreamBuffer.agentSteps = null;
+  chatStreamBuffer.msgId = "";
+}
+
 // v0.7.1: 单阶段架构 — parseToolDecisions 已删除
 // 模型通过原生 tool_calls (function calling) 自行决定调用工具
 // v0.8.2: getChatCompletionsUrl 已提取至 providerService.ts 作为公共函数
@@ -216,6 +269,10 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
    * @param assistantMessageId - 待填充的 assistant 消息 ID
    */
   const generateResponse = async (assistantMessageId: string): Promise<void> => {
+    // v0.8.7-urgent: 请求开始时重置缓冲区，避免上次请求的脏数据污染（C3）
+    // v0.8.7-urgent: 重置 embeddingFailureNotified 标志（F1）
+    chatClearBuffer();
+    embeddingFailureNotified = false;
     const state = get();
     const { messages, currentCharacter, abortController, currentSessionId } = state;
 
@@ -466,6 +523,8 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
         cot: string;
         toolCalls: Array<{ id: string; function: { name: string; arguments: string } }>;
       }> => {
+        // v0.8.7-urgent: 请求开始时重置缓冲区，避免上次请求/重试的脏数据污染（C3）
+        chatClearBuffer();
         const skipToolsInjection = options.skipToolsInjection ?? false;
         const forceTool = options.forceToolCall ?? false;
         // 构建 API 上下文
@@ -622,7 +681,10 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
         // 仅在内容长度变化超过阈值或检测到标签闭合时才解析
         let lastParseLength = 0;
         let lastCotResult: ReturnType<typeof parseCot> | null = null;
-        let lastUpdateTick = 0;
+        // v0.8.7-urgent: 移除死代码 lastUpdateTick（rAF 缓冲已替代节流逻辑）
+        // v0.8.7-urgent: D1 优化 — 用布尔标志避免每 chunk 全文扫描 includes
+        let hasCotTag = false; // 是否已检测到 <cot> 标签
+        let hasClosingTag = false; // 是否已检测到闭合标签
 
         if (get().stream) {
           // === 流式请求 ===
@@ -643,7 +705,7 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
 
               if (chunk.reasoningContent) {
                 accumulatedReasoning += chunk.reasoningContent;
-                set({ isThinking: true });
+                if (!get().isThinking) set({ isThinking: true }); // v0.8.7-urgent: 守卫避免重复 set
                 // v0.5.5-arch: reasoning_content 创建「头脑风暴」节点（type=brainstorm）
                 // v0.7.1: 单阶段架构 — 不再有 phase 区分
                 const existingBrainstorm = agentSteps.find((s) => s.type === "brainstorm");
@@ -663,9 +725,13 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
 
               if (chunk.content) {
                 accumulatedContent += chunk.content;
-                set({ isThinking: false, isReceiving: true });
+                if (!get().isReceiving || get().isThinking) set({ isThinking: false, isReceiving: true }); // v0.8.7-urgent: 守卫避免重复 set（F2: 补充 isThinking 检查）
                 // v0.7.1: 单阶段架构 — content 是正文（或 <cot> 降级模式）
-                if (accumulatedContent.includes("<cot>")) {
+                // v0.8.7-urgent: D1 优化 — 用布尔标志避免每 chunk 全文扫描
+                if (!hasCotTag && accumulatedContent.includes("<cot>")) {
+                  hasCotTag = true;
+                }
+                if (hasCotTag) {
                   const fallbackCotResult = parseCot(accumulatedContent, false, true);
                   if (fallbackCotResult.cot) {
                     const existingCotOutput = agentSteps.find((s) => s.type === "cot_output");
@@ -722,19 +788,22 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
               // v0.4.0: 流式场景禁用 parseCot 缓存（content 持续变化缓存永不命中）
               // v0.4.6: 阈值从 3 降至 1，实现真正逐字流式思考卡片
               const lengthDelta = accumulatedContent.length - lastParseLength;
-              const closingTags = [
-                "</cot>",
-                "</think>",
-                "</thinking>",
-                "</reasoning>",
-                "</thought>",
-                "</thoughts>",
-                "</reflection>",
-                "</analysis>",
-              ];
-              const hasClosingTag = closingTags.some((tag) => accumulatedContent.includes(tag));
-              // v0.8.5: 阈值从 1 提高到 8，减少高频全量 parseCot 解析
-              const shouldParse = !lastCotResult || lengthDelta > 8 || hasClosingTag;
+              // v0.8.7-urgent: D1 优化 — 用布尔标志避免每 chunk 全文扫描 closingTags
+              if (!hasClosingTag) {
+                const closingTags = [
+                  "</cot>",
+                  "</think>",
+                  "</thinking>",
+                  "</reasoning>",
+                  "</thought>",
+                  "</thoughts>",
+                  "</reflection>",
+                  "</analysis>",
+                ];
+                hasClosingTag = closingTags.some((tag) => accumulatedContent.includes(tag));
+              }
+              // v0.8.7: 阈值降至 4，平衡实时性与性能
+              const shouldParse = !lastCotResult || lengthDelta > 4 || hasClosingTag;
 
               if (shouldParse) {
                 // v0.5.1: 流式过程中允许未闭合标签内容，cot 随 chunk 增量显示
@@ -748,34 +817,51 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
               // v0.7.1: 单阶段架构 — 始终写入正文气泡和 agentSteps
               // reasoning_content → brainstorm 节点（上方已创建）
               // content → 正文气泡（parseCot 分离 <cot> 标签后的 main 内容）
-              const now = Date.now();
-              const willUpdate = now - lastUpdateTick >= 16 || hasClosingTag;
-              if (willUpdate) {
-                logger.debug(
-                  "stream",
-                  `update: reasoning=${accumulatedReasoning.length}chars content=${accumulatedContent.length}chars steps=${agentSteps.length}`,
-                );
-                lastUpdateTick = now;
-                const elapsedMs = now - requestStartTime;
-                const estimatedTokens = Math.ceil(
-                  (accumulatedContent.length + accumulatedReasoning.length) / 4,
-                );
-                const tokPerSec = elapsedMs > 0 ? estimatedTokens / (elapsedMs / 1000) : 0;
-
-                get().updateMessage(msgId, {
-                  content: cotResult.main || accumulatedContent,
-                  loading: false,
-                  tokenUsage: {
-                    promptTokens: 0,
-                    completionTokens: estimatedTokens,
-                    responseTimeMs: elapsedMs,
-                    tokPerSec: Math.round(tokPerSec * 10) / 10,
-                  },
-                  agentSteps: [...agentSteps],
-                });
+              // v0.8.7-urgent: 恢复 rAF 批量缓冲，避免每 chunk 触发 store 更新
+              // agentSteps 仅在数组长度变化时才传递新引用（避免每 chunk 重建数组）
+              const lastStepCount = chatStreamBuffer.agentSteps?.length ?? -1;
+              const currentStepCount = agentSteps.length;
+              chatStreamBuffer.msgId = msgId;
+              chatStreamBuffer.content = cotResult.main || accumulatedContent;
+              chatStreamBuffer.reasoningContent = accumulatedReasoning;
+              // v0.8.7-urgent: 修复 agentSteps 引用稳定化逻辑失效 bug（C1）
+              // 原因：agentSteps 元素是共享引用，line 696 直接 mutation 导致 content 比较永远为 false
+              // 修复：长度变化时用 map 深拷贝元素引用；长度未变时用快照比较
+              if (currentStepCount !== lastStepCount) {
+                // 长度变化（步骤新增/完成）：创建全新数组+全新元素引用
+                chatStreamBuffer.agentSteps = agentSteps.map((s) => ({ ...s }));
+              } else if (chatStreamBuffer.agentSteps && currentStepCount > 0) {
+                // 长度未变但内容可能变化（如 brainstorm 节点 content 累积）
+                // 仅更新最后一个步骤的 content 引用，避免全数组重建
+                const lastStep = agentSteps[currentStepCount - 1];
+                const bufferedSteps = chatStreamBuffer.agentSteps;
+                // 用快照比较而非共享引用比较
+                const lastBufferedContent = bufferedSteps[currentStepCount - 1].content;
+                if (lastBufferedContent !== lastStep.content) {
+                  bufferedSteps[currentStepCount - 1] = { ...lastStep };
+                }
               }
+              chatStreamBuffer.hasUpdate = true;
+              chatScheduleFlush(get);
             },
           });
+
+          // v0.8.7-urgent: 流式结束后立即同步 flush 缓冲区，避免 rAF 回调用旧内容覆盖最终更新
+          if (chatFlushScheduled) {
+            chatFlushScheduled = false;
+            if (chatStreamBuffer.hasUpdate) {
+              const updateMessage = get().updateMessage;
+              const update: Partial<ChatMessage> = { loading: false };
+              if (chatStreamBuffer.content) update.content = chatStreamBuffer.content;
+              if (chatStreamBuffer.reasoningContent) update.reasoningContent = chatStreamBuffer.reasoningContent;
+              if (chatStreamBuffer.agentSteps) update.agentSteps = chatStreamBuffer.agentSteps;
+              updateMessage(chatStreamBuffer.msgId, update);
+              chatStreamBuffer.hasUpdate = false;
+              chatStreamBuffer.content = "";
+              chatStreamBuffer.reasoningContent = "";
+              chatStreamBuffer.agentSteps = null;
+            }
+          }
         } else {
           // === 非流式请求 ===
           const response = await sendRequest({
@@ -1452,13 +1538,19 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
       const filteredTools = filterToolsForCharacter(activeTools, characterUuid);
 
       // v0.4.4: 工具执行超时保护（30s）
+      // v0.8.7-urgent: 清理 setTimeout，避免 Promise.race 不取消输的 promise（D16）
       const executeWithTimeout = async <T>(fn: () => Promise<T>, timeoutMs = 30000): Promise<T> => {
-        return Promise.race([
-          fn(),
-          new Promise<T>((_, reject) =>
-            setTimeout(() => reject(new Error("工具执行超时")), timeoutMs),
-          ),
-        ]);
+        let timerId: ReturnType<typeof setTimeout> | null = null;
+        try {
+          return await Promise.race([
+            fn(),
+            new Promise<T>((_, reject) => {
+              timerId = setTimeout(() => reject(new Error("工具执行超时")), timeoutMs);
+            }),
+          ]);
+        } finally {
+          if (timerId) clearTimeout(timerId);
+        }
       };
 
       // v0.4.4: 根据工具名（callName）查找对应的 ActiveTool 并执行
@@ -2162,6 +2254,8 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
         }
       }
     } catch (error) {
+      // v0.8.7-urgent: 错误时清理缓冲区，避免 rAF 用旧 buffer 覆盖错误状态（C2）
+      chatClearBuffer();
       if (error instanceof DOMException && error.name === "AbortError") {
         // 用户取消生成
         const currentMsg = get().messages.find((m) => m.id === assistantMessageId);
@@ -2197,6 +2291,8 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
         });
       }
     } finally {
+      // v0.8.7-urgent: finally 中清理缓冲区，确保下次请求从干净状态开始（C2）
+      chatClearBuffer();
       const currentController = get().abortController;
       set({
         isGenerating: false,

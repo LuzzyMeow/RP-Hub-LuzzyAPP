@@ -44,7 +44,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.8.6";
+const APP_VERSION = "v0.8.7";
 
 /** v0.5.8: 关于页动态文案轮播 */
 const ABOUT_PHRASES = [
@@ -103,6 +103,14 @@ export default function AboutPage() {
   const [phraseIndex, setPhraseIndex] = React.useState(0);
   const logContainerRef = React.useRef<HTMLDivElement>(null);
   const [userScrolledUp, setUserScrolledUp] = React.useState(false);
+  // v0.8.7-urgent: D10 onScroll rAF 节流 ref
+  const scrollRafRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (scrollRafRef.current !== null) cancelAnimationFrame(scrollRafRef.current);
+    };
+  }, []);
 
   // v0.5.8: 关于页动态文案轮播
   React.useEffect(() => {
@@ -204,10 +212,15 @@ export default function AboutPage() {
   }, [autoRefresh, refreshLogs]);
 
   const handleLogScroll = React.useCallback(() => {
-    const el = logContainerRef.current;
-    if (!el) return;
-    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
-    setUserScrolledUp(!atBottom);
+    // v0.8.7-urgent: D10 rAF 节流，避免每次滚动都触发 setState
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = logContainerRef.current;
+      if (!el) return;
+      const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
+      setUserScrolledUp(!atBottom);
+    });
   }, []);
 
   const scrollLogToBottom = React.useCallback(() => {
@@ -227,6 +240,9 @@ export default function AboutPage() {
     }
     return logs.slice(-2000);
   }, [allLogs, categoryFilter, levelFilter]);
+
+  // v0.8.7-urgent: useDeferredValue 让 React 在空闲时处理日志列表渲染，避免阻塞流式
+  const deferredLogs = React.useDeferredValue(filteredLogs);
 
   // v0.5.8: 日志自动吸附底部
   React.useEffect(() => {
@@ -353,19 +369,16 @@ export default function AboutPage() {
                       initial={{
                         opacity: 0,
                         y: 8,
-                        filter: "blur(0px)",
                         letterSpacing: "0.3em",
                       }}
                       animate={{
                         opacity: 1,
                         y: 0,
-                        filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
                         letterSpacing: "0.05em",
                       }}
                       exit={{
                         opacity: 0,
                         y: -8,
-                        filter: ["blur(0px)", "blur(4px)", "blur(0px)"],
                         letterSpacing: "0.3em",
                       }}
                       transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
@@ -526,15 +539,15 @@ export default function AboutPage() {
                   <div
                     ref={logContainerRef}
                     onScroll={handleLogScroll}
-                    className="max-h-[600px] overflow-auto rounded-md border bg-muted/30"
+                    className="max-h-[600px] overflow-auto rounded-md border bg-muted/30 cv-auto" // v0.8.7-urgent: D7 添加 cv-auto 优化长列表渲染
                   >
-                    {filteredLogs.length === 0 ? (
+                    {deferredLogs.length === 0 ? (
                       <div className="p-4 text-center text-xs text-muted-foreground">
                         暂无匹配日志。去聊一句触发流式诊断吧。
                       </div>
                     ) : (
                       <div className="space-y-0">
-                        {filteredLogs.map((entry, idx) => {
+                        {deferredLogs.map((entry, idx) => {
                           const isExpanded = expandedId === idx;
                           const colorClass = LEVEL_COLORS[entry.level];
                           return (
@@ -568,15 +581,12 @@ export default function AboutPage() {
                                   {entry.message}
                                 </span>
                               </button>
-                              <AnimatePresence initial={false}>
-                                {isExpanded && (
-                                  <motion.div
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: "auto", opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                    className="overflow-hidden"
-                                  >
+                              {isExpanded && (
+                                <div
+                                  className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                                  style={{ gridTemplateRows: "1fr", opacity: 1 }}
+                                >
+                                  <div className="overflow-hidden">
                                     <div className="border-t border-border/20 bg-muted/20 px-6 py-2">
                                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] font-mono text-muted-foreground">
                                         <span>时间: {entry.timestamp}</span>
@@ -587,9 +597,9 @@ export default function AboutPage() {
                                         {entry.message}
                                       </pre>
                                     </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           );
                         })}
@@ -597,7 +607,7 @@ export default function AboutPage() {
                     )}
                   </div>
                   {/* v0.5.8: 回到底部浮动按钮（在滚动容器外，relative 容器内） */}
-                  {userScrolledUp && filteredLogs.length > 0 && (
+                  {userScrolledUp && deferredLogs.length > 0 && (
                     <div className="absolute bottom-3 right-3 z-10">
                       <Button
                         variant="secondary"

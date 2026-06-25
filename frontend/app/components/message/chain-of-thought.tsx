@@ -39,7 +39,7 @@ interface ControlledChainOfThoughtStepProps extends ChainOfThoughtStepBaseProps 
   onExpandedChange: (expanded: boolean) => void;
 }
 
-function ChainOfThought<T>({
+const ChainOfThought = React.memo(function ChainOfThought<T>({
   steps,
   collapsedVisibleCount = 2,
   collapsedAdaptiveWidth = false,
@@ -96,7 +96,7 @@ function ChainOfThought<T>({
       </div>
     </Card>
   );
-}
+}) as <T>(props: ChainOfThoughtProps<T>) => React.ReactElement | null;
 
 function ChainOfThoughtStep({
   defaultExpanded = false,
@@ -222,7 +222,7 @@ function ChainOfThoughtStepContent({
         {hasContent && !(collapsedAdaptiveWidth && !contentVisible) && (
           <div
             className={cn(
-              "grid transition-all duration-200 ease-out",
+              "grid transition-[grid-template-rows] duration-200 ease-out",
               shouldFillMaxWidth && "w-full",
             )}
             style={{ gridTemplateRows: contentVisible ? "1fr" : "0fr" }}

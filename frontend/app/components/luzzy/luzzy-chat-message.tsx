@@ -91,8 +91,9 @@ interface LuzzyChatMessageProps {
 }
 
 /** 记忆召回折叠区 */
-function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
+const MemoryRecallsCard = React.memo(function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
   const [expanded, setExpanded] = React.useState(false);
+  const deferredRecalls = React.useDeferredValue(recalls);
 
   return (
     <div className="rounded-md border border-muted bg-muted/20 text-sm">
@@ -106,7 +107,7 @@ function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
       </button>
       {expanded && (
         <div className="space-y-1.5 border-t border-muted px-3 py-2">
-          {recalls.map((recall) => (
+          {deferredRecalls.map((recall) => (
             <div key={recall.id} className="rounded bg-background/50 p-1.5 text-xs">
               <div className="mb-1 flex items-center gap-2">
                 <Badge variant="secondary" className="text-[10px]">
@@ -121,11 +122,12 @@ function MemoryRecallsCard({ recalls }: { recalls: MemoryRecall[] }) {
       )}
     </div>
   );
-}
+});
 
 /** 世界书召回折叠区（v0.7.0: 世界书被动预执行召回结果） */
-function WorldInfoRecallsCard({ recalls }: { recalls: WorldInfoRecall[] }) {
+const WorldInfoRecallsCard = React.memo(function WorldInfoRecallsCard({ recalls }: { recalls: WorldInfoRecall[] }) {
   const [expanded, setExpanded] = React.useState(true);
+  const deferredRecalls = React.useDeferredValue(recalls);
 
   const handleToggle = () => setExpanded((prev) => !prev);
 
@@ -147,17 +149,14 @@ function WorldInfoRecallsCard({ recalls }: { recalls: WorldInfoRecall[] }) {
           <IconArrowDown className="size-3.5" />
         </motion.div>
       </button>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden border-t border-muted"
-          >
+      {expanded && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] border-t border-muted"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <div className="space-y-1.5 px-3 py-2">
-              {recalls.map((recall) => {
+              {deferredRecalls.map((recall) => {
                 const preview =
                   recall.content.length > 100
                     ? recall.content.slice(0, 100) + "..."
@@ -177,15 +176,15 @@ function WorldInfoRecallsCard({ recalls }: { recalls: WorldInfoRecall[] }) {
                 );
               })}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+});
 
 /** 思考链（CoT）可折叠卡片（v0.4.6-UI 重构：glassmorphism 一级卡片） */
-function CotCard({
+const CotCard = React.memo(function CotCard({
   cot,
   isGenerating,
   agentSteps,
@@ -251,7 +250,7 @@ function CotCard({
   return (
     <div
       className={cn(
-        "w-full overflow-hidden rounded-xl border bg-card/50 text-sm shadow-sm backdrop-blur-md transition-colors",
+        "w-full overflow-hidden rounded-xl border bg-card/80 text-sm shadow-sm transition-colors",
         isGenerating ? "border-primary/25 bg-primary/[0.02]" : "border-border/60 bg-muted/20",
       )}
     >
@@ -267,7 +266,7 @@ function CotCard({
         {/* 发光图标 */}
         <div className="relative shrink-0">
           {isGenerating && (
-            <span className="absolute -inset-1 animate-pulse rounded-full bg-primary/20 blur-[3px]" />
+            <span className="absolute -inset-1 animate-pulse rounded-full bg-primary/20" />
           )}
           <div
             className={cn(
@@ -321,41 +320,27 @@ function CotCard({
         </span>
       </button>
 
-      <AnimatePresence initial={false} mode="wait">
-        {expanded && (
-          <motion.div
-            key="cot-content"
-            initial={isGenerating ? false : { height: 0, opacity: 0 }}
-            animate={
-              isGenerating
-                ? { opacity: 1 }
-                : {
-                    height: "auto",
-                    opacity: 1,
-                    transition: { duration: 0.25, ease: [0.4, 0, 0.2, 1] },
-                  }
-            }
-            exit={
-              isGenerating
-                ? { opacity: 0 }
-                : { height: 0, opacity: 0, transition: { duration: 0.18, ease: [0.4, 0, 0.2, 1] } }
-            }
-            transition={isGenerating ? { duration: 0 } : undefined}
-            className="overflow-hidden"
-          >
-            <div className="min-w-0 border-t border-border/50 px-1 pb-1 pt-1">
-              <LuzzyThinkingTimeline
-                cot={cot}
-                isGenerating={isGenerating}
-                agentSteps={agentSteps}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* v0.8.7-fix: 用 CSS grid 1fr 动画替代 framer-motion height:"auto"，避免每帧测量 */}
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{
+          gridTemplateRows: expanded ? "1fr" : "0fr",
+          opacity: expanded ? 1 : 0,
+        }}
+      >
+        <div className="overflow-hidden">
+          <div className="min-w-0 border-t border-border/50 px-1 pb-1 pt-1">
+            <LuzzyThinkingTimeline
+              cot={cot}
+              isGenerating={isGenerating}
+              agentSteps={agentSteps}
+            />
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+});
 
 /** 附着操作按钮（单个） */
 function ActionButton({
@@ -517,15 +502,12 @@ function TranslationCard({
         <span>翻译（{language || "简体中文"}）</span>
         {isTyping && expanded && <span className="ml-1 animate-pulse text-primary">▌</span>}
       </button>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-            className="overflow-hidden border-t border-primary/20"
-          >
+      {expanded && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] border-t border-primary/20"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <div
               className={cn(
                 "px-3 py-2",
@@ -549,9 +531,9 @@ function TranslationCard({
                 </span>
               )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -639,7 +621,7 @@ function LuzzyChatMessageImpl({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 260, damping: 24 }}
+      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
       className={cn("flex w-full gap-3 px-4 py-2", isUser ? "flex-row-reverse" : "flex-row")}
     >
       {/* 头像 */}

@@ -73,7 +73,6 @@ export function SwipeCard({
       </div>
       {/* 前景层：卡片内容 */}
       <motion.div
-        layout
         drag="x"
         dragConstraints={{ left: -120, right: 120 }}
         dragElastic={0.15}

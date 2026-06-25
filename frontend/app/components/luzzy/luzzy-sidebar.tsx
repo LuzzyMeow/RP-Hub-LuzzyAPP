@@ -98,13 +98,11 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 return (
                   <motion.div
                     key={item.to}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0, willChange: "transform, opacity" }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     transition={{
-                      delay: animIndex * 0.04,
-                      type: "spring",
-                      stiffness: 300,
-                      damping: 24,
+                      delay: animIndex * 0.02,
+                      duration: 0.15,
                     }}
                   >
                     <NavLink
@@ -113,7 +111,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                          "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-200",
                           "hover:bg-accent hover:text-accent-foreground",
                           "active:scale-[0.98]",
                           isActive
@@ -148,19 +146,19 @@ function MobileSidebar() {
           {/* 遮罩层 */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={{ opacity: 1, willChange: "opacity" }}
-            exit={{ opacity: 0, willChange: "opacity" }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-40 bg-black/60"
             onClick={() => setSideMenuOpen(false)}
           />
           {/* 侧边栏 */}
           <motion.aside
             initial={{ x: "-100%" }}
-            animate={{ x: 0, willChange: "transform" }}
-            exit={{ x: "-100%", willChange: "transform" }}
-            transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed inset-y-0 left-0 z-50 w-72 bg-sidebar shadow-xl"
+            animate={{ x: 0 }}
+            exit={{ x: "-100%" }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            className="fixed inset-y-0 left-0 z-50 w-72 bg-sidebar shadow-lg"
           >
             <div className="flex items-center justify-between border-b px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]">
               <span className="text-lg font-bold">LUZZY</span>

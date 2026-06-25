@@ -42,7 +42,7 @@ function AppHeader({
   return (
     <header
       className={cn(
-        "relative flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/40 px-4 backdrop-blur-xl backdrop-saturate-150",
+        "relative flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/90 px-4",
         className,
       )}
       style={{

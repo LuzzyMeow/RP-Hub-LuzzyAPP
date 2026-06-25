@@ -105,32 +105,59 @@ export default function TrpgPage() {
   const [displayCount, setDisplayCount] = React.useState(40);
   const [isLoadingMore, setIsLoadingMore] = React.useState(false);
   const confirm = useConfirm();
+  // v0.8.7-urgent: setTimeout timer ref，组件卸载时清理
+  const scrollLoadTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ===== 可见消息（分页加载） =====
   const visibleMessages = React.useMemo(() => {
     const source = trpgMode === "design" ? (trpgDesignSession?.messages ?? []) : trpgMessages;
     return source.slice(-displayCount);
   }, [trpgMode, trpgDesignSession?.messages, trpgMessages, displayCount]);
+  // v0.8.7-urgent: D11 useDeferredValue 让 React 在空闲时处理消息列表更新，避免阻塞流式渲染
+  const deferredVisibleMessages = React.useDeferredValue(visibleMessages);
 
   // ===== 初始化 =====
   React.useEffect(() => {
+    let cancelled = false;
     loadTrpgModel();
     void loadAllSaves();
     void loadAllWorldCards();
     // v0.8.3: 首次进入检测引导
     try {
       if (localStorage.getItem("trpg_onboarding_completed") !== "true") {
-        setShowOnboarding(true);
+        if (!cancelled) setShowOnboarding(true);
       }
     } catch {
       // 忽略 localStorage 错误
     }
     logger.info("trpg", "TRPG 页面初始化");
+    return () => {
+      cancelled = true;
+    };
   }, [loadTrpgModel, loadAllSaves, loadAllWorldCards]);
 
-  // ===== 自动滚动到底部 =====
+  // v0.8.7-urgent: 组件卸载时清理 setTimeout
   React.useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    return () => {
+      if (scrollLoadTimerRef.current) clearTimeout(scrollLoadTimerRef.current);
+    };
+  }, []);
+
+  // ===== 自动滚动到底部 =====
+  // v0.8.7-fix: rAF 节流滚动，避免每个 chunk 触发 scrollIntoView 的强制同步布局
+  const scrollRafRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+    });
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
   }, [trpgMessages, trpgDesignSession?.messages]);
 
   // ===== 发送消息 =====
@@ -161,7 +188,7 @@ export default function TrpgPage() {
       const target = e.currentTarget;
       if (target.scrollTop < 50 && displayCount < trpgMessages.length && !isLoadingMore) {
         setIsLoadingMore(true);
-        setTimeout(() => {
+        scrollLoadTimerRef.current = setTimeout(() => {
           setDisplayCount((prev) => Math.min(prev + 40, trpgMessages.length));
           setIsLoadingMore(false);
         }, 500);
@@ -235,7 +262,7 @@ export default function TrpgPage() {
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={springSnappy}
-          className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/40 px-3 py-2 backdrop-blur-sm"
+          className="flex shrink-0 items-center gap-2 border-b border-border/20 bg-background/80 px-3 py-2"
         >
           <div className="flex rounded-lg border border-border/30 bg-muted/30 p-0.5">
             <motion.button
@@ -248,8 +275,8 @@ export default function TrpgPage() {
                   ? "bg-primary/15 text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.02, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.98, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             >
               <IconDice className="size-3.5" />
               游戏模式
@@ -266,8 +293,8 @@ export default function TrpgPage() {
                   ? "bg-primary/15 text-primary shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.02, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.98, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             >
               <IconBook className="size-3.5" />
               设计模式
@@ -328,7 +355,7 @@ export default function TrpgPage() {
                 />
               )
             ) : (
-              <div className="mx-auto max-w-3xl space-y-4">
+              <div className="cv-auto mx-auto max-w-3xl space-y-4">
                 {isLoadingMore && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -345,11 +372,10 @@ export default function TrpgPage() {
                     加载更多...
                   </motion.div>
                 )}
-                <AnimatePresence mode="popLayout">
-                  {visibleMessages.map((msg) => (
+                <AnimatePresence mode="sync">
+                  {deferredVisibleMessages.map((msg) => ( // v0.8.7-urgent: D11 使用 deferredVisibleMessages
                     <motion.div
                       key={msg.id}
-                      layout
                       initial={{ opacity: 0, y: 12 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -8 }}
@@ -392,7 +418,7 @@ export default function TrpgPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={springSnappy}
-          className="shrink-0 border-t border-border/20 bg-background/60 backdrop-blur-xl backdrop-saturate-150"
+          className="shrink-0 border-t border-border/20 bg-background/90"
         >
           <div className="flex items-end gap-2 px-3 py-2">
             <Textarea
@@ -410,7 +436,7 @@ export default function TrpgPage() {
               className="min-h-[40px] max-h-[120px] resize-none border-border/30 bg-muted/30 text-sm"
               rows={1}
             />
-            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <motion.div whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }} whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}>
               <Button
                 size="icon"
                 onClick={handleSend}
@@ -428,7 +454,7 @@ export default function TrpgPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={springSnappy}
-          className="flex shrink-0 items-center justify-around border-t border-border/20 bg-background/40 px-2 py-1.5 backdrop-blur-sm"
+          className="flex shrink-0 items-center justify-around border-t border-border/20 bg-background/80 px-2 py-1.5"
           style={{
             paddingBottom: "env(safe-area-inset-bottom)",
           }}
@@ -663,7 +689,7 @@ export default function TrpgPage() {
 // ============================================================================
 
 /** 设计模式进度指示器 */
-function DesignModeIndicator({ session }: { session: DesignSession }) {
+const DesignModeIndicator = React.memo(function DesignModeIndicator({ session }: { session: DesignSession }) {
   const stageNames = ["方向选择", "五维框架", "骨架生成", "审查交付"];
   const stage = session.currentStage;
   const draft = session.draft;
@@ -689,13 +715,13 @@ function DesignModeIndicator({ session }: { session: DesignSession }) {
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
       transition={springSnappy}
-      className="shrink-0 border-b border-border/20 bg-background/40 backdrop-blur-sm"
+      className="shrink-0 border-b border-border/20 bg-background/80"
     >
       {/* v0.8.5: 横向滚动胶囊状态条 */}
       <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-2 no-scrollbar">
         {capsules.map((cap, i) => (
           <motion.span
-            key={i}
+            key={cap.label}
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ ...springSnappy, delay: i * 0.03 }}
@@ -714,10 +740,10 @@ function DesignModeIndicator({ session }: { session: DesignSession }) {
       </div>
     </motion.div>
   );
-}
+});
 
 /** 空状态 */
-function EmptyState({
+const EmptyState = React.memo(function EmptyState({
   onCreateSave,
   onStartDesign,
   mode,
@@ -753,7 +779,7 @@ function EmptyState({
             : "创建一个新存档，开启 TRPG 之旅"}
         </p>
       </div>
-      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+      <motion.div whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }} whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}>
         <Button onClick={mode === "design" ? onStartDesign : onCreateSave} className="gap-2">
           <IconPlus className="size-4" />
           {mode === "design" ? "开始设计" : "创建存档"}
@@ -761,10 +787,10 @@ function EmptyState({
       </motion.div>
     </motion.div>
   );
-}
+});
 
 /** 设计模式欢迎卡片 */
-function DesignModeWelcome({ onSelectDirection }: { onSelectDirection: (text: string) => void }) {
+const DesignModeWelcome = React.memo(function DesignModeWelcome({ onSelectDirection }: { onSelectDirection: (text: string) => void }) {
   const directions = [
     {
       id: "PERSONA",
@@ -826,8 +852,8 @@ function DesignModeWelcome({ onSelectDirection }: { onSelectDirection: (text: st
               key={dir.id}
               type="button"
               onClick={() => onSelectDirection(dir.prompt)}
-              whileHover={{ scale: 1.02, y: -2 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: 1.02, y: -2, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+              whileTap={{ scale: 0.98, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
               className="group flex flex-col items-start rounded-xl border border-border/30 bg-muted/30 p-5 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
             >
               <div className="mb-3 flex w-full items-center justify-between">
@@ -849,10 +875,10 @@ function DesignModeWelcome({ onSelectDirection }: { onSelectDirection: (text: st
       </p>
     </motion.div>
   );
-}
+});
 
 /** 用户消息 */
-function UserMessage({ content }: { content: string }) {
+const UserMessage = React.memo(function UserMessage({ content }: { content: string }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -865,10 +891,10 @@ function UserMessage({ content }: { content: string }) {
       </div>
     </motion.div>
   );
-}
+});
 
 /** 工具栏按钮（底部功能栏专用：垂直布局，图标在上文字在下） */
-function ToolbarButton({
+const ToolbarButton = React.memo(function ToolbarButton({
   icon,
   label,
   onClick,
@@ -886,8 +912,8 @@ function ToolbarButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      whileHover={{ scale: disabled ? 1 : 1.08, y: disabled ? 0 : -1 }}
-      whileTap={{ scale: disabled ? 1 : 0.92 }}
+      whileHover={{ scale: disabled ? 1 : 1.08, y: disabled ? 0 : -1, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+      whileTap={{ scale: disabled ? 1 : 0.92, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-lg py-1.5 transition-colors ${
         active
           ? "bg-primary/15 text-primary"
@@ -898,10 +924,10 @@ function ToolbarButton({
       <span className="text-[10px] font-medium">{label}</span>
     </motion.button>
   );
-}
+});
 
 /** 战斗状态栏（可折叠） */
-function CombatStatusBar({
+const CombatStatusBar = React.memo(function CombatStatusBar({
   combat,
   character,
 }: {
@@ -914,12 +940,9 @@ function CombatStatusBar({
   const currentParticipant = currentTurnId ? combat.participants[currentTurnId] : undefined;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={springSnappy}
-      className="shrink-0 border-b border-red-500/20 bg-red-500/5"
+    <div
+      className="grid shrink-0 border-b border-red-500/20 bg-red-500/5 transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+      style={{ gridTemplateRows: "1fr", opacity: 1 }}
     >
       <button
         type="button"
@@ -947,42 +970,38 @@ function CombatStatusBar({
           }`}
         />
       </button>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={springSoft}
-            className="overflow-hidden"
-          >
-            <div className="flex flex-wrap gap-1.5 px-4 pb-2">
-              {combat.turnOrder.map((id, idx) => {
-                const p = combat.participants[id];
-                if (!p) return null;
-                const isCurrent = idx === combat.currentTurnIndex;
-                return (
-                  <span
-                    key={id}
-                    className={`rounded px-1.5 py-0.5 text-[10px] ${
-                      isCurrent
-                        ? "bg-red-500/20 font-medium text-red-600 dark:text-red-400"
-                        : "bg-muted/30 text-muted-foreground"
-                    }`}
-                  >
-                    {p.name}
-                    {p.hp && (
-                      <span className="ml-1 opacity-70">
-                        {p.hp.current}/{p.hp.max}
-                      </span>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      {/* v0.8.7-fix: 用 CSS grid 1fr 动画替代 framer-motion height:"auto" */}
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{ gridTemplateRows: expanded ? "1fr" : "0fr", opacity: expanded ? 1 : 0 }}
+      >
+        <div className="overflow-hidden">
+          <div className="flex flex-wrap gap-1.5 px-4 pb-2">
+            {combat.turnOrder.map((id, idx) => {
+              const p = combat.participants[id];
+              if (!p) return null;
+              const isCurrent = idx === combat.currentTurnIndex;
+              return (
+                <span
+                  key={id}
+                  className={`rounded px-1.5 py-0.5 text-[10px] ${
+                    isCurrent
+                      ? "bg-red-500/20 font-medium text-red-600 dark:text-red-400"
+                      : "bg-muted/30 text-muted-foreground"
+                  }`}
+                >
+                  {p.name}
+                  {p.hp && (
+                    <span className="ml-1 opacity-70">
+                      {p.hp.current}/{p.hp.max}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
-}
+});

@@ -196,7 +196,7 @@ export function CharacterSheet() {
               <div className="space-y-1">
                 {character.classFeatures.map((feat, i) => (
                   <div
-                    key={i}
+                    key={feat}
                     className="rounded-md border border-border/20 bg-muted/10 px-2.5 py-1.5 text-xs text-muted-foreground"
                   >
                     {feat}
@@ -274,8 +274,8 @@ function StatusCard({
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+      whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       transition={springSoft}
       className="flex flex-col items-center gap-0.5 rounded-lg border border-border/20 bg-background/40 p-2"
     >
@@ -298,8 +298,8 @@ function AbilityCard({ name, label, value }: { name: AbilityName; label: string;
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ scale: 1.05 }}
-      whileTap={{ scale: 0.95 }}
+      whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+      whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       transition={springSoft}
       className="flex flex-col items-center gap-0.5 rounded-lg border border-border/20 bg-background/40 p-2"
     >
@@ -423,7 +423,7 @@ function TabButton({
     <motion.button
       type="button"
       onClick={onClick}
-      whileTap={{ scale: 0.95 }}
+      whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       transition={springSoft}
       className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
         active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground"
@@ -491,7 +491,7 @@ function NpcListView({ npcs, onSelect }: { npcs: GameNpc[]; onSelect: (id: strin
 // NPC 列表项
 // ============================================================================
 
-function NpcListItem({
+const NpcListItem = React.memo(function NpcListItem({
   npc,
   delay,
   onClick,
@@ -508,8 +508,8 @@ function NpcListItem({
       initial={{ opacity: 0, x: -8 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ ...springSoft, delay }}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={{ scale: 1.01, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+      whileTap={{ scale: 0.98, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       className="flex w-full items-center gap-3 rounded-lg border border-border/20 bg-background/40 p-2.5 text-left"
     >
       <div className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-primary/5">
@@ -532,7 +532,7 @@ function NpcListItem({
       </span>
     </motion.button>
   );
-}
+});
 
 // ============================================================================
 // NPC 详情弹层（渐进式解锁：未揭示字段显示 ???）
@@ -552,7 +552,7 @@ function NpcDetailModal({ npc, onClose }: { npc: GameNpc; onClose: () => void })
       exit={{ opacity: 0 }}
       transition={springSoft}
       onClick={onClose}
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/80 sm:items-center"
     >
       <motion.div
         initial={{ y: 40, opacity: 0 }}
@@ -560,7 +560,7 @@ function NpcDetailModal({ npc, onClose }: { npc: GameNpc; onClose: () => void })
         exit={{ y: 40, opacity: 0 }}
         transition={springSoft}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[80vh] w-full overflow-y-auto rounded-t-2xl border border-border/30 bg-background p-4 shadow-xl sm:max-w-md sm:rounded-2xl"
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-2xl border border-border/30 bg-background p-4 shadow-md sm:max-w-md sm:rounded-2xl"
       >
         {/* 头部 */}
         <div className="mb-3 flex items-start justify-between">
@@ -579,7 +579,7 @@ function NpcDetailModal({ npc, onClose }: { npc: GameNpc; onClose: () => void })
           <motion.button
             type="button"
             onClick={onClose}
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: 0.9, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
             className="rounded-full p-1 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
           >
             <IconClose className="size-4" />

@@ -39,7 +39,7 @@ import { logger } from "~/services/logger";
 // 主组件
 // ============================================================================
 
-export function SaveSheet() {
+export const SaveSheet = React.memo(function SaveSheet() {
   const trpgAllSaves = useAppStore((s) => s.trpgAllSaves);
   const trpgAllWorldCards = useAppStore((s) => s.trpgAllWorldCards);
   const trpgSave = useAppStore((s) => s.trpgSave);
@@ -171,14 +171,13 @@ export function SaveSheet() {
         ) : (
           <div className="space-y-2">
             {/* 世界卡列表 */}
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence>
               {trpgAllWorldCards.map((card) => {
                 const saves = worldCardSaves.get(card.manifest.card_id) ?? [];
                 const isExpanded = expandedWorldCard === card.manifest.card_id;
                 return (
                   <motion.div
                     key={card.manifest.card_id}
-                    layout
                     variants={listItemAnimation}
                     initial="initial"
                     animate="animate"
@@ -192,8 +191,8 @@ export function SaveSheet() {
                         setExpandedWorldCard(isExpanded ? null : card.manifest.card_id)
                       }
                       className="flex w-full items-center gap-2 p-2.5 text-left"
-                      whileHover={{ scale: 1.005 }}
-                      whileTap={{ scale: 0.995 }}
+                      whileHover={{ scale: 1.005, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+                      whileTap={{ scale: 0.995, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
                     >
                       <IconBook className="size-4 shrink-0 text-primary" />
                       <div className="flex min-w-0 flex-1 flex-col">
@@ -208,15 +207,12 @@ export function SaveSheet() {
                     </motion.button>
 
                     {/* 展开的存档列表 */}
-                    <AnimatePresence initial={false}>
-                      {isExpanded && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.2 }}
-                          className="overflow-hidden border-t border-border/20"
-                        >
+                    {isExpanded && (
+                      <div
+                        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)] border-t border-border/20"
+                        style={{ gridTemplateRows: "1fr", opacity: 1 }}
+                      >
+                        <div className="overflow-hidden">
                           <div className="space-y-2 p-2.5">
                             {/* 新建存档按钮 */}
                             <motion.div {...pressableSubtle}>
@@ -238,11 +234,10 @@ export function SaveSheet() {
                                 暂无存档，点击上方按钮创建
                               </div>
                             ) : (
-                              <AnimatePresence mode="popLayout">
+                              <AnimatePresence>
                                 {saves.map((save) => (
                                   <motion.div
                                     key={save.saveId}
-                                    layout
                                     variants={listItemAnimation}
                                     initial="initial"
                                     animate="animate"
@@ -260,9 +255,9 @@ export function SaveSheet() {
                               </AnimatePresence>
                             )}
                           </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                 );
               })}
@@ -275,11 +270,10 @@ export function SaveSheet() {
                   <IconSave className="size-3.5" />
                   <span>无世界卡的存档</span>
                 </div>
-                <AnimatePresence mode="popLayout">
+                <AnimatePresence>
                   {orphanSaves.map((save) => (
                     <motion.div
                       key={save.saveId}
-                      layout
                       variants={listItemAnimation}
                       initial="initial"
                       animate="animate"
@@ -302,13 +296,13 @@ export function SaveSheet() {
       </div>
     </ScrollArea>
   );
-}
+});
 
 // ============================================================================
 // 存档卡片
 // ============================================================================
 
-function SaveCard({
+const SaveCard = React.memo(function SaveCard({
   save,
   isActive,
   onLoad,
@@ -339,8 +333,8 @@ function SaveCard({
 
   return (
     <motion.div
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
+      whileHover={{ scale: 1.01, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+      whileTap={{ scale: 0.99, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
       className={`rounded-lg border p-2.5 transition-colors ${
         isActive
           ? "border-primary/40 bg-primary/5"
@@ -381,8 +375,8 @@ function SaveCard({
         <motion.button
           type="button"
           onClick={onLoad}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+          whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           className="flex flex-1 items-center justify-center gap-1 rounded-md bg-primary/10 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
         >
           <IconArrow className="size-3" />
@@ -391,8 +385,8 @@ function SaveCard({
         <motion.button
           type="button"
           onClick={onExport}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+          whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           className="flex items-center justify-center rounded-md bg-muted/40 p-1.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           aria-label="导出"
         >
@@ -401,8 +395,8 @@ function SaveCard({
         <motion.button
           type="button"
           onClick={onDelete}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+          whileHover={{ scale: 1.05, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
+          whileTap={{ scale: 0.95, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } }}
           className="flex items-center justify-center rounded-md bg-destructive/5 p-1.5 text-destructive/70 transition-colors hover:bg-destructive/10 hover:text-destructive"
           aria-label="删除"
         >
@@ -411,7 +405,7 @@ function SaveCard({
       </div>
     </motion.div>
   );
-}
+});
 
 // ============================================================================
 // 空状态

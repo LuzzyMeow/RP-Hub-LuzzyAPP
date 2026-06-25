@@ -22,9 +22,6 @@ const PARTICLES = [
   { x: "25%", y: "70%", size: 5, delay: 1, duration: 3.5, drift: 25 },
   { x: "70%", y: "75%", size: 3, delay: 1.5, duration: 4.5, drift: -20 },
   { x: "50%", y: "10%", size: 2, delay: 0.3, duration: 3, drift: 15 },
-  { x: "10%", y: "50%", size: 4, delay: 0.8, duration: 4, drift: -10 },
-  { x: "90%", y: "50%", size: 3, delay: 1.2, duration: 3.5, drift: 20 },
-  { x: "40%", y: "85%", size: 2, delay: 0.6, duration: 4, drift: -25 },
 ];
 
 /** LUZZY 文字字符（用于字符级 stagger 动画） */
@@ -44,13 +41,16 @@ export function LuzzySplash({ onComplete }: LuzzySplashProps) {
     const totalDuration = reduceMotion ? 500 : 2000;
     const waitAfterComplete = reduceMotion ? 0 : 200;
     const fadeOutDuration = 300;
-
+    // v0.8.7-urgent: D9 清理内层 setTimeout，避免组件卸载后 setState 警告
+    let innerTimer: ReturnType<typeof setTimeout> | null = null;
     const timer = setTimeout(() => {
       setIsVisible(false);
-      setTimeout(onComplete, fadeOutDuration);
+      innerTimer = setTimeout(onComplete, fadeOutDuration);
     }, totalDuration + waitAfterComplete);
-
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (innerTimer) clearTimeout(innerTimer);
+    };
   }, [onComplete, reduceMotion]);
 
   return (
@@ -64,8 +64,8 @@ export function LuzzySplash({ onComplete }: LuzzySplashProps) {
         >
           {/* 背景光晕装饰（v0.3.7: 使用主题色变量） */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/4 top-1/4 size-96 rounded-full bg-primary/10 blur-3xl" />
-            <div className="absolute bottom-1/4 right-1/4 size-96 rounded-full bg-accent-foreground/10 blur-3xl" />
+            <div className="absolute left-1/4 top-1/4 size-96 rounded-full bg-primary/5" />
+            <div className="absolute bottom-1/4 right-1/4 size-96 rounded-full bg-accent-foreground/5" />
           </div>
 
           {/* 微光粒子效果（reduce-motion 时跳过） */}
@@ -88,7 +88,7 @@ export function LuzzySplash({ onComplete }: LuzzySplashProps) {
                     scale: [0.5, 1.2, 0.5],
                   }}
                   transition={{
-                    duration: p.duration,
+                    duration: 3 + i * 0.5,
                     delay: p.delay,
                     repeat: Infinity,
                     ease: "easeInOut",
@@ -100,19 +100,15 @@ export function LuzzySplash({ onComplete }: LuzzySplashProps) {
 
           {/* LUZZY 文字区域（v0.3.7: 液态玻璃卡片 + 字符级 stagger） */}
           <motion.div
-            className="relative flex flex-col items-center rounded-3xl border border-border/40 bg-card/30 px-8 py-6 backdrop-blur-2xl"
+            className="relative flex flex-col items-center rounded-3xl border border-border/40 bg-card/90 px-8 py-6"
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            transition={{
-              type: "spring",
-              stiffness: 200,
-              damping: 18,
-            }}
+            transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
           >
             {/* 呼吸光晕环（reduce-motion 时静态） */}
             {!reduceMotion && (
               <motion.div
-                className="absolute inset-0 -z-10 rounded-3xl bg-primary/20 blur-2xl"
+                className="absolute inset-0 -z-10 rounded-3xl bg-primary/10"
                 animate={{
                   scale: [1, 1.3, 1],
                   opacity: [0.3, 0.6, 0.3],
@@ -132,8 +128,8 @@ export function LuzzySplash({ onComplete }: LuzzySplashProps) {
               {LUZZY_CHARS.map((char, i) => (
                 <motion.span
                   key={i}
-                  initial={{ opacity: 0, y: 20, filter: "blur(8px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{
                     delay: 0.15 + i * 0.08,
                     duration: 0.4,

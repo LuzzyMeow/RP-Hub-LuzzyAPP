@@ -388,18 +388,21 @@ export default function CharactersPage() {
   const [previewAvatar, setPreviewAvatar] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    let cancelled = false;
     void loadCharacters();
     // 加载世界书列表
     void getItem<WorldInfoEntry[]>("worldInfo", "worldInfo").then((data) => {
+      if (cancelled) return;
       setWorldInfoEntries(data ?? []);
     });
     // v0.3.4: 读取左滑右滑提示是否已关闭
     try {
       const dismissed = localStorage.getItem("luzzy_swipe_hint_dismissed");
-      if (!dismissed) setShowSwipeHint(true);
+      if (!cancelled) setShowSwipeHint(!dismissed);
     } catch {
-      setShowSwipeHint(true);
+      if (!cancelled) setShowSwipeHint(true);
     }
+    return () => { cancelled = true; };
   }, [loadCharacters]);
 
   /** v0.3.4: 关闭左滑右滑提示并持久化 */
@@ -459,6 +462,9 @@ export default function CharactersPage() {
       return fb - fa;
     });
   }, [searchQuery, characters, getFilteredCharacters, selectedTags, sortMode]);
+
+  // v0.8.7: useDeferredValue 让 React 在空闲时处理非关键更新，避免阻塞流式渲染
+  const deferredFiltered = React.useDeferredValue(filtered);
 
   /** 打开新建弹窗 */
   const handleNew = React.useCallback(() => {
@@ -644,6 +650,21 @@ export default function CharactersPage() {
       setPreviewAvatar(c.avatar);
     }
   }, []);
+
+  // v0.8.7-urgent: D14 内联函数改用 useCallback 工厂模式，避免每次渲染创建新闭包破坏子组件 memo
+  const makeSwipeLeftHandler = React.useCallback(
+    (c: Character) => () => void handleDelete(c),
+    [handleDelete],
+  );
+  const makeSwipeRightHandler = React.useCallback((c: Character) => () => handleEdit(c), [handleEdit]);
+  const makeCardClickHandler = React.useCallback(
+    (c: Character) => () => handleCardClick(c),
+    [handleCardClick],
+  );
+  const makeAvatarClickHandler = React.useCallback(
+    (c: Character) => (e: React.MouseEvent) => handleAvatarClick(e, c),
+    [handleAvatarClick],
+  );
 
   /**
    * v0.7.3-fix: 处理导入角色卡的额外资源（世界书、正则脚本、UI模板、头像）
@@ -1004,7 +1025,7 @@ export default function CharactersPage() {
         )}
 
         {/* 列表 */}
-        {filtered.length === 0 ? (
+        {deferredFiltered.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
             <Empty>
               <EmptyHeader>
@@ -1055,32 +1076,31 @@ export default function CharactersPage() {
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2 lg:grid-cols-3">
-              <AnimatePresence mode="popLayout">
-                {filtered.map((c, i) => (
+            <div className="cv-auto grid grid-cols-1 gap-3 pb-4 sm:grid-cols-2 lg:grid-cols-3">
+              <AnimatePresence>
+                {deferredFiltered.map((c, i) => (
                   <motion.div
                     key={c.uuid}
-                    layout
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
                   >
                     <SwipeCard
-                      onSwipeLeft={() => void handleDelete(c)}
-                      onSwipeRight={() => handleEdit(c)}
+                      onSwipeLeft={makeSwipeLeftHandler(c)}
+                      onSwipeRight={makeSwipeRightHandler(c)}
                       leftIcon={<IconTrash className="size-5" />}
                       rightIcon={<IconEdit className="size-5" />}
                       disabled={isLuxiCharacter(c)}
                     >
                       <Card
-                        className="cursor-pointer gap-3 rounded-xl p-3 transition-all"
-                        onClick={() => handleCardClick(c)}
+                        className="cursor-pointer gap-3 rounded-xl p-3 transition-colors"
+                        onClick={makeCardClickHandler(c)}
                       >
                         <div className="flex items-start gap-3">
                           <Avatar
                             className="size-12 shrink-0 rounded-lg"
-                            onClick={(e) => handleAvatarClick(e, c)}
+                            onClick={makeAvatarClickHandler(c)}
                           >
                             <AvatarImage src={c.avatar} alt={c.name} />
                             <AvatarFallback className="rounded-lg">
@@ -1264,7 +1284,7 @@ export default function CharactersPage() {
                     <div className="min-w-0 space-y-3">
                       {(editing.dialogueExamples ?? []).map((ex, idx) => (
                         <div
-                          key={idx}
+                          key={`${idx}-${ex.user.slice(0, 16)}-${ex.agent.slice(0, 16)}`}
                           className="min-w-0 space-y-1.5 rounded-lg border border-border/20 bg-card/30 p-3"
                         >
                           <div className="flex items-center justify-between">

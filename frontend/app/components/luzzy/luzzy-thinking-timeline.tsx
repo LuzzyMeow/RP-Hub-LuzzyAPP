@@ -9,7 +9,7 @@
  */
 
 import * as React from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import {
   IconCheck,
   IconArrowDown,
@@ -484,7 +484,7 @@ function StatusIcon({ status }: { status: StepStatus }) {
   if (status === "running") {
     return (
       <div className="relative flex size-6 items-center justify-center">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary/30 opacity-75" />
+        <span className="absolute inline-flex size-full rounded-full bg-primary/30 opacity-75" />
         <span className="relative inline-flex size-2.5 rounded-full bg-primary" />
       </div>
     );
@@ -511,7 +511,6 @@ function StatusIcon({ status }: { status: StepStatus }) {
 
 interface ThinkingNodeProps {
   step: ThinkingStep;
-  index: number;
   isExpanded: boolean;
   onToggle: () => void;
   isLast: boolean;
@@ -521,7 +520,6 @@ interface ThinkingNodeProps {
 
 interface ToolNodeProps {
   step: CombinedToolStep;
-  index: number;
   isExpanded: boolean;
   onToggle: () => void;
   isLast: boolean;
@@ -537,22 +535,36 @@ function ThinkingNode({
   const isRunning = step.status === "running";
   const contentRef = React.useRef<HTMLDivElement>(null);
   const userScrolledRef = React.useRef(false);
+  // v0.8.7-fix: rAF 节流 scrollTop，避免每个 chunk 触发强制同步布局
+  const scrollRafRef = React.useRef<number | null>(null);
 
-  // v0.5.8: 流式输出时自动吸附底部
+  const scheduleScrollToBottom = React.useCallback(() => {
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      const el = contentRef.current;
+      if (!el) return;
+      el.scrollTop = el.scrollHeight;
+    });
+  }, []);
+
   React.useEffect(() => {
-    const el = contentRef.current;
-    if (!el || !isRunning || !isExpanded || userScrolledRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [step.content, isRunning, isExpanded]);
+    if (!isRunning || !isExpanded || userScrolledRef.current) return;
+    scheduleScrollToBottom();
+  }, [step.content, isRunning, isExpanded, scheduleScrollToBottom]);
 
-  // v0.5.8: 节点展开时重置吸附状态
   React.useEffect(() => {
     if (isExpanded) {
       userScrolledRef.current = false;
-      const el = contentRef.current;
-      if (el && isRunning) el.scrollTop = el.scrollHeight;
+      if (isRunning) scheduleScrollToBottom();
     }
-  }, [isExpanded, isRunning]);
+    return () => {
+      if (scrollRafRef.current !== null) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [isExpanded, isRunning, scheduleScrollToBottom]);
 
   const handleScroll = React.useCallback(() => {
     const el = contentRef.current;
@@ -589,14 +601,14 @@ function ThinkingNode({
   })();
 
   return (
-    <div className="relative w-full">
+    <div className="cv-auto relative w-full">
       {/* 节点卡片 */}
       <motion.div
         initial={isRunning ? false : { opacity: 0, y: 8 }}
         animate={isRunning ? { opacity: 1 } : { opacity: 1, y: 0 }}
         transition={isRunning ? { duration: 0 } : { duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "group relative w-full overflow-hidden rounded-lg border bg-card/60 p-2.5 shadow-sm backdrop-blur-sm transition-colors",
+          "group relative w-full overflow-hidden rounded-lg border bg-card/90 p-2.5 shadow-sm transition-colors",
           isRunning ? nodeIconConfig.runningAccentClass : nodeIconConfig.accentClass,
         )}
       >
@@ -622,37 +634,35 @@ function ThinkingNode({
           </motion.div>
         </button>
 
-        {/* 展开内容 */}
-        <AnimatePresence initial={false}>
-          {isExpanded && (
-            <motion.div
-              initial={isRunning ? false : { height: 0, opacity: 0 }}
-              animate={isRunning ? { opacity: 1 } : { height: "auto", opacity: 1 }}
-              exit={isRunning ? { opacity: 0 } : { height: 0, opacity: 0 }}
-              transition={isRunning ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              className="overflow-hidden"
+        {/* v0.8.7-fix: 用 CSS grid 1fr 动画替代 framer-motion height:"auto"，避免每帧测量 */}
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{
+            gridTemplateRows: isExpanded ? "1fr" : "0fr",
+            opacity: isExpanded ? 1 : 0,
+          }}
+        >
+          <div className="overflow-hidden">
+            <div
+              ref={contentRef}
+              onScroll={handleScroll}
+              className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground"
             >
-              <div
-                ref={contentRef}
-                onScroll={handleScroll}
-                className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground"
-              >
-                {step.content ? (
-                  <Markdown
-                    content={step.content}
-                    isAnimating={isRunning}
-                    directRender={isRunning}
-                  />
-                ) : (
-                  <span className="opacity-60">等待内容...</span>
-                )}
-                {isRunning && (
-                  <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-primary" />
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              {step.content ? (
+                <Markdown
+                  content={step.content}
+                  isAnimating={isRunning}
+                  directRender={isRunning}
+                />
+              ) : (
+                <span className="opacity-60">等待内容...</span>
+              )}
+              {isRunning && (
+                <span className="ml-0.5 inline-block h-3 w-0.5 animate-pulse bg-primary" />
+              )}
+            </div>
+          </div>
+        </div>
       </motion.div>
 
       {/* 连接到底部的线（最后一个节点不绘制） */}
@@ -697,10 +707,9 @@ function RecallResultCard({ recall, index, isExpanded, onToggle }: RecallResultC
 
   return (
     <motion.div
-      layout
       initial={{ opacity: 0, y: -4 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -4 }}
+      // v0.8.7-urgent: E6 移除 exit 动画（父组件未用 AnimatePresence 包裹，exit 永远不触发）
       transition={{ duration: 0.2, ease: "easeOut" }}
       className="rounded-md border border-border/20 bg-muted/30 overflow-hidden"
     >
@@ -728,39 +737,38 @@ function RecallResultCard({ recall, index, isExpanded, onToggle }: RecallResultC
         </span>
       </button>
 
-      <AnimatePresence initial={false}>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="overflow-hidden"
-          >
-            <div className="px-3 py-2 space-y-2 border-t border-border/10">
-              <div className="space-y-1">
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  输入参数
-                </div>
-                {inputParams.map((p, i) => (
-                  <div key={i} className="flex gap-2 text-xs">
-                    <span className="text-muted-foreground min-w-[60px]">{p.label}:</span>
-                    <span className="flex-1 break-all">{p.value}</span>
-                  </div>
-                ))}
+      {/* v0.8.7-fix: 用 CSS grid 1fr 动画替代 framer-motion height:"auto" */}
+      <div
+        className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{
+          gridTemplateRows: isExpanded ? "1fr" : "0fr",
+          opacity: isExpanded ? 1 : 0,
+        }}
+      >
+        <div className="overflow-hidden">
+          <div className="px-3 py-2 space-y-2 border-t border-border/10">
+            <div className="space-y-1">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                输入参数
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  输出结果
+              {inputParams.map((p, i) => (
+                <div key={p.label} className="flex gap-2 text-xs">
+                  <span className="text-muted-foreground min-w-[60px]">{p.label}:</span>
+                  <span className="flex-1 break-all">{p.value}</span>
                 </div>
-                <div className="max-h-40 overflow-y-auto text-xs break-words rounded bg-background/40 p-2">
-                  {recall.content}
-                </div>
+              ))}
+            </div>
+            <div className="space-y-1">
+              <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                输出结果
+              </div>
+              <div className="max-h-40 overflow-y-auto text-xs break-words rounded bg-background/40 p-2">
+                {recall.content}
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      </div>
     </motion.div>
   );
 }
@@ -826,13 +834,13 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
   const config = getToolIconConfig(step.category);
 
   return (
-    <div className="relative w-full">
+    <div className="cv-auto relative w-full">
       <motion.div
         initial={isRunning ? false : { opacity: 0, y: 8 }}
         animate={isRunning ? { opacity: 1 } : { opacity: 1, y: 0 }}
         transition={isRunning ? { duration: 0 } : { duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         className={cn(
-          "group relative w-full overflow-hidden rounded-lg border bg-card/60 p-2.5 shadow-sm backdrop-blur-sm transition-colors",
+          "group relative w-full overflow-hidden rounded-lg border bg-card/90 p-2.5 shadow-sm transition-colors",
           isRunning
             ? "border-primary/30 bg-primary/[0.03]"
             : "border-border/60 hover:border-border",
@@ -869,22 +877,21 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
           </motion.div>
         </button>
 
-        {/* 展开内容：调用与结果 */}
-        <AnimatePresence initial={false}>
-          {isExpanded && (
-            <motion.div
-              initial={isRunning ? false : { height: 0, opacity: 0 }}
-              animate={isRunning ? { opacity: 1 } : { height: "auto", opacity: 1 }}
-              exit={isRunning ? { opacity: 0 } : { height: 0, opacity: 0 }}
-              transition={isRunning ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              className="overflow-hidden"
-            >
-              <div className="mt-2 max-h-[360px] overflow-y-auto overscroll-contain space-y-2">
+        {/* v0.8.7-fix: 用 CSS grid 1fr 动画替代 framer-motion height:"auto" */}
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{
+            gridTemplateRows: isExpanded ? "1fr" : "0fr",
+            opacity: isExpanded ? 1 : 0,
+          }}
+        >
+          <div className="overflow-hidden">
+            <div className="mt-2 max-h-[360px] overflow-y-auto overscroll-contain space-y-2">
                 {step.subItems && step.subItems.length > 0 ? (
                   // v0.5.5-arch: 多工具聚合渲染
                   step.subItems.map((sub, idx) => (
                     <div
-                      key={idx}
+                      key={`${sub.toolName}-${idx}`}
                       className="space-y-2 rounded-md border border-border/40 bg-muted/20 p-2"
                     >
                       <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
@@ -1005,10 +1012,9 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
                     ) : null}
                   </>
                 )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </div>
+        </div>
       </motion.div>
 
       {!isLast && <div className="absolute left-3 top-full h-3 w-px bg-border/60" />}
@@ -1020,7 +1026,7 @@ function ToolNode({ step, isExpanded, onToggle, isLast }: ToolNodeProps) {
 // 主组件
 // ============================================================================
 
-export function LuzzyThinkingTimeline({
+export const LuzzyThinkingTimeline = React.memo(function LuzzyThinkingTimeline({
   cot,
   isGenerating,
   agentSteps,
@@ -1033,19 +1039,23 @@ export function LuzzyThinkingTimeline({
     () => mergeSteps(thinkingSteps, agentSteps),
     [thinkingSteps, agentSteps],
   );
+  // v0.8.7-urgent: useDeferredValue 让 React 在空闲时处理 allSteps 变化，避免阻塞流式渲染
+  const deferredSteps = React.useDeferredValue(allSteps);
   const [expandedStep, setExpandedStep] = React.useState<number | null>(0);
   const prevStepsLengthRef = React.useRef(0);
 
   React.useEffect(() => {
     if (isGenerating && allSteps.length > 0) {
       if (allSteps.length > prevStepsLengthRef.current) {
-        setExpandedStep(allSteps.length - 1);
+        // v0.8.7-urgent: 使用 deferredSteps.length - 1 而非 allSteps.length - 1（C11）
+        // 避免 deferred 期间 expandedStep 与 deferredSteps 索引脱节导致最新步骤不展开
+        setExpandedStep(deferredSteps.length > 0 ? deferredSteps.length - 1 : 0);
       }
     }
     prevStepsLengthRef.current = allSteps.length;
-  }, [isGenerating, allSteps.length]);
+  }, [isGenerating, allSteps.length, deferredSteps.length]);
 
-  if (allSteps.length === 0) {
+  if (deferredSteps.length === 0) {
     return (
       <div className="flex items-center gap-2 px-1 py-2 text-xs text-muted-foreground/70">
         <IconClock className="size-3.5" />
@@ -1057,37 +1067,30 @@ export function LuzzyThinkingTimeline({
   return (
     <div className="relative w-full py-1">
       <div className="w-full space-y-3">
-        {allSteps.map((step, idx) => {
+        {deferredSteps.map((step, idx) => {
           const isExpanded = expandedStep === idx;
           const onToggle = () => setExpandedStep(isExpanded ? null : idx);
           if (isToolStep(step)) {
             return (
               <ToolNode
-                key={idx}
+                key={`${step.title}-${idx}`}
                 step={step}
-                index={idx}
                 isExpanded={isExpanded}
                 onToggle={onToggle}
-                isLast={idx === allSteps.length - 1}
+                isLast={idx === deferredSteps.length - 1} // v0.8.7-urgent: C10 修复 — 与 deferredSteps 一致
               />
             );
           }
           // v0.5.5-arch: brainstorm/cot_output/thinking 都用 ThinkingNode 渲染
           // 通过 type 字段在 ThinkingNode 内部区分图标和配色
-          const thinkingLikeStep: ThinkingStep = {
-            type: "thinking",
-            title: step.title,
-            content: step.content,
-            status: step.status,
-          };
+          // v0.8.7-urgent: D15 优化 — 直接传递 step 引用，避免内联对象破坏 memo
           return (
             <ThinkingNode
-              key={idx}
-              step={thinkingLikeStep}
-              index={idx}
+              key={`${step.title}-${idx}`}
+              step={step as unknown as ThinkingStep}
               isExpanded={isExpanded}
               onToggle={onToggle}
-              isLast={idx === allSteps.length - 1}
+              isLast={idx === deferredSteps.length - 1} // v0.8.7-urgent: C10 修复 — 与 deferredSteps 一致
               nodeType={
                 isBrainstormStep(step)
                   ? "brainstorm"
@@ -1101,4 +1104,4 @@ export function LuzzyThinkingTimeline({
       </div>
     </div>
   );
-}
+});

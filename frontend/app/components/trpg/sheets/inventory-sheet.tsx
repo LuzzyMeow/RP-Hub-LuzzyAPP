@@ -32,7 +32,7 @@ import type { InventoryItem, DamageType } from "~/types/trpg";
 // 主组件
 // ============================================================================
 
-export function InventorySheet() {
+export const InventorySheet = React.memo(function InventorySheet() {
   const trpgSave = useAppStore((s) => s.trpgSave);
 
   const character = trpgSave?.character;
@@ -121,7 +121,7 @@ export function InventorySheet() {
         {inventory.length === 0 ? (
           <div className="py-6 text-center text-xs text-muted-foreground">背包空空如也</div>
         ) : (
-          <AnimatePresence mode="popLayout">
+          <AnimatePresence>
             {/* 武器 */}
             {groupedItems.weapon?.length > 0 && (
               <ItemGroup
@@ -172,7 +172,7 @@ export function InventorySheet() {
       </div>
     </ScrollArea>
   );
-}
+});
 
 // ============================================================================
 // 装备槽
@@ -224,7 +224,6 @@ function ItemGroup({
 }) {
   return (
     <motion.div
-      layout
       variants={listItemAnimation}
       initial="initial"
       animate="animate"
@@ -249,13 +248,13 @@ function ItemGroup({
 // 物品卡片
 // ============================================================================
 
-function ItemCard({ item }: { item: InventoryItem }) {
+const ItemCard = React.memo(function ItemCard({ item }: { item: InventoryItem }) {
   const [expanded, setExpanded] = React.useState(false);
   const hasDetails = item.description || item.damageDice || item.acBonus || item.effect;
 
   return (
     <motion.div
-      whileHover={hasDetails ? { scale: 1.01 } : undefined}
+      whileHover={hasDetails ? { scale: 1.01, transition: { duration: 0.15, ease: [0.4, 0, 0.2, 1] } } : undefined}
       className={`rounded-md border p-2 transition-colors ${
         item.isQuestItem
           ? "border-amber-500/30 bg-amber-500/5"
@@ -291,15 +290,12 @@ function ItemCard({ item }: { item: InventoryItem }) {
       </button>
 
       {/* 展开详情 */}
-      <AnimatePresence initial={false}>
-        {expanded && hasDetails && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={springSoft}
-            className="overflow-hidden"
-          >
+      {expanded && hasDetails && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <div className="mt-1.5 space-y-1 border-t border-border/20 pt-1.5">
               {item.damageDice && (
                 <div className="flex items-center gap-1 text-[11px]">
@@ -330,12 +326,12 @@ function ItemCard({ item }: { item: InventoryItem }) {
                 </p>
               )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
-}
+});
 
 // ============================================================================
 // 物品图标

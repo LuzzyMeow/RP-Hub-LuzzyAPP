@@ -326,20 +326,24 @@ export default function WorldInfoPage() {
 
   /** 页面加载时从 IndexedDB 读取 */
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         const data = await getItem<WorldInfoEntry[]>("worldInfo", STORAGE_KEY);
+        if (cancelled) return;
         if (data) {
           setEntries(data);
           // v0.7.3: 默认收起所有世界书，不自动展开
           setExpandedBooks(new Set());
         }
       } catch (e) {
+        if (cancelled) return;
         toast.error("加载世界书失败：" + (e as Error).message);
       } finally {
-        setLoaded(true);
+        if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   /** 持久化到 IndexedDB */
@@ -674,6 +678,8 @@ export default function WorldInfoPage() {
       }))
       .filter((g) => g.bookName.toLowerCase().includes(q) || g.entries.length > 0);
   }, [entries, searchQuery]);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredFilteredGroups = React.useDeferredValue(filteredGroups);
 
   return (
     <LuzzyLayout
@@ -721,15 +727,12 @@ export default function WorldInfoPage() {
         )}
 
         {/* v0.6.0: 嵌入向量生成中处理动画 */}
-        <AnimatePresence>
-          {isGeneratingEmbeddings && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25 }}
-              className="flex shrink-0 items-center gap-2 overflow-hidden rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs text-primary"
-            >
+        {isGeneratingEmbeddings && (
+          <div
+            className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            style={{ gridTemplateRows: "1fr", opacity: 1 }}
+          >
+            <div className="overflow-hidden flex shrink-0 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5 text-xs text-primary">
               <motion.div
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -738,9 +741,9 @@ export default function WorldInfoPage() {
                 <IconRefresh className="size-3.5" />
               </motion.div>
               <span>正在生成向量记忆分片...</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            </div>
+          </div>
+        )}
 
         {loaded && entries.length === 0 ? (
           <div className="flex flex-1 items-center justify-center">
@@ -777,13 +780,13 @@ export default function WorldInfoPage() {
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <div className="mx-auto max-w-3xl space-y-3 pb-4">
-              <AnimatePresence mode="popLayout">
-                {filteredGroups.map((group, gi) => {
+            <div className="cv-auto mx-auto max-w-3xl space-y-3 pb-4">
+              <AnimatePresence>
+                {deferredFilteredGroups.map((group, gi) => {
                   const expanded = expandedBooks.has(group.bookId);
                   const enabledCount = group.entries.filter((e) => e.enabled).length;
                   return (
-                    <motion.div key={group.bookId} layout {...springEnter} custom={gi}>
+                    <motion.div key={group.bookId} {...springEnter} custom={gi}>
                       <Card className="overflow-hidden p-0">
                         {/* 世界书标题栏（一级） */}
                         <div className="flex items-center gap-2 border-b border-border/30 p-3">
@@ -849,15 +852,12 @@ export default function WorldInfoPage() {
                         </div>
 
                         {/* 条目列表（二级） */}
-                        <AnimatePresence initial={false}>
-                          {expanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.2 }}
-                              className="overflow-hidden"
-                            >
+                        {expanded && (
+                          <div
+                            className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                            style={{ gridTemplateRows: "1fr", opacity: 1 }}
+                          >
+                            <div className="overflow-hidden">
                               {group.entries.length === 0 ? (
                                 <div className="px-4 py-6 text-center text-xs text-muted-foreground">
                                   此世界书暂无条目
@@ -865,11 +865,10 @@ export default function WorldInfoPage() {
                               ) : (
                                 /* v0.4.1: 条目较多时支持滚动,避免撑开页面导致无法滑动 */
                                 <div className="max-h-[50vh] divide-y divide-border/20 overflow-y-auto">
-                                  <AnimatePresence mode="popLayout">
+                                  <AnimatePresence>
                                     {group.entries.map((e, ei) => (
                                       <motion.div
                                         key={e.id}
-                                        layout
                                         {...fadeSlide}
                                         custom={ei}
                                         className={`flex items-start gap-3 p-3 transition-colors hover:bg-muted/30 ${
@@ -905,7 +904,7 @@ export default function WorldInfoPage() {
                                               <IconKey className="size-3 text-muted-foreground" />
                                               {e.keys.slice(0, 4).map((k, i) => (
                                                 <Badge
-                                                  key={i}
+                                                  key={k}
                                                   variant="outline"
                                                   className="text-xs font-normal"
                                                 >
@@ -926,7 +925,7 @@ export default function WorldInfoPage() {
                                                 <IconTag className="size-3 text-muted-foreground" />
                                                 {e.secondaryKeys.slice(0, 3).map((k, i) => (
                                                   <Badge
-                                                    key={i}
+                                                    key={k}
                                                     variant="outline"
                                                     className="text-xs font-normal"
                                                   >
@@ -1003,9 +1002,9 @@ export default function WorldInfoPage() {
                                   </AnimatePresence>
                                 </div>
                               )}
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                            </div>
+                          </div>
+                        )}
                       </Card>
                     </motion.div>
                   );

@@ -164,6 +164,7 @@ function CodePreviewPanel({ panel }: { panel: WorkbenchPanel }) {
               title={panel.title}
               sandbox="allow-scripts allow-same-origin"
               srcDoc={iframeDoc}
+              loading="lazy"
               className="h-full w-full border-0"
             />
           )

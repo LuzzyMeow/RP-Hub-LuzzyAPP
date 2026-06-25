@@ -98,6 +98,16 @@ export default function ProfilePage() {
   const removeProfile = useAppStore((s) => s.removeProfile);
   const setDefaultProfileActive = useAppStore((s) => s.setDefaultProfileActive);
   const confirm = useConfirm();
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredUserProfiles = React.useDeferredValue(userProfiles);
+
+  // v0.8.7: setTimeout 清理 — 避免组件卸载后 setState
+  const editTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => {
+      if (editTimerRef.current) clearTimeout(editTimerRef.current);
+    };
+  }, []);
 
   // 编辑状态
   const [editing, setEditing] = React.useState<UserProfile | null>(null);
@@ -125,7 +135,7 @@ export default function ProfilePage() {
     // addProfile 会把新档案设为激活，editing 直接基于新档案
     setIsNew(true);
     // 使用 setTimeout 确保 store 已更新
-    setTimeout(() => {
+    editTimerRef.current = setTimeout(() => {
       const state = useAppStore.getState();
       setEditing({ ...state.user });
     }, 0);
@@ -301,6 +311,19 @@ export default function ProfilePage() {
     [removeProfile, userProfiles.length, confirm],
   );
 
+  // v0.8.7-urgent: D14 内联函数改用 useCallback 工厂模式，避免每次渲染创建新闭包破坏子组件 memo
+  const makeSwipeLeftHandler = React.useCallback(
+    (profile: UserProfile) => () => handleDelete(profile.uuid, profile.name),
+    [handleDelete],
+  );
+  const makeSwipeRightHandler = React.useCallback(
+    (profile: UserProfile) => () => {
+      switchProfile(profile.uuid);
+      editTimerRef.current = setTimeout(handleEditCurrent, 0);
+    },
+    [switchProfile, handleEditCurrent],
+  );
+
   /** 更新编辑字段 */
   const updateField = React.useCallback(
     <K extends keyof UserProfile>(key: K, value: UserProfile[K]) => {
@@ -413,25 +436,21 @@ export default function ProfilePage() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="grid gap-2 pr-2">
-              <AnimatePresence mode="popLayout">
-                {userProfiles.map((profile) => {
+            <div className="cv-auto grid gap-2 pr-2">
+              <AnimatePresence>
+                {deferredUserProfiles.map((profile) => {
                   const isActive = profile.uuid === activeProfileId;
                   // v0.3.2: 默认档案激活时，新增档案置灰且不可激活
                   const isDisabled = defaultProfileActive;
                   return (
                     <motion.div
                       key={profile.uuid}
-                      layout
                       {...fadeSlide}
                       className={isDisabled ? "opacity-50" : ""}
                     >
                       <SwipeCard
-                        onSwipeLeft={() => handleDelete(profile.uuid, profile.name)}
-                        onSwipeRight={() => {
-                          switchProfile(profile.uuid);
-                          setTimeout(handleEditCurrent, 0);
-                        }}
+                        onSwipeLeft={makeSwipeLeftHandler(profile)}
+                        onSwipeRight={makeSwipeRightHandler(profile)}
                         leftIcon={<IconTrash className="size-5" />}
                         rightIcon={<IconEdit className="size-5" />}
                         disabled={isDisabled}

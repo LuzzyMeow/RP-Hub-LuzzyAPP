@@ -235,7 +235,7 @@ export default function MemoryPage() {
                     <motion.div
                       layoutId="memory-tab-indicator"
                       className="absolute inset-0 -z-10 rounded-lg bg-primary/10"
-                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                     />
                   )}
                 </motion.button>
@@ -277,20 +277,29 @@ interface MemorySettingsCardProps {
   onSave: () => void | Promise<void>;
 }
 
-function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySettingsCardProps) {
+const MemorySettingsCard = React.memo(function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySettingsCardProps) {
   // v0.4.6: 记忆设置卡片默认展开,用户首次进入页面即可看到所有设置项
   const [expanded, setExpanded] = React.useState(true);
   // v0.3.3: 保存按钮加载状态动画
   const [saving, setSaving] = React.useState(false);
+  // v0.8.7: 显式手动模式状态，修复嵌入模型手动填写交互的派生状态死循环
+  const [isManualMode, setIsManualMode] = React.useState(false);
   const hasEmbeddingModel = Boolean(settings.embeddingModel?.trim());
   // v0.5.9: 嵌入模型选择器 ref，用于横幅快捷跳转
   const embeddingModelRef = React.useRef<HTMLDivElement>(null);
+  // v0.8.7: setTimeout 清理 — 避免组件卸载后 setState
+  const scrollTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, []);
 
   /** v0.5.9: 滚动到嵌入模型选择器 */
   const scrollToEmbeddingModel = React.useCallback(() => {
     if (!expanded) setExpanded(true);
     // 等待展开动画完成后滚动
-    setTimeout(() => {
+    scrollTimerRef.current = setTimeout(() => {
       embeddingModelRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "center",
@@ -333,30 +342,24 @@ function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySet
           <span className="text-xs text-muted-foreground">{expanded ? "收起" : "展开"}</span>
         </button>
       </CardHeader>
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
+      {expanded && (
+        <div
+          className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+          style={{ gridTemplateRows: "1fr", opacity: 1 }}
+        >
+          <div className="overflow-hidden">
             <CardContent className="grid gap-4 pt-0">
               {/* v0.5.9: 嵌入模型未配置时的醒目横幅 */}
-              <AnimatePresence>
-                {!hasEmbeddingModel && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3"
-                  >
+              {!hasEmbeddingModel && (
+                <div
+                  className="grid transition-[grid-template-rows,opacity] duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                  style={{ gridTemplateRows: "1fr", opacity: 1 }}
+                >
+                  <div className="overflow-hidden flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
                     <motion.div
                       initial={{ scale: 0, rotate: -10 }}
                       animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
                       className="flex size-8 shrink-0 items-center justify-center rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400"
                     >
                       <IconExclamation className="size-4" />
@@ -378,9 +381,9 @@ function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySet
                     >
                       前往配置
                     </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+                </div>
+              )}
 
               {/* 系统自动启用说明 */}
               <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
@@ -414,7 +417,7 @@ function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySet
                   const isKnownUnprefixed = embeddingModels.some(
                     (m) => m.modelName === actualModelName,
                   );
-                  const isManual = currentModel && !isKnownPrefixed && !isKnownUnprefixed;
+                  const isManual = isManualMode || (currentModel && !isKnownPrefixed && !isKnownUnprefixed);
                   const selectValue = isManual
                     ? MANUAL_VALUE
                     : isKnownPrefixed
@@ -430,14 +433,14 @@ function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySet
                         value={selectValue}
                         onValueChange={(v) => {
                           if (v === MANUAL_VALUE) {
-                            // 切换到手动输入模式，保留当前实际模型名（去前缀）或清空
+                            // v0.8.7: 显式设置手动模式，保留当前模型名供用户编辑
+                            setIsManualMode(true);
                             // v0.8.5: 清空 embeddingApiProviderId，避免与模型名不同步导致用错供应商
                             onUpdate("embeddingApiProviderId", "");
-                            onUpdate(
-                              "embeddingModel",
-                              isManual ? currentModel : actualModelName || "",
-                            );
+                            onUpdate("embeddingModel", actualModelName || currentModel || "");
                           } else {
+                            // v0.8.7: 退出手动模式
+                            setIsManualMode(false);
                             // v0.8.2: 下拉选择时同步写入 embeddingApiProviderId，激活 Level 1 解析
                             const selected = embeddingModels.find((m) => m.prefixedValue === v);
                             if (selected) {
@@ -466,12 +469,29 @@ function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySet
                         </SelectContent>
                       </Select>
                       {isManual && (
-                        <Input
-                          className="w-full min-w-0"
-                          value={currentModel}
-                          onChange={(e) => onUpdate("embeddingModel", e.target.value)}
-                          placeholder="例如：text-embedding-3-small"
-                        />
+                        <div className="grid gap-2">
+                          <Input
+                            className="w-full min-w-0"
+                            value={currentModel}
+                            onChange={(e) => onUpdate("embeddingModel", e.target.value)}
+                            placeholder="例如：text-embedding-3-small"
+                          />
+                          <Select
+                            value={settings.embeddingApiProviderId || ""}
+                            onValueChange={(v) => onUpdate("embeddingApiProviderId", v)}
+                          >
+                            <SelectTrigger className="w-full min-w-0">
+                              <SelectValue placeholder="选择供应商（用于 API 请求）" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {providers.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.displayName ?? p.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
                       )}
                     </>
                   );
@@ -524,12 +544,12 @@ function MemorySettingsCard({ settings, providers, onUpdate, onSave }: MemorySet
                 </Button>
               </div>
             </CardContent>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </Card>
   );
-}
+});
 
 // ============================================================================
 // 会话记忆 Tab
@@ -541,7 +561,7 @@ interface SessionMemoryTabProps {
   onScrollToSettings?: () => void;
 }
 
-function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProps) {
+const SessionMemoryTab = React.memo(function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProps) {
   const characters = useAppStore((s) => s.characters);
   const sessions = useAppStore((s) => s.sessions);
   const currentCharacterUuid = useAppStore((s) => s.currentCharacterUuid);
@@ -553,6 +573,8 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
   const stream = useAppStore((s) => s.stream);
   const customRequestBody = useAppStore((s) => s.customRequestBody);
   const apiProviderKeys = useAppStore((s) => s.apiProviderKeys);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredCharacters = React.useDeferredValue(characters);
 
   const providers = React.useMemo(() => getAllProviders(), [getAllProviders]);
 
@@ -570,12 +592,20 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
   const [selectedBookId, setSelectedBookId] = React.useState<string>("");
   const [worldShards, setWorldShards] = React.useState<VectorMemoryShard[]>([]);
   const [worldLoaded, setWorldLoaded] = React.useState(false);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredWorldBooks = React.useDeferredValue(worldBooks);
   /** 当前激活的数据源：session | world（最近操作的选择器优先显示） */
   const [activeSource, setActiveSource] = React.useState<"session" | "world">("session");
 
   // v0.6.0: 分片详情 Dialog 状态 + 删除确认
   const [selectedShard, setSelectedShard] = React.useState<VectorMemoryShard | null>(null);
   const [deleting, setDeleting] = React.useState(false);
+
+  // v0.8.7-urgent: D14 内联函数改用 useCallback 工厂模式，避免每次渲染创建新闭包破坏子组件 memo
+  const makeSelectShardHandler = React.useCallback(
+    (s: VectorMemoryShard) => () => setSelectedShard(s),
+    [],
+  );
   // v0.6.5: 手动重试/重新生成状态
   const [regenerating, setRegenerating] = React.useState<false | "session" | "world">(false);
   // v0.6.3-fix: 移除 isProcessing 假动画（3 秒定时器与真实异步流程解耦，误导用户）
@@ -813,6 +843,8 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
       .filter((s) => s.characterId === selectedUuid)
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }, [sessions, selectedUuid]);
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredCharacterSessions = React.useDeferredValue(characterSessions);
 
   /** 当 currentCharacterUuid 变化且尚未手动选择时同步 */
   React.useEffect(() => {
@@ -846,24 +878,30 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
       return;
     }
     setLoaded(false);
+    let cancelled = false;
     void (async () => {
       try {
         const list = await loadVectorMemoryShards(selectedUuid, selectedSessionId || undefined);
+        if (cancelled) return;
         setShards(list);
       } catch (e) {
+        if (cancelled) return;
         toast.error("加载向量记忆失败：" + (e as Error).message);
         setShards([]);
       } finally {
-        setLoaded(true);
+        if (!cancelled) setLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, [selectedUuid, selectedSessionId]);
 
   /** v0.5.9: 加载世界书列表（从 IndexedDB 提取唯一 bookId/bookName） */
   React.useEffect(() => {
+    let cancelled = false;
     void (async () => {
       try {
         const allEntries = await getItem<WorldInfoEntry[]>("worldInfo", "worldInfo");
+        if (cancelled) return;
         if (!allEntries || allEntries.length === 0) {
           setWorldBooks([]);
           return;
@@ -888,12 +926,15 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
           bookName: info.bookName,
           count: info.count,
         }));
+        if (cancelled) return;
         setWorldBooks(books);
       } catch (e) {
+        if (cancelled) return;
         logger.warn("memory", "加载世界书列表失败：" + (e as Error).message);
         setWorldBooks([]);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   /** v0.5.9: 加载世界书向量分片 */
@@ -904,22 +945,28 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
       return;
     }
     setWorldLoaded(false);
+    let cancelled = false;
     void (async () => {
       try {
         const list = await loadWorldVectorMemoryShards(selectedBookId);
+        if (cancelled) return;
         setWorldShards(list);
       } catch (e) {
+        if (cancelled) return;
         toast.error("加载世界书向量记忆失败：" + (e as Error).message);
         setWorldShards([]);
       } finally {
-        setWorldLoaded(true);
+        if (!cancelled) setWorldLoaded(true);
       }
     })();
+    return () => { cancelled = true; };
   }, [selectedBookId]);
 
   /** 当前显示的分片列表和状态（根据 activeSource 切换） */
   const displayShards = activeSource === "world" ? worldShards : shards;
   const displayLoaded = activeSource === "world" ? worldLoaded : loaded;
+  // v0.8.7-urgent: E4 useDeferredValue 让 React 在空闲时处理列表更新，避免阻塞输入
+  const deferredDisplayShards = React.useDeferredValue(displayShards);
 
   // v0.6.3-fix: 移除 isProcessing 假动画 useEffect
   // 原 3 秒定时器与真实异步流程（extractMemory / generateWorldInfoEmbeddings）解耦，
@@ -1009,7 +1056,7 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
                     暂无角色卡
                   </SelectItem>
                 ) : (
-                  characters.map((c) => (
+                  deferredCharacters.map((c) => (
                     <SelectItem key={c.uuid} value={c.uuid}>
                       <span className="truncate">{c.name}</span>
                     </SelectItem>
@@ -1035,7 +1082,7 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
                     <SelectValue placeholder="选择会话" />
                   </SelectTrigger>
                   <SelectContent>
-                    {characterSessions.map((s) => (
+                    {deferredCharacterSessions.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.title || `会话 ${s.id.slice(0, 8)}`}
                       </SelectItem>
@@ -1062,7 +1109,7 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
                     <SelectValue placeholder="选择世界书查看向量分片" />
                   </SelectTrigger>
                   <SelectContent>
-                    {worldBooks.map((b) => (
+                    {deferredWorldBooks.map((b) => (
                       <SelectItem key={b.bookId} value={b.bookId}>
                         <span className="flex items-center gap-2">
                           <span className="truncate">{b.bookName}</span>
@@ -1093,13 +1140,13 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
             <motion.div
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
               className="flex flex-col items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/5 py-8 text-center"
             >
               <motion.div
                 initial={{ scale: 0, rotate: -10 }}
                 animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+                transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
                 className="flex size-12 items-center justify-center rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400"
               >
                 <IconExclamation className="size-6" />
@@ -1150,15 +1197,14 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
             />
           ) : (
             <ScrollArea className="h-96 rounded-lg border">
-              <div className="flex flex-col gap-2 p-2">
+              <div className="cv-auto flex flex-col gap-2 p-2">
                 <AnimatePresence initial={false}>
-                  {displayShards.map((s, idx) => (
+                  {deferredDisplayShards.map((s, idx) => (
                     <motion.div
                       key={s.id}
-                      layout
                       {...listItemAnimation}
                       custom={idx}
-                      onClick={() => setSelectedShard(s)}
+                      onClick={makeSelectShardHandler(s)}
                       className="cursor-pointer rounded-md border bg-muted/30 p-2.5 transition-colors hover:bg-muted/50"
                       {...pressableSubtle}
                     >
@@ -1233,7 +1279,7 @@ function SessionMemoryTab({ settings, onScrollToSettings }: SessionMemoryTabProp
       </Dialog>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 长期记忆 Tab（v0.5.9: 功能锁定，仅保留角色卡启用选择）
@@ -1245,7 +1291,7 @@ interface LongTermMemoryTabProps {
   onUpdate: <K extends keyof MemorySettings>(key: K, value: MemorySettings[K]) => void;
 }
 
-function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTabProps) {
+const LongTermMemoryTab = React.memo(function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTabProps) {
   return (
     <div className="mx-auto flex w-full min-w-0 max-w-4xl flex-col gap-4 p-4 pb-8">
       <Card>
@@ -1260,13 +1306,13 @@ function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTab
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
             className="flex flex-col items-center gap-3 rounded-xl border border-border/50 bg-muted/30 py-8 text-center"
           >
             <motion.div
               initial={{ scale: 0, rotate: -10 }}
               animate={{ scale: 1, rotate: 0 }}
-              transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
               className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground"
             >
               <IconLock className="size-6" />
@@ -1327,7 +1373,7 @@ function LongTermMemoryTab({ settings, characters, onUpdate }: LongTermMemoryTab
       </Card>
     </div>
   );
-}
+});
 
 // ============================================================================
 // 通用空状态组件
@@ -1339,7 +1385,7 @@ interface EmptyStateProps {
   description: string;
 }
 
-function EmptyState({ icon, title, description }: EmptyStateProps) {
+const EmptyState = React.memo(function EmptyState({ icon, title, description }: EmptyStateProps) {
   return (
     <div className="flex items-center justify-center py-8">
       <Empty>
@@ -1351,4 +1397,4 @@ function EmptyState({ icon, title, description }: EmptyStateProps) {
       </Empty>
     </div>
   );
-}
+});

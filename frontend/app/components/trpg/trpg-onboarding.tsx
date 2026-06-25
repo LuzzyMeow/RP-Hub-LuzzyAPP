@@ -110,7 +110,7 @@ export function TrpgOnboarding({ onComplete }: TrpgOnboardingProps) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
-      className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-black/80"
     >
       <motion.div
         key={currentStep}
@@ -118,13 +118,13 @@ export function TrpgOnboarding({ onComplete }: TrpgOnboardingProps) {
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: -20 }}
         transition={springSoft}
-        className="mx-4 w-full max-w-sm rounded-2xl border border-border/30 bg-background/95 p-6 shadow-2xl backdrop-blur-xl"
+        className="mx-4 w-full max-w-sm rounded-2xl border border-border/30 bg-background p-6 shadow-lg"
       >
         {/* 图标 */}
         <motion.div
           initial={{ scale: 0, rotate: -10 }}
           animate={{ scale: 1, rotate: 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 20, delay: 0.1 }}
+          transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1], delay: 0.1 }}
           className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-primary/10"
         >
           <StepIcon className="size-8 text-primary" />
