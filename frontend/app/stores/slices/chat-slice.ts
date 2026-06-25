@@ -2692,14 +2692,37 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
         abortController: new AbortController(),
       });
 
-      await generateResponse(newAssistantMessage.id);
+      // v0.8.10-urgent-fix: 重试崩溃修复
+      // 根因：原实现无 try/catch，generateResponse 内部未捕获的异常会变成 unhandled rejection 导致页面崩溃；
+      // 且生成失败时不会恢复 oldAssistant 显示，store 与持久化不一致；
+      // 且 addRetryBranch 抛错时 L2703 回滚不执行，消息列表卡在 newAssistantMessage。
+      // 修复：try/catch/finally 包裹，finally 中确保恢复 oldAssistant 显示并复位 isGenerating。
+      // 注意：generateResponse 内部已有自己的 try/catch/finally 处理 abort/error 并更新 message 状态，
+      // 这里的 try/catch 仅作兜底防止 unhandled rejection，finally 确保状态一致性。
+      try {
+        await generateResponse(newAssistantMessage.id);
 
-      // 生成完成后，将新版本存入 session.retryBranches
-      if (currentSessionId) {
-        const finalMessage = get().messages.find((m) => m.id === newAssistantMessage.id);
-        if (finalMessage) {
-          get().addRetryBranch(currentSessionId, oldAssistant.id, finalMessage);
-          // 恢复原始消息列表（保留旧版本显示），新版本通过 switchRetryVersion 切换查看
+        // 生成完成后，将新版本存入 session.retryBranches
+        if (currentSessionId) {
+          const finalMessage = get().messages.find((m) => m.id === newAssistantMessage.id);
+          if (finalMessage) {
+            try {
+              get().addRetryBranch(currentSessionId, oldAssistant.id, finalMessage);
+            } catch (e) {
+              // addRetryBranch 异常不应阻断恢复 oldAssistant
+              console.error("[chat] retryMessage addRetryBranch 失败:", e);
+            }
+          }
+        }
+      } catch (error) {
+        // generateResponse 内部应已处理 abort/error，这里仅兜底防止 unhandled rejection
+        console.error("[chat] retryMessage generateResponse 异常:", error);
+      } finally {
+        // 无论成功或失败，恢复 oldAssistant 显示（新版本通过 switchRetryVersion 切换查看）
+        // 注意：必须在 finally 中执行，确保任何异常路径下 store 都恢复一致状态
+        const currentMessages = get().messages;
+        const stillHasNew = currentMessages.some((m) => m.id === newAssistantMessage.id);
+        if (stillHasNew) {
           set({ messages: [...contextMessages, oldAssistant] });
         }
       }

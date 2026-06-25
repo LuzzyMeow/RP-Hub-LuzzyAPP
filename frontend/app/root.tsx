@@ -42,7 +42,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* v0.4.1: 提前设置主题 class,避免 hydration 阶段白屏闪烁 */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('vite-ui-theme');var m=window.matchMedia('(prefers-color-scheme: dark)');var d=t==='dark'||((t==='system'||!t)&&m.matches);var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(d?'dark':'light');var s=localStorage.getItem('luzzy-settings');if(s){try{var p=JSON.parse(s);var cs=(p.state&&p.state.colorScheme)||p.colorScheme;r.setAttribute('data-theme',cs==='default'?'default':'pixel');}catch(e2){r.setAttribute('data-theme','pixel');}}else{r.setAttribute('data-theme','pixel');}}catch(e){document.documentElement.classList.add('light');document.documentElement.setAttribute('data-theme','pixel');}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('vite-ui-theme');var m=window.matchMedia('(prefers-color-scheme: dark)');var d=t==='dark'||((t==='system'||!t)&&m.matches);var r=document.documentElement;r.classList.remove('light','dark');r.classList.add(d?'dark':'light');var s=localStorage.getItem('luzzy-settings');if(s){try{var p=JSON.parse(s);var cs=(p.state&&p.state.colorScheme)||p.colorScheme;var normalized=cs==='default'?'white':(cs==='pixel'?'green':cs);r.setAttribute('data-theme',normalized);}catch(e2){r.setAttribute('data-theme','white');}}else{r.setAttribute('data-theme','white');}}catch(e){document.documentElement.classList.add('light');document.documentElement.setAttribute('data-theme','white');}})();`,
           }}
         />
       </head>

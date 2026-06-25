@@ -245,15 +245,22 @@ export default function AboutPage() {
   // v0.8.10-fix: allLogs 为空时跳过 deferred，避免首次进入关于页时空白一闪
   // 注意：保持 useDeferredValue 始终调用以遵守 React hooks 规则（hooks 顺序必须稳定），
   // 用 displayLogs 派生变量在渲染层跳过 deferred 结果
+  // v0.8.10-urgent-fix: useMemo 包裹 displayLogs 避免每次 re-render 创建新引用，
+  // 防止父组件 re-render（phraseIndex 轮播 / userScrolledUp 变化）导致日志列表全量 reconcile
   const deferredLogs = React.useDeferredValue(filteredLogs);
-  const displayLogs = allLogs.length === 0 ? [] : deferredLogs;
+  const displayLogs = React.useMemo(
+    () => (allLogs.length === 0 ? [] : deferredLogs),
+    [allLogs.length, deferredLogs],
+  );
 
   // v0.5.8: 日志自动吸附底部
+  // v0.8.10-urgent-fix: 依赖改为 displayLogs.length 而非 filteredLogs 引用，
+  // 避免定时器刷新 filteredLogs 引用变化时强制 scrollTop = scrollHeight 与用户滑到顶部冲突
   React.useEffect(() => {
     const el = logContainerRef.current;
     if (!el || userScrolledUp) return;
     el.scrollTop = el.scrollHeight;
-  }, [filteredLogs, userScrolledUp]);
+  }, [displayLogs.length, userScrolledUp]);
 
   // 格式化后的文本（用于复制）
   const formattedLogsText = React.useMemo(
@@ -543,7 +550,7 @@ export default function AboutPage() {
                   <div
                     ref={logContainerRef}
                     onScroll={handleLogScroll}
-                    className="max-h-[600px] overflow-auto rounded-md border bg-muted/30 cv-auto" // v0.8.7-urgent: D7 添加 cv-auto 优化长列表渲染
+                    className="max-h-[600px] overflow-auto rounded-md border bg-muted/30" // v0.8.10-urgent-fix: 移除 cv-auto，避免滑回顶部时视口外内容不渲染导致白屏闪屏
                   >
                     {displayLogs.length === 0 ? (
                       <div className="p-4 text-center text-xs text-muted-foreground">
