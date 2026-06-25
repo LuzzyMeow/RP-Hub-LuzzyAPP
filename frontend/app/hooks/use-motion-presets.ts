@@ -77,5 +77,5 @@ const pixelPresets = {
 
 export function useMotionPresets() {
   const colorScheme = useAppStore((s) => s.colorScheme);
-  return colorScheme === "pixel" ? pixelPresets : defaultPresets;
+  return colorScheme === "green" ? pixelPresets : defaultPresets;
 }

@@ -374,7 +374,15 @@ export const findPendingActiveToolCallInText = (
   const originalContent = String(text || "");
   if (!originalContent) return null;
 
-  const mainContent = stripCodeBlocksForToolDetection(originalContent);
+  // v0.8.9-fix: 支持 <tool_calls>label:query</tool_calls> 套壳格式
+  // GLM-5.2 等不支持原生 function calling 的模型会输出此格式
+  let workContent = originalContent;
+  const toolCallsMatch = workContent.match(/<tool_calls>\s*([\s\S]*?)<\/tool_calls>/i);
+  if (toolCallsMatch) {
+    workContent = toolCallsMatch[1].trim();
+  }
+
+  const mainContent = stripCodeBlocksForToolDetection(workContent);
   const toolList = Array.isArray(tools) ? tools : [];
   const candidates: Array<ActiveToolCall & { _index: number }> = [];
 
@@ -467,6 +475,13 @@ export const findPendingBuiltinToolCallInText = (
   const content = String(text || "");
   if (!content) return null;
 
+  // v0.8.9-fix: 支持 <tool_calls>label:query</tool_calls> 套壳格式
+  let workContent = content;
+  const toolCallsMatch = workContent.match(/<tool_calls>\s*([\s\S]*?)<\/tool_calls>/i);
+  if (toolCallsMatch) {
+    workContent = toolCallsMatch[1].trim();
+  }
+
   const enabledConfigs = (Array.isArray(configs) ? configs : []).filter((c) => c.enabled);
   if (enabledConfigs.length === 0) return null;
 
@@ -476,7 +491,7 @@ export const findPendingBuiltinToolCallInText = (
     // 匹配 <callLabel:query> 格式（无 _add/_cover 后缀）
     // query 内容到下一个 < 或行尾结束
     const regex = new RegExp(`<\\s*${escapedLabel}\\s*:\\s*([\\s\\S]*?)(?:<|$)`, "i");
-    const match = content.match(regex);
+    const match = workContent.match(regex);
     if (match && match[1]) {
       const query = match[1].trim();
       if (query) {

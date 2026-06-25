@@ -185,7 +185,7 @@
    ============================================================================ */
 
 /* 暗色模式像素主题 */
-.dark[data-theme="pixel"] {
+.dark[data-theme="green"] {
   --background: #1a1b1d;
   --foreground: #d1d3db;
   --card: #222427;
@@ -224,7 +224,7 @@
 }
 
 /* 亮色模式像素主题 */
-[data-theme="pixel"]:not(.dark) {
+[data-theme="green"]:not(.dark) {
   --background: #f5f5f5;
   --foreground: #1a1b1d;
   --card: #ffffff;
@@ -262,19 +262,26 @@
 }
 
 /* 像素主题全局动画覆盖（CSS 兜底） */
-[data-theme="pixel"] * {
+[data-theme="green"] * {
   transition-timing-function: steps(4, end) !important;
   transition-duration: 120ms !important;
 }
 
 /* v0.8.8-fix: 像素主题侧边栏动画排除 — 避免 steps(4,end) 让 Framer Motion 的 transform/opacity 动画变成阶梯跳跃 */
-[data-theme="pixel"] .luzzy-sidebar-motion {
+[data-theme="green"] .luzzy-sidebar-motion {
   transition-property: none !important;
   transition-duration: 0s !important;
 }
 
+/* v0.8.9-fix: 像素主题 Streamdown 动画排除 — 避免 steps(4,end) 让 word fade 动画阶梯化不可见 */
+[data-theme="green"] .streamdown [data-streamdown-animated] {
+  transition-property: none !important;
+  transition-duration: 0s !important;
+  animation-timing-function: ease !important;
+}
+
 /* 像素主题装饰性效果 */
-[data-theme="pixel"] [data-slot="dialog-content"] {
+[data-theme="green"] [data-slot="dialog-content"] {
   border-radius: 8px;
   border: 2px solid var(--border);
   box-shadow: 4px 4px 0px 0px hsl(0 0% 0% / 0.3);

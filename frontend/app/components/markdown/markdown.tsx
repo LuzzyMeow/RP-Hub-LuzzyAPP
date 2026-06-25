@@ -193,10 +193,10 @@ export default React.memo(function Markdown({
   const workbench = useOptionalWorkbench();
   // LUZZY 的 SettingsSlice 扁平结构无 displaySetting，使用默认值（showLineNumbers/codeBlockAutoWrap 均为 false）
   const displaySetting: { showLineNumbers?: boolean; codeBlockAutoWrap?: boolean } = {};
-  // v0.8.7-fix: 恢复 useDeferredValue，避免流式输出每帧全量解析 markdown + Streamdown 重新渲染
-  // useDeferredValue 让 React 在空闲时处理 markdown 解析，不阻塞主线程交互
-  // 配合 chat-slice 的 rAF 节流，实现真正的实时流式渲染（而非伪打字机）
-  const deferredContent = React.useDeferredValue(content);
+  // v0.8.9-fix: 流式期间不使用 useDeferredValue，避免高频更新被无限期推迟导致"全部一起出来"
+  // useDeferredValue 会把流式 chunk 更新标记为低优先级，主线程繁忙时延迟到流结束才应用
+  // 非流式时保留 useDeferredValue 优化长文本解析性能
+  const deferredContent = isAnimating ? content : React.useDeferredValue(content);
   const processedContent = React.useMemo(() => preProcess(deferredContent), [deferredContent]);
   const handlePreviewCode = React.useCallback(
     (language: string, code: string) => {

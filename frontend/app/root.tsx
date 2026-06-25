@@ -189,7 +189,7 @@ function AppContent() {
   }, [location.pathname, showSplash]);
 
   return (
-    <ThemeProvider defaultTheme="system">
+    <ThemeProvider defaultTheme="light">
       <TooltipProvider delayDuration={300}>
         <ConfirmProvider>
           <BindingDeleteConfirmProvider>

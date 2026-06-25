@@ -238,7 +238,7 @@ export interface ApiSettings {
 export type ThemeMode = "light" | "dark";
 
 /** 配色方案 */
-export type ColorScheme = "default" | "pixel";
+export type ColorScheme = "white" | "green";
 
 /** 底部 Tab 图标名称（与 BottomTabBar 的 TabIcon switch 一一对应） */
 export type TabIconName = "chat" | "characters" | "trpg" | "tools" | "mine";

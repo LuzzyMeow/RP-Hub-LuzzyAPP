@@ -119,6 +119,13 @@ export const useAppStore = create<AppStoreState>()(
         if (!cleanP.defaultProfileData && cleanP.user && !cleanP.activeProfileId) {
           cleanP.defaultProfileData = { ...cleanP.user };
         }
+        // v0.8.9: 迁移旧配色方案值 default→white, pixel→green
+        const cs = cleanP.colorScheme as string | undefined;
+        if (cs === "default") {
+          cleanP.colorScheme = "white" as typeof cleanP.colorScheme;
+        } else if (cs === "pixel") {
+          cleanP.colorScheme = "green" as typeof cleanP.colorScheme;
+        }
         return {
           ...current,
           ...cleanP,

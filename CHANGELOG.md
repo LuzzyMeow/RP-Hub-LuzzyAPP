@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.8.9
+
+### 🚀 流式输出原生效果修复
+
+> 根因：双层 `useDeferredValue` 叠加（chat.tsx 的 `deferredMessages` + markdown.tsx 的 `deferredContent`），流式期间高频更新被标记为低优先级，主线程繁忙时无限期推迟，导致"全部一起出来"。
+
+- **markdown.tsx**：流式期间（`isAnimating`）不使用 `useDeferredValue`，非流式时保留以优化长文本解析性能
+- **chat.tsx**：流式期间（`isGenerating`）不使用 `useDeferredValue`，正在生成的消息移除 `cv-auto` 避免 paint 延迟
+- **app.css**：添加翠绿主题 Streamdown 动画排除规则，避免 `steps(4,end)` 让 word fade 动画阶梯化不可见
+
+### 🎨 关于页白色闪屏修复
+
+> 根因：Framer Motion `initial={{ opacity: 0 }}` 在 hydration 期间内容全透明 + 根容器无背景色。
+
+- **about.tsx**：所有 `opacity: 0` → `opacity: 0.01`（5处），根容器添加 `bg-background` 确保始终有背景色
+
+### 🎨 配色方案重命名与默认主题调整
+
+- **类型重命名**：`ColorScheme` 类型 `default`/`pixel` → `white`/`green`，涉及类型定义、store、CSS 选择器、UI 组件、动画预设
+- **localStorage 迁移**：`app-store.ts` merge 函数添加旧值迁移逻辑（`default`→`white`, `pixel`→`green`）
+- **防闪烁脚本迁移**：`root.tsx` 内联脚本添加旧值迁移逻辑，默认值改为 `white`
+- **默认主题**：首次运行默认配色方案改为瓷白（`white`），默认外观模式改为浅色（`light`）
+- **UI 文案**：删除设置页"翠绿采用 TRAE 深色配色与复古游戏动画效果"提示文字
+
+### 🔧 Agentic 工具调用修复
+
+> 根因：GLM-5.2 等不支持原生 function calling 的模型输出 `<tool_calls>label:query</tool_calls>` 套壳格式，解析器只认 `<label:query>` 格式，套壳格式匹配不上被当成普通正文。
+
+- **toolService.ts**：`findPendingActiveToolCallInText` 和 `findPendingBuiltinToolCallInText` 添加 `<tool_calls>` 套壳格式预处理，剥离外层标签后继续原有匹配逻辑
+
+### 📦 工程变更
+
+- Android `versionCode` 51→52，`versionName` 0.8.8→0.8.9
+- 前端版本号同步 v0.8.8→v0.8.9
+- `android-patches/build.gradle` 同步所有修复
+- README.md 版本徽章同步更新至 v0.8.9
+
 ## v0.8.8
 
 ### 🎯 侧边栏菜单动画专项性能修复

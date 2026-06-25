@@ -44,7 +44,7 @@ export function meta(_: Route.MetaArgs) {
 }
 
 /** 应用版本号 */
-const APP_VERSION = "v0.8.8";
+const APP_VERSION = "v0.8.9";
 
 /** v0.5.8: 关于页动态文案轮播 */
 const ABOUT_PHRASES = [
@@ -337,7 +337,7 @@ export default function AboutPage() {
 
   return (
     <LuzzyLayout title="关于">
-      <div className="relative h-full w-full overflow-hidden">
+      <div className="relative h-full w-full overflow-hidden bg-background">
         {/* 背景层：absolute inset-0 铺满父容器，置于内容之下 */}
         <LuzzyAuroraBackground />
         {/* 内容层：relative z-10 可滚动，置于背景之上 */}
@@ -345,7 +345,7 @@ export default function AboutPage() {
           <div className="mx-auto w-full min-w-0 max-w-2xl space-y-6 overflow-x-hidden p-4">
             {/* LOGO 和版本信息 */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0.01, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               className="flex min-w-0 flex-col items-center gap-3 py-8"
             >
@@ -393,7 +393,7 @@ export default function AboutPage() {
 
             {/* 系统信息 */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0.01, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
               className="min-w-0"
@@ -424,7 +424,7 @@ export default function AboutPage() {
 
             {/* 日志路径 */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0.01, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
               className="min-w-0"
@@ -453,7 +453,7 @@ export default function AboutPage() {
 
             {/* 日志查看器 */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }}
+              initial={{ opacity: 0.01, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
               className="min-w-0"
@@ -626,7 +626,7 @@ export default function AboutPage() {
 
             {/* 版权信息 */}
             <motion.div
-              initial={{ opacity: 0 }}
+              initial={{ opacity: 0.01 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.25 }}
               className="min-w-0 pb-[calc(2rem+env(safe-area-inset-bottom))] text-center"

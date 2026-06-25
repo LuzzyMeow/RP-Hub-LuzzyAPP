@@ -806,16 +806,13 @@ export default function SettingsPage() {
                   <ToggleGroup
                     type="single"
                     value={colorScheme}
-                    onValueChange={(v) => v && setColorScheme(v as "default" | "pixel")}
+                    onValueChange={(v) => v && setColorScheme(v as "white" | "green")}
                     variant="outline"
                     className="flex flex-wrap"
                   >
-                    <ToggleGroupItem value="default">瓷白</ToggleGroupItem>
-                    <ToggleGroupItem value="pixel">翠绿</ToggleGroupItem>
+                    <ToggleGroupItem value="white">瓷白</ToggleGroupItem>
+                    <ToggleGroupItem value="green">翠绿</ToggleGroupItem>
                   </ToggleGroup>
-                  <p className="text-xs text-muted-foreground">
-                    翠绿采用 TRAE 深色配色与复古游戏动画效果
-                  </p>
                 </div>
               </CardContent>
             </Card>

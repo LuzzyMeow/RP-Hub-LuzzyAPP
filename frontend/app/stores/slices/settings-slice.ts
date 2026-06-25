@@ -241,7 +241,7 @@ export const createSettingsSlice: StateCreator<AppStoreState, [], [], SettingsSl
 ) => ({
   // ===== 状态初始值 =====
   theme: "light",
-  colorScheme: "pixel",
+  colorScheme: "white",
   apiUrl: BUILTIN_PROVIDERS[0].apiUrl,
   apiKey: "",
   modelName: "",

@@ -203,8 +203,9 @@ export default function ChatPage() {
     return messages.slice(-displayCount);
   }, [messages, displayCount]);
 
-  // v0.8.7-urgent: useDeferredValue 让 React 在空闲时处理消息列表更新，避免阻塞流式渲染
-  const deferredMessages = React.useDeferredValue(visibleMessages);
+  // v0.8.9-fix: 流式期间不使用 useDeferredValue，避免消息列表更新被延迟导致"全部一起出来"
+  // 非流式时保留以优化长消息列表滚动性能
+  const deferredMessages = isGenerating ? visibleMessages : React.useDeferredValue(visibleMessages);
 
   // v0.4.4: 滚动到顶部时加载更多消息
   const handleScroll = React.useCallback(
@@ -701,7 +702,7 @@ export default function ChatPage() {
                     </div>
                   )}
                   {deferredMessages.map((msg, i) => (
-                    <div key={msg.id} id={`msg-${msg.id}`} className="cv-auto">
+                    <div key={msg.id} id={`msg-${msg.id}`} className={i === deferredMessages.length - 1 && isGenerating ? "" : "cv-auto"}>
                       <LuzzyChatMessage
                         message={msg}
                         avatarUrl={currentCharacter.avatar}
