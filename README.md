@@ -18,7 +18,7 @@
 
 > **每次对话，都像一本有你的小说。**
 
-[![Version](https://img.shields.io/badge/version-v0.8.12-9d4edd?style=flat-square)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-v0.8.13-9d4edd?style=flat-square)](./CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-CC%20BY--NC%204.0-ffb703?style=flat-square)](./LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Android%20%7C%20Web-219ebc?style=flat-square)](#)
 [![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react&logoColor=white)](https://react.dev/)

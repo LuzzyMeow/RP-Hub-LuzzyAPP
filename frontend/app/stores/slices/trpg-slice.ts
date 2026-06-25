@@ -813,10 +813,12 @@ export const createTrpgSlice: StateCreator<AppStoreState, [], [], TrpgSlice> = (
         ],
         tools,
         toolExecutor,
+        // v0.8.13: 强化 agentic 引导——增加"2 轮思考 + 1 轮主动工具调用"强制要求
         firstSystemAppend:
           "【阶段 1：推理与工具规划】\n" +
           "本轮你只输出内部思考链（Think-1/2/OOC）和必要的 tool_calls。\n" +
-          "禁止输出 Narrator 叙事。工具的真实执行结果会在下一阶段回传给你。",
+          "禁止输出 Narrator 叙事。工具的真实执行结果会在下一阶段回传给你。\n" +
+          "【v0.8.13 强化】必须至少进行 2 轮思考，其中至少 1 轮包含主动工具调用（被动触发的 memory-recall / world-recall 不计入）。仅思考 1 轮就输出正文是严重错误。",
         finalSystemAppend:
           "【阶段 2：基于真实工具结果生成叙事】\n" +
           "上面的 tool 消息是本地引擎执行工具后的真实结果（骰子点数、伤害、状态变更等）。\n" +

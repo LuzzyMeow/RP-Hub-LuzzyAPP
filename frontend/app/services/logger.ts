@@ -184,7 +184,7 @@ export async function initLogger(): Promise<void> {
   log(
     "info",
     "tool_version",
-    "LUZZY v0.8.11 工具系统初始化完成 | 协议: 原生 tool_calls + <tool_calls> 文本标签兜底 | parseToolCallsFromText 统一于 toolService.ts",
+    "LUZZY v0.8.13 工具系统初始化完成 | 协议: 原生 tool_calls + <tool_calls> 文本标签兜底 | Agentic: 2 轮思考 + 1 轮主动工具调用强制 | parseToolCallsFromText 统一于 toolService.ts",
   );
 }
 

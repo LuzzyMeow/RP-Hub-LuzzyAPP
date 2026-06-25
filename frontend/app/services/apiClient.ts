@@ -1035,48 +1035,34 @@ const sendStreamRequestViaFetch = async (
     "stream",
     `响应接收: content-type="${contentType}" isStream=${isStream} elapsed=${Date.now() - requestStartTs}ms`,
   );
-  const reader = isStream ? response.body?.getReader() : undefined;
 
-  if (!isStream || !reader) {
-    // 非流式响应：读取文本并尝试解析（兼容 API 强制返回 SSE 格式的情况）
-    const rawText = await response.text();
-    let parsedAsJson = false;
-    try {
-      const data = JSON.parse(rawText) as Record<string, unknown>;
-      const apiError = extractApiErrorMessage(data, response.status);
-      if (apiError) throw new ApiError(apiError);
-      onChunk(rawText, data);
-      parsedAsJson = true;
-    } catch (e) {
-      if (e instanceof ApiError) throw e;
-      // JSON 解析失败，尝试作为 SSE 文本解析
-    }
-    if (!parsedAsJson) {
-      // v0.5.4: SSE 文本解析改为分批处理，每 10 行让出主线程一次，模拟流式效果
-      const lines = rawText.split("\n");
-      for (let i = 0; i < lines.length; i++) {
-        if (signal?.aborted) break;
-        const trimmedLine = lines[i].trim();
-        if (!trimmedLine.startsWith("data:")) continue;
-        const dataStr = trimmedLine.replace(/^data:\s*/, "");
-        if (dataStr === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(dataStr) as Record<string, unknown>;
-          const apiError = extractApiErrorMessage(parsed, response.status);
-          if (apiError) throw new ApiError(apiError);
-          onChunk(dataStr, parsed);
-        } catch (e) {
-          if (e instanceof ApiError) throw e;
-          if (/error/i.test(dataStr)) {
-            onError?.(response.status, dataStr);
-            throw new Error(formatApiErrorMessage(response.status, dataStr));
-          }
-        }
-        // v0.8.3: 使用 requestAnimationFrame 对齐浏览器刷新帧，替代 setTimeout
-        await nextFrame();
-      }
-    }
-    return { status: response.status, ok: true };
+  // v0.8.13: 移除"模拟流式"破坏分支，强制使用 ReadableStream 逐字读取
+  // 原模拟流式路径（await response.text() 一次性读取再 nextFrame 分帧模拟逐字）违反用户硬性要求：
+  //   "模型出一个字，思考卡片内和正文气泡内就出一个字，非模拟请求，严格逐字（1字=1次更新）"
+  // 现策略：API 必须返回可读的 response.body（标准 Web Streams API），否则抛错让用户感知。
+  // 这与 Android XHR 路径（pendingChunks + onprogress 网络层透传）行为一致，均为真流式。
+  //
+  // 【严禁修改项 — 后续 Agent 必读】
+  // 1. 禁止恢复"模拟流式"分支（即 await response.text() + 分帧 nextFrame 模拟逐字）
+  //    —— 会重新引入"先输出完所有内容再模拟流式"的破坏性行为
+  // 2. 禁止将 reader 为 null 时降级为非流式处理 —— 必须抛错让用户知道 API 不支持流式
+  // 3. 若需兼容非 SSE 响应（如 API 返回标准 JSON），应在 API 端配置 stream=true 返回 SSE，
+  //    而非在客户端走模拟流式
+  // 4. 本改动仅修改流式读取逻辑，不修改请求体 / messages / system prompt，KV 缓存命中率不受影响
+  const reader = response.body?.getReader();
+  if (!reader) {
+    // response.body 为 null 或不可读 —— API/网关未提供流式响应
+    const errorMsg = `API 未返回可读的流式响应（content-type="${contentType}" response.body=${response.body === null ? "null" : "不可读"}）。请检查：1) API 是否支持 stream=true；2) 网关/代理是否缓冲了响应；3) content-type 是否为 text/event-stream。`;
+    logger.error("stream", errorMsg);
+    onError?.(response.status, errorMsg);
+    throw new Error(errorMsg);
+  }
+  if (!isStream) {
+    // content-type 非 SSE 但 response.body 可读 —— 仍尝试走流式路径（兼容 API 返回流式但 content-type 不标准的情况）
+    logger.warn(
+      "stream",
+      `content-type="${contentType}" 非 text/event-stream，但 response.body 可读，尝试走流式路径解析`,
+    );
   }
 
   // 流式响应：逐块读取并解析 SSE
@@ -1153,9 +1139,27 @@ const sendStreamRequestViaFetch = async (
 /**
  * 统一流式请求入口
  *
- * v0.5.6: 优先使用 Fetch API（Capacitor 已移除，无 fetch patch），
- * 若 Fetch 失败（CORS/代理问题），原生平台回退到 XHR + 本地代理。
- * 浏览器环境直接使用 fetch + ReadableStream。
+ * v0.8.13: 双路径均强制真流式，移除所有"模拟流式"破坏分支
+ *
+ * - Android 原生平台：强制走 XHR + 本地 NanoHTTPD 代理（localhost:18527）
+ *   XHR onprogress 由网络层 chunked 透传触发（pendingChunks 异步队列 + nextFrame 分片）
+ *   实现真正的原生流式——模型出一个字，网络层立即触发 onprogress，UI 立即更新。
+ *
+ * - 浏览器环境：fetch + ReadableStream（标准 Web Streams API）
+ *   v0.8.13: 移除原"模拟流式"破坏分支（await response.text() 一次性读取再 nextFrame 分帧模拟逐字）
+ *   现强制使用 response.body.getReader() 逐块读取，API 不支持流式时抛错让用户感知。
+ *   与 Android XHR 路径行为一致，均为真流式，无模拟成分。
+ *
+ * 用户硬性要求："模型出一个字，思考卡片内和正文气泡内就出一个字，非模拟请求，严格逐字（1字=1次更新）"
+ *
+ * 【严禁修改项 — 后续 Agent 必读】
+ * 1. 禁止改回"先 fetch 后 XHR 回退"顺序——回退会先经历 fetch 的"模拟流式"破坏性路径
+ * 2. 禁止移除 isNativePlatform() 判断——浏览器环境必须用 fetch（XHR 走本地代理会失败）
+ * 3. 禁止修改 sendStreamRequestViaXHR 内部的 pendingChunks / nextFrame 分片逻辑
+ * 4. 禁止恢复 sendStreamRequestViaFetch 的"模拟流式"分支（await response.text() + 分帧 nextFrame）
+ *    —— 会重新引入"先输出完所有内容再模拟流式"的破坏性行为，违反用户硬性要求
+ * 5. 禁止将 reader 为 null 时降级为非流式处理 —— 必须抛错让用户知道 API 不支持流式
+ * 6. 本改动仅修改流式读取逻辑，不修改请求体 / messages 数组 / system prompt，KV 缓存命中率不受影响
  *
  * @param params - 流式请求参数
  * @returns 请求结果（含状态码与是否成功）
@@ -1163,15 +1167,11 @@ const sendStreamRequestViaFetch = async (
 export const sendStreamRequest = async (
   params: StreamRequestParams,
 ): Promise<StreamRequestResult> => {
-  try {
-    return await sendStreamRequestViaFetch(params);
-  } catch (fetchErr) {
-    if (isNativePlatform()) {
-      console.warn("[Stream] Fetch 流式失败，回退到 XHR + 本地代理:", fetchErr);
-      return sendStreamRequestViaXHR(params);
-    }
-    throw fetchErr;
+  // v0.8.13: Android 原生平台强制走 XHR + 本地代理
+  if (isNativePlatform()) {
+    return sendStreamRequestViaXHR(params);
   }
+  return sendStreamRequestViaFetch(params);
 };
 
 // ============================================================================

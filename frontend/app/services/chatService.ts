@@ -278,6 +278,8 @@ function buildToolDescriptions(
  * 在 active/adaptive 模式下注入 system prompt，引导模型使用原生 tool_calls
  * 不注入 <available_tools> 文本标签，避免双协议冲突
  */
+// v0.8.13: 强化 agentic 引导——增加"2 轮思考 + 1 轮主动工具调用"强制要求
+// 注意：此函数仅修改工具协议部分，严禁修改 NSFW 相关内容（NSFW 位于 presetContent.ts Step 1.1-1.3/Step 10）
 function buildNativeToolProtocol(maxSteps: number): string {
   return `<tool_protocol>
 当前使用原生 function calling 协议。通过 API 的 tools 参数调用工具，禁止输出 <tool_calls> 文本标签。
@@ -287,6 +289,8 @@ function buildNativeToolProtocol(maxSteps: number): string {
 2. 可在单次回复中进行多轮工具调用——先调用工具收集信息，基于结果决定是否需要更多工具，直到信息充分后输出正文。
 3. 工具调用优先于正文输出。首次响应中仅进行工具调用（reasoning_content 可正常思考），正文在工具结果返回后的续写中输出。
 4. 最多可进行 ${maxSteps} 轮工具调用。信息充分后停止调用工具，输出正文。
+5. 【v0.8.13 强化】至少进行 2 轮思考（reasoning_content），其中至少 1 轮必须包含主动工具调用（被动触发的 memory-recall / world-recall 不计入）。即：第 1 轮思考 + 工具调用，第 2 轮思考 + 基于工具结果输出正文或继续调用工具。仅思考 1 轮就输出正文是严重错误。
+6. 【v0.8.13 强化】禁止在第 1 轮续写中直接输出正文。第 1 轮续写必须继续调用工具或深化思考，第 2 轮续写起方可输出正文。
 
 【查询关键词规则】
 - 从上下文中提取具体实体名称（地名、人名、物品、事件、概念）
@@ -296,8 +300,8 @@ function buildNativeToolProtocol(maxSteps: number): string {
 - 错误：query="周围环境场景设定"
 
 【多轮调用策略】
-- 第一轮：根据用户消息提取关键词，调用最相关的工具
-- 后续轮次：根据前一轮工具结果，补充查询相关实体或换用其他工具
+- 第一轮：根据用户消息提取关键词，调用最相关的工具（reasoning_content 思考用户意图）
+- 第二轮：根据前一轮工具结果，深化思考并补充查询相关实体，或基于信息充分性决定输出正文
 - 信息充分后：输出角色对话或场景描写（正文）
 </tool_protocol>`;
 }

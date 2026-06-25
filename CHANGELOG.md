@@ -1,5 +1,53 @@
 # Changelog
 
+## v0.8.13
+
+### 🧠 Agentic 模式强化：2 轮思考 + 1 轮主动工具调用
+
+> v0.8.12 之前模型调用工具积极性不足，常在第 1 轮思考后直接输出正文，"至少 1 轮主动工具调用"要求未生效。
+
+- **chatService.ts**：`buildNativeToolProtocol` 增加第 5、6 条规则——至少 2 轮思考 + 1 轮主动工具调用（被动触发的 memory-recall / world-recall 不计入）；禁止第 1 轮续写直接输出正文
+- **presetContent.ts**：Step 8 末尾追加【v0.8.13: 2 轮思考强制要求】段
+- **chat-slice.ts**：续写请求 `forceTool = stepCount < 2`（第 1 轮强制 `tool_choice: 'required'`，第 2 轮起 `auto`）
+- **trpg-slice.ts**：`firstSystemAppend` 追加 v0.8.13 强化引导
+
+### 🔍 记忆召回工具彻底修复
+
+> 用户反馈"输入同样的词却没有任何召回"，根因有五：错误静默吞掉、维度不匹配无诊断、破坏性清理空数组、vectorTopK 默认值不一致、诊断日志不足。
+
+- **chat-slice.ts**：memory-recall catch 块增加 `toast.error` + `logger.error`（原仅 `console.warn` 静默吞错，用户无法察觉召回失败）
+- **memoryService.ts**：维度不匹配日志增强（mismatchCount / 查询维度 / 分片维度 / embeddingModel），并附"建议重建向量记忆"提示
+- **memoryService.ts**：`saveVectorMemoryShards` 旧角色级键清理从 `setItem([])` 改为 `removeItem`（原破坏性写入空数组导致 `loadVectorMemoryShards` 的 `data?.length ?? 0` fallback 永久失效，会话级键失效时无法回退到角色级键）
+- **chat-slice.ts**：`DEFAULT_MEMORY_SETTINGS.vectorTopK` 5 → 15（与 memory.tsx 默认值对齐，原 5 导致召回数量被默认值腰斩）
+- **chat-slice.ts**：记忆召回完成日志增加最高分 / 阈值 / 命中数诊断
+
+> 相似度阈值设置验证：链路完整无丢失，`memoryService.ts:662-665` `item.score >= threshold` 确实生效。用户反馈的"无召回"根因为维度不匹配 + 错误静默 + 默认 topK 过小，非阈值问题。
+
+### ⚡ 严格逐字流式输出根因修复（双路径）
+
+> 双路径"模拟流式"破坏分支根因修复。
+> - **Android**：fetch 在 WebView 上可能被 patch / 受 CORS / 网关缓冲影响，响应 content-type 非 `text/event-stream` 时走"模拟流式"路径——先 `await response.text()` 读完整体，再每行 `nextFrame()` 模拟逐字。
+> - **浏览器**：fetch 路径同样保留"模拟流式"破坏分支，当 API 返回非 SSE 时降级为一次性读取再模拟逐字。
+>
+> 违反"模型出一个字就出一个字，非模拟请求，严格逐字（1字=1次更新）"硬性要求。
+
+- **apiClient.ts**：`sendStreamRequest` Android 原生平台强制走 `sendStreamRequestViaXHR`（XHR onprogress 由网络层 chunked 透传触发，真正的原生流式）
+- **apiClient.ts**：`sendStreamRequestViaFetch` 移除"模拟流式"破坏分支（`await response.text()` + 分帧 `nextFrame`），强制使用 `response.body.getReader()` 逐块读取；API 不支持流式（response.body 为 null）时抛错让用户感知，不再静默降级到模拟流式
+- 双路径均为真流式，无模拟成分，与用户硬性要求"严格逐字（1字=1次更新）"完全对齐
+
+### 🎨 思考卡片去 Markdown 渲染
+
+> 用户 4.1 明确要求。思考链是模型内部推理，无 Markdown 富文本需求；Markdown 渲染引入 Streamdown 词级动画延迟，与严格逐字流式冲突。
+
+- **luzzy-thinking-timeline.tsx**：思考节点 `<Markdown>` 替换为纯文本 `<div className="whitespace-pre-wrap break-words">`；正文气泡与工具调用卡片保留 Markdown 渲染不受影响
+
+### 📦 工程变更
+
+- Android `versionCode` 55→56，`versionName` 0.8.12→0.8.13
+- 前端版本号同步 v0.8.12→v0.8.13（`package.json` / `about.tsx`）
+- README.md 版本徽章同步更新至 v0.8.13
+- logger.ts 启动日志升级到 v0.8.13 协议描述（Agentic: 2 轮思考 + 1 轮主动工具调用强制）
+
 ## v0.8.12
 
 ### 🎬 严格逐字流式输出真根因修复

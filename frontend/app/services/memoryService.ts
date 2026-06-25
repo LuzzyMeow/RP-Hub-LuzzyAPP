@@ -36,7 +36,7 @@ import {
   normalizeApiProviderUrl,
 } from "~/services/providerService";
 import { extractApiErrorMessage } from "~/services/apiClient";
-import { getItem, setItem } from "~/services/storage";
+import { getItem, setItem, removeItem } from "~/services/storage";
 
 // ============================================================================
 // 常量
@@ -640,10 +640,16 @@ export const searchVectorMemoryWithScore = async (
   const queryVector = await getEmbedding(query, settings, apiSettings, providers, providerKeys);
 
   // 维度不匹配检测（用户切换嵌入模型会导致旧分片维度与新查询维度不一致）
+  // v0.8.13: 诊断增强——记录 mismatchCount / 查询维度 / 分片维度 / embeddingModel
+  // 用于排查"切换嵌入模型后旧分片维度不一致导致召回全部失效"问题
+  // 【严禁简化此日志——是用户排查"为什么没召回"的关键诊断信息】
   if (shards.length > 0 && queryVector.length !== shards[0].embedding.length) {
+    const mismatchCount = shards.filter(
+      (s) => s.embedding.length !== queryVector.length,
+    ).length;
     logger.warn(
       "memory",
-      `searchVectorMemoryWithScore 维度不匹配: 查询向量长度=${queryVector.length} 分片向量长度=${shards[0].embedding.length}（可能是切换了嵌入模型，建议重建向量记忆）`,
+      `searchVectorMemoryWithScore 维度不匹配: 查询维度=${queryVector.length} 分片维度=${shards[0].embedding.length} 不匹配分片数=${mismatchCount}/${shards.length} embeddingModel=${settings.embeddingModel}（建议重建向量记忆：记忆页 → 重建向量记忆）`,
     );
   }
 
@@ -746,6 +752,11 @@ export const saveVectorMemoryShards = async (
   // v0.6.2-fix: 保存到会话级键后，清理可能存在的旧角色级键孤儿数据
   // （旧版保存时 currentSessionId 可能为 null，分片存到了角色级键；
   //  现在保存到会话级键后，旧角色级键的数据已成为孤儿，应清理）
+  // v0.8.13: 旧版用 setItem("memory", characterLevelKey, []) 破坏性写入空数组，
+  // 导致 loadVectorMemoryShards 的 fallback `data?.length ?? 0` 永久失效
+  // （空数组 length=0 仍触发 ?? 0，使得会话级键失效时无法回退到角色级键）
+  // 改为 removeItem 真正删除键，让后续 getItem 返回 undefined，fallback 正常工作
+  // 【严禁改回 setItem([]) —— 会破坏 loadVectorMemoryShards 的回退逻辑】
   if (sessionId) {
     const characterLevelKey = `${VECTOR_MEMORY_STORAGE_KEY_PREFIX}${characterUuid}`;
     const oldData = await getItem<VectorMemoryShard[]>("memory", characterLevelKey);
@@ -754,7 +765,7 @@ export const saveVectorMemoryShards = async (
         "memory",
         `saveVectorMemoryShards: 清理旧角色级键孤儿数据 key=${characterLevelKey} 旧分片数=${oldData.length}`,
       );
-      await setItem("memory", characterLevelKey, []);
+      await removeItem("memory", characterLevelKey);
     }
   }
 };

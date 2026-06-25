@@ -156,7 +156,9 @@ const DEFAULT_MEMORY_SETTINGS: MemorySettings = {
   embeddingApiProviderId: "",
   maxMemories: 100,
   recallDepth: 10,
-  vectorTopK: 5,
+  // v0.8.13: 与 memory.tsx 默认值 15 对齐（原 5 导致召回数量被默认值腰斩）
+  // 【严禁改回 5 —— 会与记忆页设置不一致，导致用户即使调高 topK 也被默认值覆盖】
+  vectorTopK: 15,
   similarityThreshold: 0.7,
   compressionEnabled: false,
   compressionKeepRecent: 10,
@@ -1050,9 +1052,13 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
               get().apiProviderKeys,
             );
             const recallResults = scoredResults.slice(0, recallTopK);
+            // v0.8.13: 增加最高分 / 阈值 / 命中数诊断，便于排查"为什么没召回"
+            // 【严禁简化此日志——是用户排查召回失败的关键诊断信息】
+            const maxScore =
+              recallResults.length > 0 ? recallResults[0].score : -1;
             logger.info(
               "memory",
-              `记忆召回完成: 找到 ${recallResults.length} 条（topK=${recallTopK}）`,
+              `记忆召回完成: 找到 ${recallResults.length} 条（topK=${recallTopK} 阈值=${memorySettings.similarityThreshold ?? "未设置"} 最高分=${maxScore.toFixed(3)} 分片总数=${vectorMemoryShards.length}）`,
             );
 
             // v0.4.1-fix: 标记 tool_call 完成,添加 tool_result 步骤
@@ -1126,11 +1132,16 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
               agentSteps: [...(existingMsg?.agentSteps ?? []), recallCallStep, recallResultStep],
             });
           } catch (e) {
+            // v0.8.13: 记忆召回预执行失败时必须 toast 通知用户 + logger.error 记录详情
+            // 严禁仅 console.warn 静默吞错——用户无法察觉召回失败，会反馈"记忆召回一直无结果"
+            // 【严禁移除 toast.error / logger.error —— 会重新回到静默吞错状态】
+            const errorMsg = e instanceof Error ? e.message : String(e);
+            logger.error("memory", `记忆召回预执行失败: ${errorMsg} | stack=${e instanceof Error ? e.stack ?? "(无 stack)" : "(非 Error 对象)"}`);
+            toast.error(`记忆召回失败：${errorMsg}`);
             console.warn("[ChatSlice] memory-recall 预执行失败:", e);
             // v0.4.1-fix: 记录错误步骤
             recallCallStep.status = "error";
             recallCallStep.endedAt = Date.now();
-            const errorMsg = e instanceof Error ? e.message : String(e);
             const errorStep: AgentStep = {
               id: uuidv4(),
               type: "tool_call",
@@ -1921,14 +1932,17 @@ export const createChatSlice: StateCreator<AppStoreState, [], [], ChatSlice> = (
           currentAssistantId = continuationMessage.id;
 
           const newContextMessages = get().messages.filter((m) => m.id !== continuationMessage.id);
-          // v0.8.1: 续写请求注入 tools（skipToolsInjection=false），支持模型继续调用工具
-          // forceToolCall=false → tool_choice: 'auto'，模型可选择继续调用或输出正文
+          // v0.8.13: 第 1 轮续写强制 tool_choice: 'required'，确保至少 2 轮思考 + 1 轮主动工具调用
+          // 第 2 轮及以后用 'auto'，让模型决定是否输出正文
+          // 注意：此改动与 KV 缓存保护不冲突——续写以追加方式扩展消息，历史前缀保持稳定
+          // 禁止改为 stepCount < 1（会退化回单轮，agentic 强化失效）
+          const forceTool = stepCount < 2; // stepCount=1 时为第 1 轮续写，强制 required
           const { toolCalls: nextToolCalls } = await callApiWithRetry(
             continuationMessage.id,
             newContextMessages,
             {
               skipToolsInjection: false, // 关键修复: 续写仍注入 tools
-              forceToolCall: false, // 续写用 auto，模型可选择继续调用或输出正文
+              forceToolCall: forceTool, // v0.8.13: 第 1 轮 required，第 2 轮起 auto
             },
           );
 

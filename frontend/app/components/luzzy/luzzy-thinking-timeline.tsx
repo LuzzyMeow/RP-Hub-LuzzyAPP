@@ -649,11 +649,17 @@ function ThinkingNode({
               className="mt-2 max-h-[280px] overflow-y-auto overscroll-contain rounded-md border border-border/40 bg-muted/30 p-2.5 text-xs text-muted-foreground"
             >
               {step.content ? (
-                /* v0.8.12: 移除 directRender={isRunning}，启用 Streamdown 词级 fadeIn 动画，实现思考节点严格逐字流式 */
-                <Markdown
-                  content={step.content}
-                  isAnimating={isRunning}
-                />
+                // v0.8.13: 思考卡片内部去掉 Markdown 渲染，改为纯文本 div
+                // 原因：用户 4.1 明确要求；思考链是模型内部推理，无 Markdown 富文本需求
+                // Markdown 渲染会引入 Streamdown 词级动画延迟，与"严格逐字（1字=1次更新）"冲突
+                // whitespace-pre-wrap 保留换行（参考 narrator-message 同类纯文本模式）
+                // break-words 防止长文本溢出
+                // 【严禁改回 Markdown 渲染——会破坏严格逐字流式硬性要求】
+                // 注：仅思考卡片去 Markdown，正文气泡（luzzy-chat-message.tsx）与
+                // 工具调用卡片（本文件 922/935/948/976/989/1002 行）保留 Markdown 渲染
+                <div className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                  {step.content}
+                </div>
               ) : (
                 <span className="opacity-60">等待内容...</span>
               )}
